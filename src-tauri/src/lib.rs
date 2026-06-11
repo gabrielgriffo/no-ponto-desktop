@@ -12,18 +12,12 @@ mod app_info;
 mod pontomais;
 mod settings;
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_autostart::Builder::new()
-                .args(["--minimized", "--silent"])
+                .args(["--min"])
                 .app_name("NoPonto")
                 .build()
         )
@@ -65,9 +59,9 @@ pub fn run() {
             // Restaura a última posição
             window.restore_state(StateFlags::POSITION).ok();
 
-            // Verifica se foi iniciado com argumento --minimized (autostart)
+            // Verifica se foi iniciado com argumento --min (autostart)
             let args: Vec<String> = std::env::args().collect();
-            let is_minimized_start = args.contains(&"--minimized".to_string());
+            let is_minimized_start = args.contains(&"--min".to_string());
 
             // Se não foi iniciado minimizado, mostra a janela normalmente
             if !is_minimized_start {
@@ -141,7 +135,6 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            greet,
             settings::save_settings,
             settings::load_settings,
             app_info::get_app_info,

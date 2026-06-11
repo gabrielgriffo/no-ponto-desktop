@@ -77,7 +77,7 @@
       [disabled]="!isPontomaisLoggedIn"
       tooltipPosition="bottom"
       [tooltipDelay]="500"
-      [appTooltip]="isPontomaisLoggedIn ? '' : 'Nenhuma integração configurada'">
+      [appTooltip]="isPontomaisLoggedIn ? 'Importar horários da integração' : 'Configure uma integração de ponto para importar horários'">
         Importar
         <span *ngIf="!isImporting" class="icon-download"></span>
         <span *ngIf="isImporting" class="spinner"></span>
@@ -151,7 +151,7 @@
             <span
               *ngIf="hasLunchHourAdded"
               class="help-icon"
-              appTooltip="Foi adicionada 1 hora de almoço ao cálculo"
+              appTooltip="O cálculo foi ajustado para incluir 1 hora de intervalo intrajornada"
               tooltipPosition="top">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="7" cy="7" r="6.5" fill="currentColor" stroke-width="1"/>
