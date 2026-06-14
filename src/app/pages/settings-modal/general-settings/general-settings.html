@@ -10,10 +10,10 @@
     </div>
   </div>
 
-  <!-- Importação Automática -->
+  <!-- Sincronização Automática -->
   <div class="setting-item">
     <div class="setting-header">
-      <span class="setting-label">Importação Automática</span>
+      <span class="setting-label">Sincronização Automática</span>
       <app-toggle-switch
         [checked]="settings.autoImportEnabled"
         (checkedChange)="settings.autoImportEnabled = $event; onToggleChange()"
@@ -24,7 +24,7 @@
   <!-- Intervalo -->
   <div class="setting-item" *ngIf="settings.autoImportEnabled">
     <div class="setting-content">
-      <label class="input-label">Intervalo</label>
+      <label class="input-label">Intervalo da Sincronização Automática</label>
       <app-custom-select
         [options]="intervalOptions"
         [(value)]="settings.autoImportInterval"

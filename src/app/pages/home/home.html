@@ -77,7 +77,7 @@
       [disabled]="!isPontomaisLoggedIn"
       tooltipPosition="bottom"
       [tooltipDelay]="500"
-      [appTooltip]="isPontomaisLoggedIn ? 'Importar horários da integração' : 'Configure uma integração de ponto para importar horários'">
+      [appTooltip]="isPontomaisLoggedIn ? 'Importar horários da integração' : 'Conecte-se a uma integração de ponto para importar horários'">
         Importar
         <span *ngIf="!isImporting" class="icon-download"></span>
         <span *ngIf="isImporting" class="spinner"></span>
@@ -167,16 +167,16 @@
     <!-- Estado vazio (quando não está monitorando) -->
     <div class="metrics-empty-state" *ngIf="!isMonitoring">
       <div class="empty-state-content">
-        <p class="empty-state-text">Insira os horários e <span class="highlight-green">inicie o monitoramento</span> para visualizar suas métricas.</p>
+        <p class="empty-state-text">Insira seus horários e <span class="highlight-green">inicie o monitoramento</span> para visualizar suas métricas</p>
       </div>
     </div>
   </div>
 
   <!-- Rodapé com status do sistema -->
   <section class="status-footer">
-    <!-- Status: Importação Automática -->
+    <!-- Status: Sincronização Automática -->
     <div class="status-item"
-         appTooltip="Sincronização automática com PontoMais a cada 10 minutos"
+         appTooltip="Sincronização automática de horários a cada 10 minutos"
          tooltipPosition="top">
       <span class="status-value success">10m</span>
     </div>
@@ -194,7 +194,7 @@
     </div>
     <!-- Status: Conexão com PontoMais -->
     <div class="status-item"
-         appTooltip="Status da conexão com o PontoMais"
+         appTooltip="Status da conexão com a integração de ponto"
          tooltipPosition="top">
       <span class="status-value success">Ok</span>
     </div>

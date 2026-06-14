@@ -20,11 +20,17 @@ export class IntegrationSettingsComponent {
   @Output() saveCredentials = new EventEmitter<void>();
   @Output() logout = new EventEmitter<void>();
 
+  showPassword: boolean = false;
+
   onSaveCredentials(): void {
     this.saveCredentials.emit();
   }
 
   onLogout(): void {
     this.logout.emit();
+  }
+
+  togglePasswordVisibility(): void {
+    this.showPassword = !this.showPassword;
   }
 }

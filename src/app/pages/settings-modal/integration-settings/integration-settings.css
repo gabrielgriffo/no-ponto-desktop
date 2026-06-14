@@ -70,6 +70,55 @@
   opacity: 0.7;
 }
 
+/* Esconde o ícone de olho nativo do navegador */
+.text-input[type="password"]::-ms-reveal,
+.text-input[type="password"]::-ms-clear {
+  display: none !important;
+}
+
+.text-input[type="password"]::-webkit-credentials-auto-fill-button,
+.text-input[type="password"]::-webkit-contacts-auto-fill-button {
+  display: none !important;
+}
+
+/* Wrapper para o input de senha com ícone customizado */
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input {
+  padding-right: 40px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gray-medium);
+  transition: color 0.2s;
+  border-radius: 4px;
+}
+
+.password-toggle-btn:hover {
+  color: var(--text-dark);
+}
+
+.password-toggle-btn:active {
+  color: var(--primary-green);
+}
+
+.password-toggle-btn:disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
 .action-buttons {
   display: flex;
   gap: 10px;
