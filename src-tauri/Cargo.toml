@@ -1,7 +1,7 @@
 [package]
 name = "noponto"
 version = "0.1.0"
-description = "A Tauri App"
+description = "Aplicação desktop de monitoramento de ponto"
 authors = ["Gabriel Griffo"]
 edition = "2021"
 
