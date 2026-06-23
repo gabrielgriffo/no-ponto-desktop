@@ -14,7 +14,7 @@
       <div class="modal-body">
         <!-- Aba 1: Geral -->
         <app-general-settings
-          *ngIf="activeTabIndex === 0"
+          *ngIf="activeTabIndex === 0 && settingsLoaded"
           [settings]="settings"
           [intervalOptions]="intervalOptions"
           (settingsChange)="saveSettings()">

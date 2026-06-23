@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -7,10 +7,16 @@ import { CommonModule } from '@angular/common';
   templateUrl: './toggle-switch.html',
   styleUrl: './toggle-switch.css',
 })
-export class ToggleSwitch {
+export class ToggleSwitch implements AfterViewInit {
   @Input() checked: boolean = false;
   @Input() disabled: boolean = false;
   @Output() checkedChange = new EventEmitter<boolean>();
+
+  isReady = false;
+
+  ngAfterViewInit(): void {
+    setTimeout(() => (this.isReady = true));
+  }
 
   onToggle(): void {
     if (!this.disabled) {

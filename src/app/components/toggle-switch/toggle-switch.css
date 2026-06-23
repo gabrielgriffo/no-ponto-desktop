@@ -35,6 +35,11 @@
   cursor: default;
 }
 
+.toggle-track.no-transition,
+.toggle-thumb.no-transition {
+  transition: none !important;
+}
+
 .toggle-thumb.active {
   transform: translateX(20px);
 }

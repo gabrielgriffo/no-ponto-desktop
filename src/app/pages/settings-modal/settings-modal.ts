@@ -69,6 +69,7 @@ export class SettingsModal implements OnInit, OnChanges {
   };
 
   isLoggingIn = false;
+  settingsLoaded = false;
 
   intervalOptions = [
     { value: 10, label: '10 minutos' },
@@ -91,9 +92,11 @@ export class SettingsModal implements OnInit, OnChanges {
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
     if (changes['isOpen'] && changes['isOpen'].currentValue === true) {
       this.activeTabIndex = 0;
+      this.settingsLoaded = false;
 
       // Carregar settings ao abrir o modal
       await this.loadSettings();
+      this.settingsLoaded = true;
 
       // Remover foco do botão de fechar ao abrir o modal
       setTimeout(() => {
