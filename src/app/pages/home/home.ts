@@ -5,6 +5,7 @@ import { FlipText } from '../../components/flip-text/flip-text';
 import { TooltipDirective } from '../../directives/tooltip.directive';
 import { TimeFormatPipe } from '../../pipes/time-format.pipe';
 import { TimeInputDirective } from '../../directives/time-input.directive';
+import { invoke } from '@tauri-apps/api/core';
 import { TimeCalculationService } from '../../services/time-calculation.service';
 import { WindowService } from '../../services/window.service';
 import { TimeObject } from '../../models/time-object';
@@ -48,6 +49,7 @@ export class Home implements OnInit, OnDestroy {
   private errorTimerSub?: Subscription;
   private windowFocusHandler?: () => void;
   private mouseMoveHandler?: () => void;
+  private sessionRestorePromise?: Promise<void>;
 
   constructor(
     private timeCalc: TimeCalculationService,
@@ -59,25 +61,15 @@ export class Home implements OnInit, OnDestroy {
   ) { }
 
   async ngOnInit() {
-    // Verificar se está logado no PontoMais e restaurar sessão no backend
-    const token = await this.strongholdService.getToken();
-    if (token) {
-      try {
-        // Restaurar sessão no backend Rust
-        await this.pontoMaisService.restoreSession(
-          token.token,
-          token.client_id,
-          token.expiry,
-          token.uid
-        );
-        this.isPontomaisLoggedIn = true;
-      } catch (error) {
-        console.error('Erro ao restaurar sessão:', error);
-        this.isPontomaisLoggedIn = false;
-      }
-    } else {
-      this.isPontomaisLoggedIn = false;
-    }
+    // Habilitar botão rapidamente com o estado salvo em cache (JSON simples, < 50ms)
+    try {
+      const cached = await invoke<{ isPontomaisLoggedIn: boolean }>('load_settings');
+      this.isPontomaisLoggedIn = cached.isPontomaisLoggedIn;
+    } catch {}
+
+    // Restaurar sessão do Stronghold em segundo plano (operação lenta)
+    // onImportClick aguarda essa promise antes de executar
+    this.sessionRestorePromise = this.restoreSessionFromStorage();
 
     // Remover foco quando a janela se tornar visível ou mouse se mover
     const removeFocus = () => {
@@ -108,6 +100,26 @@ export class Home implements OnInit, OnDestroy {
       }
     };
     document.addEventListener('mousemove', this.mouseMoveHandler);
+  }
+
+  private async restoreSessionFromStorage(): Promise<void> {
+    const token = await this.strongholdService.getToken();
+    if (token) {
+      try {
+        await this.pontoMaisService.restoreSession(
+          token.token,
+          token.client_id,
+          token.expiry,
+          token.uid
+        );
+        this.isPontomaisLoggedIn = true;
+      } catch (error) {
+        console.error('Erro ao restaurar sessão:', error);
+        this.isPontomaisLoggedIn = false;
+      }
+    } else {
+      this.isPontomaisLoggedIn = false;
+    }
   }
 
   updateWorkTime(): void {
@@ -332,10 +344,10 @@ export class Home implements OnInit, OnDestroy {
     try {
       this.isImporting = true;
 
-      // 1. Verificar se está logado (verificar token no Stronghold)
-      const hasToken = await this.strongholdService.hasToken();
+      // Aguarda restauração de sessão caso ainda esteja em andamento
+      await this.sessionRestorePromise;
 
-      if (!hasToken) {
+      if (!this.isPontomaisLoggedIn) {
         this.toastService.error('Configure uma integração nas configurações para importar', 3000);
         return;
       }
