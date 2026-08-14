@@ -1,0 +1,267 @@
+name: 'publish'
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest, ubuntu-22.04]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      # ─────────────────────────────────────────────
+      # Checkout
+      # ─────────────────────────────────────────────
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ─────────────────────────────────────────────
+      # Get version from Git tag
+      #
+      # v1.2.3 → 1.2.3
+      # ─────────────────────────────────────────────
+
+      - name: Get version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+          echo "Building version: $VERSION"
+
+      # ─────────────────────────────────────────────
+      # Setup Node
+      # ─────────────────────────────────────────────
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      # ─────────────────────────────────────────────
+      # Setup Rust
+      # ─────────────────────────────────────────────
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # ─────────────────────────────────────────────
+      # Rust cache
+      # ─────────────────────────────────────────────
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      # ─────────────────────────────────────────────
+      # Linux system dependencies
+      #
+      # libwebkit2gtk/libgtk/librsvg: webview do Tauri
+      # libappindicator3: ícone da bandeja (tray)
+      # libssl/pkg-config: TLS do reqwest (native-tls)
+      # patchelf: empacotamento AppImage
+      # ─────────────────────────────────────────────
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            pkg-config \
+            patchelf
+
+      # ─────────────────────────────────────────────
+      # Install frontend dependencies
+      # ─────────────────────────────────────────────
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ─────────────────────────────────────────────
+      # Synchronize version
+      #
+      # Git tag:
+      #   v1.2.3
+      #
+      # Becomes:
+      #   package.json       → 1.2.3
+      #   Cargo.toml         → 1.2.3
+      #   tauri.conf.json    → 1.2.3
+      # ─────────────────────────────────────────────
+
+      - name: Set application version
+        shell: bash
+        run: |
+          node <<'EOF'
+          const fs = require("fs");
+
+          const version = process.env.VERSION;
+
+          if (!version) {
+            throw new Error("VERSION environment variable is missing");
+          }
+
+          console.log(`Setting application version to ${version}`);
+
+          // ────────────────────────────────────────
+          // package.json
+          // ────────────────────────────────────────
+
+          const packagePath = "package.json";
+          const packageJson = JSON.parse(
+            fs.readFileSync(packagePath, "utf8")
+          );
+
+          packageJson.version = version;
+
+          fs.writeFileSync(
+            packagePath,
+            JSON.stringify(packageJson, null, 2) + "\n"
+          );
+
+          // ────────────────────────────────────────
+          // package-lock.json
+          // ────────────────────────────────────────
+
+          if (fs.existsSync("package-lock.json")) {
+            const lockPath = "package-lock.json";
+            const lockJson = JSON.parse(
+              fs.readFileSync(lockPath, "utf8")
+            );
+
+            lockJson.version = version;
+
+            if (lockJson.packages && lockJson.packages[""]) {
+              lockJson.packages[""].version = version;
+            }
+
+            fs.writeFileSync(
+              lockPath,
+              JSON.stringify(lockJson, null, 2) + "\n"
+            );
+          }
+
+          // ────────────────────────────────────────
+          // Cargo.toml
+          // ────────────────────────────────────────
+
+          const cargoPath = "src-tauri/Cargo.toml";
+          let cargoToml = fs.readFileSync(cargoPath, "utf8");
+
+          const packageSection = cargoToml.match(
+            /\[package\]([\s\S]*?)(?=\n\[|$)/
+          );
+
+          if (!packageSection) {
+            throw new Error(
+              "Could not find [package] section in Cargo.toml"
+            );
+          }
+
+          const updatedPackageSection =
+            packageSection[0].replace(
+              /^version\s*=\s*"[^"]+"/m,
+              `version = "${version}"`
+            );
+
+          if (updatedPackageSection === packageSection[0]) {
+            throw new Error(
+              "Could not find version inside [package] in Cargo.toml"
+            );
+          }
+
+          cargoToml = cargoToml.replace(
+            packageSection[0],
+            updatedPackageSection
+          );
+
+          fs.writeFileSync(cargoPath, cargoToml);
+
+          // ────────────────────────────────────────
+          // tauri.conf.json
+          // ────────────────────────────────────────
+
+          const tauriConfigPath = "src-tauri/tauri.conf.json";
+          const tauriConfig = JSON.parse(
+            fs.readFileSync(tauriConfigPath, "utf8")
+          );
+
+          tauriConfig.version = version;
+
+          fs.writeFileSync(
+            tauriConfigPath,
+            JSON.stringify(tauriConfig, null, 2) + "\n"
+          );
+
+          console.log("Version synchronized successfully.");
+          EOF
+
+      # ─────────────────────────────────────────────
+      # Verify versions
+      # ─────────────────────────────────────────────
+
+      - name: Verify versions
+        shell: bash
+        run: |
+          echo "Expected version: $VERSION"
+
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          TAURI_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          CARGO_VERSION=$(grep -A20 '^\[package\]' src-tauri/Cargo.toml | grep '^version' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+
+          echo "package.json:       $PACKAGE_VERSION"
+          echo "Cargo.toml:         $CARGO_VERSION"
+          echo "tauri.conf.json:    $TAURI_VERSION"
+
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "package.json version mismatch!"
+            exit 1
+          fi
+
+          if [ "$CARGO_VERSION" != "$VERSION" ]; then
+            echo "Cargo.toml version mismatch!"
+            exit 1
+          fi
+
+          if [ "$TAURI_VERSION" != "$VERSION" ]; then
+            echo "tauri.conf.json version mismatch!"
+            exit 1
+          fi
+
+          echo "All versions match."
+
+      # ─────────────────────────────────────────────
+      # Build & publish
+      # ─────────────────────────────────────────────
+
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'No Ponto v__VERSION__'
+          releaseBody: 'Veja os assets abaixo para baixar e instalar esta versão.'
+          releaseDraft: true
+          prerelease: false

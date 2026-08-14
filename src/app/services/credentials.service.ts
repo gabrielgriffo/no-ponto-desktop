@@ -13,16 +13,11 @@ export interface StoredToken {
 })
 export class CredentialsService {
   /**
-   * Salva o token de autenticação no keyring nativo do sistema operacional
+   * Salva o token de autenticação no keyring nativo do sistema operacional.
+   * Propaga o erro (em vez de engolir) para o chamador poder mostrar a mensagem real ao usuário.
    */
-  async saveToken(tokenData: StoredToken): Promise<boolean> {
-    try {
-      await invoke('save_pontomais_token', { token: tokenData });
-      return true;
-    } catch (error) {
-      console.error('Erro ao salvar token:', error);
-      return false;
-    }
+  async saveToken(tokenData: StoredToken): Promise<void> {
+    await invoke('save_pontomais_token', { token: tokenData });
   }
 
   /**

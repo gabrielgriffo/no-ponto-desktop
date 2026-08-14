@@ -241,7 +241,8 @@ export class SettingsModal implements OnInit, OnChanges {
       this.toastService.success('Login efetuado com sucesso!');
     } catch (error) {
       console.error('Erro ao fazer login:', error);
-      this.toastService.error('Erro ao fazer login. Verifique suas credenciais.');
+      const message = typeof error === 'string' ? error : 'Erro ao fazer login. Verifique suas credenciais.';
+      this.toastService.error(message);
     } finally {
       this.isLoggingIn = false;
     }

@@ -30,4 +30,33 @@
       <span class="about-value">{{ appInfo.build_type }}</span>
     </div>
   </div>
+
+  <div class="update-section">
+    @if (updateState === 'idle' || updateState === 'checking') {
+      <button class="btn-primary update-button" (click)="onCheckForUpdate()">
+        {{ updateState === 'checking' ? 'Verificando...' : 'Verificar atualizações' }}
+      </button>
+    }
+
+    @if (updateState === 'up-to-date') {
+      <span class="update-status">Você já está na última versão</span>
+    }
+
+    @if (updateState === 'available') {
+      <span class="update-status">Nova versão {{ pendingUpdate?.version }} disponível</span>
+      <button class="btn-primary update-button" (click)="onInstallUpdate()">Baixar e instalar</button>
+    }
+
+    @if (updateState === 'downloading') {
+      <span class="update-status">Baixando... {{ downloadProgress }}%</span>
+      <div class="progress-bar">
+        <div class="progress-bar-fill" [style.width.%]="downloadProgress"></div>
+      </div>
+    }
+
+    @if (updateState === 'ready') {
+      <span class="update-status">Atualização instalada</span>
+      <button class="btn-primary update-button" (click)="onRelaunch()">Reiniciar agora</button>
+    }
+  </div>
 </div>

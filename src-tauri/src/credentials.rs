@@ -13,7 +13,14 @@ pub struct StoredToken {
 }
 
 fn entry() -> Result<Entry, String> {
-    Entry::new(SERVICE, ACCOUNT).map_err(|e| e.to_string())
+    Entry::new(SERVICE, ACCOUNT).map_err(|e| match e {
+        keyring::Error::NoDefaultStore => {
+            "Nenhum gerenciador de chaves do sistema foi encontrado. No Linux, instale e ative um \
+             (ex: 'sudo apt install gnome-keyring' ou 'sudo dnf install gnome-keyring') e tente novamente."
+                .to_string()
+        }
+        other => other.to_string(),
+    })
 }
 
 #[tauri::command]

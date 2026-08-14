@@ -30,6 +30,7 @@
     "active": true,
     "targets": "all",
     "publisher": "Gabriel Griffo",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -41,6 +42,22 @@
       "nsis": {
         "installMode": "perMachine"
       }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["gnome-keyring"]
+      },
+      "rpm": {
+        "depends": ["gnome-keyring"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNEMUMwMUNEM0I2OEEyRjYKUldUMm9tZzd6UUVjUGNsUGdKM0tTMUxDUVlTZi80YnhPdm1tbkF6K0JXYll2cFNPZFYwMFJQbVAK",
+      "endpoints": [
+        "https://github.com/gabrielgriffo/noponto-controle-pontomais/releases/latest/download/latest.json"
+      ]
     }
   }
 }
