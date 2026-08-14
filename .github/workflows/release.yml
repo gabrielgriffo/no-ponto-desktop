@@ -72,8 +72,10 @@ jobs:
       #
       # libwebkit2gtk/libgtk/librsvg: webview do Tauri
       # libappindicator3: ícone da bandeja (tray)
-      # libssl/pkg-config: TLS do reqwest (native-tls)
+      # pkg-config: usado pelos crates *-sys (gtk/glib/webkit) pra localizar as libs acima
       # patchelf: empacotamento AppImage
+      #
+      # reqwest usa rustls (TLS embutido no binário), não precisa de libssl-dev
       # ─────────────────────────────────────────────
 
       - name: Install Linux dependencies
@@ -85,7 +87,6 @@ jobs:
             libgtk-3-dev \
             libappindicator3-dev \
             librsvg2-dev \
-            libssl-dev \
             pkg-config \
             patchelf
 
