@@ -55,6 +55,7 @@ export class Home implements OnInit, OnDestroy {
   private capturedCheckIn: string = '';
   private capturedCheckOut: string = '';
   private capturedCheckIn2: string = '';
+  private capturedCheckOut2: string = '';
   private errorTimerSub?: Subscription;
   private windowFocusHandler?: () => void;
   private mouseMoveHandler?: () => void;
@@ -177,6 +178,7 @@ export class Home implements OnInit, OnDestroy {
       this.checkIn2Input.nativeElement.value = this.timeUtils.formatTimeInput(cards[2].time);
       count++;
     }
+    this.capturedCheckOut2 = cards[3] ? this.timeUtils.formatTimeInput(cards[3].time) : '';
     if (count > 0) {
       this.onStartMonitoringClick();
     }
@@ -187,7 +189,8 @@ export class Home implements OnInit, OnDestroy {
     const result = this.timeCalc.calculateWorkTime(
       this.capturedCheckIn,
       this.capturedCheckOut,
-      this.capturedCheckIn2
+      this.capturedCheckIn2,
+      this.capturedCheckOut2
     );
 
     this.firstPeriodTime = result.firstPeriod;

@@ -70,7 +70,8 @@ export class TimeCalculationService {
   calculateWorkTime(
     checkIn: string,
     checkOut: string,
-    checkIn2: string
+    checkIn2: string,
+    checkOut2: string = ''
   ): {
     firstPeriod: TimeObject;
     secondPeriod: TimeObject;
@@ -82,6 +83,7 @@ export class TimeCalculationService {
     const checkInMinutes = this.timeStringToMinutes(checkIn);
     const checkOutMinutes = this.timeStringToMinutes(checkOut);
     const checkIn2Minutes = this.timeStringToMinutes(checkIn2);
+    const checkOut2Minutes = this.timeStringToMinutes(checkOut2);
     const currentMinutes = this.getCurrentTimeInMinutes();
     const targetJourneyMinutes = 8 * 60; // 8 horas
 
@@ -128,6 +130,24 @@ export class TimeCalculationService {
       } else {
         // Primeiro período terminou, usa hora atual + tempo restante + 1h de almoço
         endTimeMinutes = currentMinutes + remainingMinutes + 60;
+      }
+    }
+    // Cenário D: Ponto de saída final já batido (2º período fechado, não conta mais o "agora")
+    else if (checkInMinutes && checkOutMinutes && checkIn2Minutes && checkOut2Minutes) {
+      lunchHourAdded = true;
+
+      firstPeriod = this.calculateTimeDifference(checkInMinutes, checkOutMinutes);
+      secondPeriod = this.calculateTimeDifference(checkIn2Minutes, checkOut2Minutes);
+      totalWorkedMinutes = firstPeriod + secondPeriod;
+      remainingMinutes = Math.max(0, targetJourneyMinutes - totalWorkedMinutes);
+
+      if (totalWorkedMinutes >= targetJourneyMinutes) {
+        // Completou 8h: horário exato em que atingiu a meta
+        const secondPeriodNeeded = targetJourneyMinutes - firstPeriod;
+        endTimeMinutes = checkIn2Minutes + secondPeriodNeeded;
+      } else {
+        // Saiu sem completar a meta: projeção de quando bateria 8h a partir da saída
+        endTimeMinutes = checkOut2Minutes + remainingMinutes;
       }
     }
     // Cenário C: Todos os 3 horários preenchidos (entrada, saída e retorno)
