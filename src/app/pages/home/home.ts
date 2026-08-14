@@ -35,6 +35,7 @@ export class Home implements OnInit, OnDestroy {
   isImporting = false;
   autoImportEnabled = false;
   autoImportInterval = 10;
+  importOnStartupEnabled = false;
 
   @ViewChild('checkInInput') checkInInput!: ElementRef<HTMLInputElement>;
   @ViewChild('checkOutInput') checkOutInput!: ElementRef<HTMLInputElement>;
@@ -78,10 +79,12 @@ export class Home implements OnInit, OnDestroy {
         isPontomaisLoggedIn: boolean;
         autoImportEnabled: boolean;
         autoImportInterval: number;
+        importOnStartupEnabled: boolean;
       }>('load_settings');
       this.isPontomaisLoggedIn = cached.isPontomaisLoggedIn;
       this.autoImportEnabled = cached.autoImportEnabled;
       this.autoImportInterval = cached.autoImportInterval;
+      this.importOnStartupEnabled = cached.importOnStartupEnabled;
     } catch {}
 
     // Registrar listener ANTES de restaurar sessão para não perder eventos iniciais
@@ -140,6 +143,15 @@ export class Home implements OnInit, OnDestroy {
             enabled: true,
             intervalMins: this.autoImportInterval
           });
+        }
+
+        // Importar horários automaticamente ao iniciar, se habilitado.
+        // Chama onImportClick diretamente para reaproveitar o feedback visual
+        // (spinner/toast) e o guard de isImporting, evitando clique duplicado
+        // enquanto a importação automática está em andamento. Pula a espera pela
+        // sessão pois já estamos dentro dela (evita deadlock com sessionRestorePromise).
+        if (this.importOnStartupEnabled) {
+          await this.onImportClick(true);
         }
       } catch (error) {
         console.error('Erro ao restaurar sessão:', error);
@@ -397,14 +409,21 @@ export class Home implements OnInit, OnDestroy {
     }
   }
 
-  async onImportClick(): Promise<void> {
+  /**
+   * @param skipSessionWait Pula a espera por `sessionRestorePromise`. Usado quando chamado
+   * de dentro de `restoreSessionFromStorage` (importação automática ao iniciar), onde
+   * aguardar essa mesma promise causaria deadlock.
+   */
+  async onImportClick(skipSessionWait = false): Promise<void> {
     if (this.isImporting) return;
 
     try {
       this.isImporting = true;
 
-      // Aguarda restauração de sessão caso ainda esteja em andamento
-      await this.sessionRestorePromise;
+      if (!skipSessionWait) {
+        // Aguarda restauração de sessão caso ainda esteja em andamento
+        await this.sessionRestorePromise;
+      }
 
       if (!this.isPontomaisLoggedIn) {
         this.toastService.error('Configure uma integração nas configurações para importar', 3000);
@@ -440,9 +459,11 @@ export class Home implements OnInit, OnDestroy {
       const settings = await invoke<{
         autoImportEnabled: boolean;
         autoImportInterval: number;
+        importOnStartupEnabled: boolean;
       }>('load_settings');
       this.autoImportEnabled = settings.autoImportEnabled;
       this.autoImportInterval = settings.autoImportInterval;
+      this.importOnStartupEnabled = settings.importOnStartupEnabled;
     } catch {}
   }
 

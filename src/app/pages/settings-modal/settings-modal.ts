@@ -13,6 +13,7 @@ import { AutostartService } from '../../services/autostart.service';
 interface Settings {
   autoImportEnabled: boolean;
   autoImportInterval: number;
+  importOnStartupEnabled: boolean;
   alarmEnabled: boolean;
   notificationEnabled: boolean;
   autostartEnabled: boolean;
@@ -55,6 +56,7 @@ export class SettingsModal implements OnInit, OnChanges {
   settings: Settings = {
     autoImportEnabled: false,
     autoImportInterval: 10,
+    importOnStartupEnabled: false,
     alarmEnabled: false,
     notificationEnabled: false,
     autostartEnabled: false,

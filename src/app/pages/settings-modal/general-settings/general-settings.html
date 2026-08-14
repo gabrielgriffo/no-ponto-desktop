@@ -33,6 +33,17 @@
     </div>
   </div>
 
+  <!-- Importar ao Iniciar -->
+  <div class="setting-item">
+    <div class="setting-header">
+      <span class="setting-label">Importar ao Iniciar</span>
+      <app-toggle-switch
+        [checked]="settings.importOnStartupEnabled"
+        (checkedChange)="settings.importOnStartupEnabled = $event; onToggleChange()"
+      ></app-toggle-switch>
+    </div>
+  </div>
+
   <!-- Alarme -->
   <div class="setting-item">
     <div class="setting-header">

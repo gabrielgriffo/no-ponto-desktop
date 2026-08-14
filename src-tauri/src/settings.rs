@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager};
 pub struct Settings {
     pub auto_import_enabled: bool,
     pub auto_import_interval: u32,
+    pub import_on_startup_enabled: bool,
     pub alarm_enabled: bool,
     pub notification_enabled: bool,
     pub autostart_enabled: bool,
@@ -20,6 +21,7 @@ impl Default for Settings {
         Settings {
             auto_import_enabled: false,
             auto_import_interval: 10,
+            import_on_startup_enabled: false,
             alarm_enabled: false,
             notification_enabled: false,
             autostart_enabled: false,

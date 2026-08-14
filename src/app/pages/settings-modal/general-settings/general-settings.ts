@@ -6,6 +6,7 @@ import { CustomSelect, SelectOption } from '../../../components/custom-select/cu
 export interface GeneralSettings {
   autoImportEnabled: boolean;
   autoImportInterval: number;
+  importOnStartupEnabled: boolean;
   alarmEnabled: boolean;
   notificationEnabled: boolean;
   autostartEnabled: boolean;
