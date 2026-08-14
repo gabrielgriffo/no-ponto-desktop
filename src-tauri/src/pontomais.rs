@@ -137,7 +137,7 @@ pub async fn pontomais_authenticate(
     }
 }
 
-fn build_headers(state: &PontoMaisState) -> header::HeaderMap {
+pub(crate) fn build_headers(state: &PontoMaisState) -> header::HeaderMap {
     let mut headers = header::HeaderMap::new();
 
     headers.insert(
@@ -177,33 +177,35 @@ fn build_headers(state: &PontoMaisState) -> header::HeaderMap {
     headers
 }
 
-#[tauri::command]
-pub async fn pontomais_current_workday(
-    state: tauri::State<'_, PontoMaisStateType>,
-    date: String, // Formato: YYYY-MM-DD
+pub async fn fetch_workday(
+    state: &PontoMaisStateType,
+    date: &str,
 ) -> Result<serde_json::Value, String> {
     let client = Client::new();
-
     let url = format!(
         "{}/api/time_cards/work_days/current?start_date={}&end_date={}&attributes=time_cards",
         BASE_URL, date, date
     );
-
-    // Construir headers em um escopo separado para liberar o mutex antes do await
+    // Mutex liberado antes do .await
     let headers = {
         let pm_state = state.lock().unwrap();
         build_headers(&pm_state)
     };
-
     let response = client
         .get(&url)
         .headers(headers)
         .send()
         .await
         .map_err(|e| e.to_string())?;
+    response.json().await.map_err(|e| e.to_string())
+}
 
-    let result: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
-    Ok(result)
+#[tauri::command]
+pub async fn pontomais_current_workday(
+    state: tauri::State<'_, PontoMaisStateType>,
+    date: String,
+) -> Result<serde_json::Value, String> {
+    fetch_workday(&*state, &date).await
 }
 
 #[tauri::command]

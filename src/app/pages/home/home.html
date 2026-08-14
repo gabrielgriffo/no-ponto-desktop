@@ -167,7 +167,7 @@
     <!-- Estado vazio (quando não está monitorando) -->
     <div class="metrics-empty-state" *ngIf="!isMonitoring">
       <div class="empty-state-content">
-        <p class="empty-state-text">Insira seus horários e <span class="highlight-green">inicie o monitoramento</span> para visualizar suas métricas</p>
+        <p class="empty-state-text"><span class="highlight-green">Inicie o monitoramento</span> <br> para visualizar suas métricas</p>
       </div>
     </div>
   </div>
@@ -176,17 +176,21 @@
   <section class="status-footer">
     <!-- Status: Sincronização Automática -->
     <div class="status-item"
-         appTooltip="Sincronização automática de horários a cada 10 minutos"
+         [appTooltip]="autoSyncTooltip"
          tooltipPosition="top">
-      <span class="status-value success">10m</span>
+      <span class="status-value"
+            [class.success]="autoImportEnabled && isPontomaisLoggedIn"
+            [class.disabled]="!autoImportEnabled || !isPontomaisLoggedIn">
+        {{ autoImportEnabled && isPontomaisLoggedIn ? autoImportInterval + 'm' : 'Desativada' }}
+      </span>
     </div>
-    <!-- Status: Alarme -->
+    <!-- Status: Alarme (não implementado) -->
     <div class="status-item"
          appTooltip="Notificação sonora quando chegar ao fim do expediente"
          tooltipPosition="top">
-      <span class="icon-bell status-value success"></span>
+      <span class="icon-bell status-value disabled"></span>
     </div>
-    <!-- Status: Notificação -->
+    <!-- Status: Notificação (não implementado) -->
     <div class="status-item"
          appTooltip="Notificações do sistema para lembretes de ponto"
          tooltipPosition="top">
@@ -196,7 +200,11 @@
     <div class="status-item"
          appTooltip="Status da conexão com a integração de ponto"
          tooltipPosition="top">
-      <span class="status-value success">Ok</span>
+      <span class="status-value"
+            [class.success]="isPontomaisLoggedIn"
+            [class.disabled]="!isPontomaisLoggedIn">
+        {{ isPontomaisLoggedIn ? 'Ok' : 'Desativada' }}
+      </span>
     </div>
   </section>
 </main>

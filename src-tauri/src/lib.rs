@@ -1,4 +1,3 @@
-use argon2::{hash_raw, Config, Variant, Version};
 use pontomais::PontoMaisState;
 use std::sync::Mutex;
 use tauri::Manager;
@@ -9,6 +8,8 @@ use tauri::{
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 mod app_info;
+mod auto_sync;
+mod credentials;
 mod pontomais;
 mod settings;
 
@@ -22,26 +23,7 @@ pub fn run() {
                 .build()
         )
         .manage(Mutex::new(PontoMaisState::new()))
-        .plugin(
-            tauri_plugin_stronghold::Builder::new(|password| {
-                let config = Config {
-                    lanes: 4,
-                    mem_cost: 10_000,
-                    time_cost: 10,
-                    variant: Variant::Argon2id,
-                    version: Version::Version13,
-                    ..Default::default()
-                };
-
-                // Salt único para a aplicação NoPonto
-                let salt = "noponto-controle-ponto-v1".as_bytes();
-
-                hash_raw(password.as_ref(), salt, &config)
-                    .expect("failed to hash password")
-                    .to_vec()
-            })
-            .build(),
-        )
+        .manage(Mutex::new(auto_sync::AutoSyncState::new()))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // Quando uma segunda instância é detectada, foca a janela existente
             if let Some(window) = app.get_webview_window("main") {
@@ -142,7 +124,11 @@ pub fn run() {
             pontomais::pontomais_restore_session,
             pontomais::pontomais_current_workday,
             pontomais::pontomais_session,
-            pontomais::pontomais_comp_time
+            pontomais::pontomais_comp_time,
+            auto_sync::configure_auto_sync,
+            credentials::save_pontomais_token,
+            credentials::get_pontomais_token,
+            credentials::delete_pontomais_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

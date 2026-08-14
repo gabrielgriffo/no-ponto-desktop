@@ -7,7 +7,7 @@ import { AboutSettingsComponent } from './about-settings/about-settings';
 import { invoke } from '@tauri-apps/api/core';
 import { ToastService } from '../../services/toast.service';
 import { PontoMaisService } from '../../services/pontomais.service';
-import { StrongholdService } from '../../services/stronghold.service';
+import { CredentialsService } from '../../services/credentials.service';
 import { AutostartService } from '../../services/autostart.service';
 
 interface Settings {
@@ -81,7 +81,7 @@ export class SettingsModal implements OnInit, OnChanges {
   constructor(
     private toastService: ToastService,
     private pontoMaisService: PontoMaisService,
-    private strongholdService: StrongholdService,
+    private credentialsService: CredentialsService,
     private autostartService: AutostartService
   ) {}
 
@@ -119,11 +119,11 @@ export class SettingsModal implements OnInit, OnChanges {
         await this.saveSettings();
       }
 
-      // SEMPRE verificar o Stronghold como fonte da verdade
-      const token = await this.strongholdService.getToken();
+      // SEMPRE verificar o keyring do SO como fonte da verdade
+      const token = await this.credentialsService.getToken();
 
       if (token) {
-        // Token existe no Stronghold
+        // Token existe no keyring
         try {
           // Restaurar sessão no backend Rust
           await this.pontoMaisService.restoreSession(
@@ -149,7 +149,7 @@ export class SettingsModal implements OnInit, OnChanges {
           await this.saveSettings();
         }
       } else {
-        // Token não existe no Stronghold
+        // Token não existe no keyring
         this.integrationSettings.isLoggedIn = false;
         this.settings.isPontomaisLoggedIn = false;
 
@@ -191,6 +191,12 @@ export class SettingsModal implements OnInit, OnChanges {
       }
 
       await invoke('save_settings', { settings: this.settings });
+
+      // Reconfigura o timer de sincronização automática conforme as novas configurações
+      await invoke('configure_auto_sync', {
+        enabled: this.settings.autoImportEnabled && this.settings.isPontomaisLoggedIn,
+        intervalMins: this.settings.autoImportInterval
+      });
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
     }
@@ -211,8 +217,8 @@ export class SettingsModal implements OnInit, OnChanges {
         password: this.integrationSettings.pontomaisPassword
       });
 
-      // Salvar token no Stronghold
-      await this.strongholdService.saveToken({
+      // Salvar token no keyring do SO
+      await this.credentialsService.saveToken({
         token: authResponse.token,
         client_id: authResponse.client_id,
         expiry: authResponse.expiry,
@@ -243,8 +249,8 @@ export class SettingsModal implements OnInit, OnChanges {
 
   async onLogout() {
     try {
-      // Remover token do Stronghold
-      await this.strongholdService.deleteToken();
+      // Remover token do keyring do SO
+      await this.credentialsService.deleteToken();
 
       // Atualizar settings
       this.settings.isPontomaisLoggedIn = false;

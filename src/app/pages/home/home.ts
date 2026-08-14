@@ -5,15 +5,22 @@ import { FlipText } from '../../components/flip-text/flip-text';
 import { TooltipDirective } from '../../directives/tooltip.directive';
 import { TimeFormatPipe } from '../../pipes/time-format.pipe';
 import { TimeInputDirective } from '../../directives/time-input.directive';
-import { invoke } from '@tauri-apps/api/core';
 import { TimeCalculationService } from '../../services/time-calculation.service';
 import { WindowService } from '../../services/window.service';
 import { TimeObject } from '../../models/time-object';
 import { TimeUtilsService } from '../../services/time-utils.service';
 import { ToastService } from '../../services/toast.service';
-import { PontoMaisService } from '../../services/pontomais.service';
-import { StrongholdService } from '../../services/stronghold.service';
+import { PontoMaisService, WorkDaysResponse } from '../../services/pontomais.service';
+import { CredentialsService } from '../../services/credentials.service';
 import { Subscription, timer } from 'rxjs';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
+
+interface AutoSyncPayload {
+  status: 'success' | 'error' | 'unauthenticated';
+  data?: WorkDaysResponse;
+  message?: string;
+}
 
 @Component({
   selector: 'app-home',
@@ -26,6 +33,8 @@ export class Home implements OnInit, OnDestroy {
   isMonitoring = false;
   isPontomaisLoggedIn = false;
   isImporting = false;
+  autoImportEnabled = false;
+  autoImportInterval = 10;
 
   @ViewChild('checkInInput') checkInInput!: ElementRef<HTMLInputElement>;
   @ViewChild('checkOutInput') checkOutInput!: ElementRef<HTMLInputElement>;
@@ -50,6 +59,7 @@ export class Home implements OnInit, OnDestroy {
   private windowFocusHandler?: () => void;
   private mouseMoveHandler?: () => void;
   private sessionRestorePromise?: Promise<void>;
+  private autoSyncUnlisten?: UnlistenFn;
 
   constructor(
     private timeCalc: TimeCalculationService,
@@ -57,17 +67,29 @@ export class Home implements OnInit, OnDestroy {
     private windowService: WindowService,
     private toastService: ToastService,
     private pontoMaisService: PontoMaisService,
-    private strongholdService: StrongholdService
+    private credentialsService: CredentialsService
   ) { }
 
   async ngOnInit() {
     // Habilitar botão rapidamente com o estado salvo em cache (JSON simples, < 50ms)
     try {
-      const cached = await invoke<{ isPontomaisLoggedIn: boolean }>('load_settings');
+      const cached = await invoke<{
+        isPontomaisLoggedIn: boolean;
+        autoImportEnabled: boolean;
+        autoImportInterval: number;
+      }>('load_settings');
       this.isPontomaisLoggedIn = cached.isPontomaisLoggedIn;
+      this.autoImportEnabled = cached.autoImportEnabled;
+      this.autoImportInterval = cached.autoImportInterval;
     } catch {}
 
-    // Restaurar sessão do Stronghold em segundo plano (operação lenta)
+    // Registrar listener ANTES de restaurar sessão para não perder eventos iniciais
+    this.autoSyncUnlisten = await listen<AutoSyncPayload>(
+      'auto-sync-result',
+      (event) => this.onAutoSyncResult(event.payload)
+    );
+
+    // Restaurar sessão a partir do keyring do SO em segundo plano
     // onImportClick aguarda essa promise antes de executar
     this.sessionRestorePromise = this.restoreSessionFromStorage();
 
@@ -79,7 +101,6 @@ export class Home implements OnInit, OnDestroy {
       }
     };
 
-    // Evento de visibilidade da página
     this.windowFocusHandler = () => {
       if (!document.hidden) {
         setTimeout(removeFocus, 100);
@@ -87,13 +108,11 @@ export class Home implements OnInit, OnDestroy {
     };
     document.addEventListener('visibilitychange', this.windowFocusHandler);
 
-    // Remove foco quando mouse se move
     let canRemoveFocus = true;
     this.mouseMoveHandler = () => {
       if (canRemoveFocus) {
         removeFocus();
         canRemoveFocus = false;
-        // Permite remover foco novamente após 500ms
         setTimeout(() => {
           canRemoveFocus = true;
         }, 500);
@@ -103,7 +122,7 @@ export class Home implements OnInit, OnDestroy {
   }
 
   private async restoreSessionFromStorage(): Promise<void> {
-    const token = await this.strongholdService.getToken();
+    const token = await this.credentialsService.getToken();
     if (token) {
       try {
         await this.pontoMaisService.restoreSession(
@@ -113,13 +132,55 @@ export class Home implements OnInit, OnDestroy {
           token.uid
         );
         this.isPontomaisLoggedIn = true;
+
+        // Iniciar sincronização automática agora que a sessão está no estado Rust
+        if (this.autoImportEnabled) {
+          await invoke('configure_auto_sync', {
+            enabled: true,
+            intervalMins: this.autoImportInterval
+          });
+        }
       } catch (error) {
         console.error('Erro ao restaurar sessão:', error);
-        this.isPontomaisLoggedIn = false;
+        // Token existe no keyring mas a restauração falhou (sessão expirada, erro de rede).
+        // Manter isPontomaisLoggedIn como estava no cache — o usuário ainda está "logado",
+        // mas a sessão ativa pode estar inválida. Evita divergência com as configurações.
       }
     } else {
       this.isPontomaisLoggedIn = false;
     }
+  }
+
+  private onAutoSyncResult(payload: AutoSyncPayload): void {
+    if (payload.status === 'success' && payload.data) {
+      this.applyImportedCards(payload.data);
+    } else if (payload.status === 'error') {
+      console.warn('[auto-sync] Erro:', payload.message);
+    }
+    // 'unauthenticated': sessão ainda não restaurada, ignorar silenciosamente
+  }
+
+  private applyImportedCards(workDay: WorkDaysResponse): number {
+    const cards = workDay?.work_days?.[0]?.time_cards;
+    if (!cards?.length) return 0;
+
+    let count = 0;
+    if (cards[0]) {
+      this.checkInInput.nativeElement.value = this.timeUtils.formatTimeInput(cards[0].time);
+      count++;
+    }
+    if (cards[1]) {
+      this.checkOutInput.nativeElement.value = this.timeUtils.formatTimeInput(cards[1].time);
+      count++;
+    }
+    if (cards[2]) {
+      this.checkIn2Input.nativeElement.value = this.timeUtils.formatTimeInput(cards[2].time);
+      count++;
+    }
+    if (count > 0) {
+      this.onStartMonitoringClick();
+    }
+    return count;
   }
 
   updateWorkTime(): void {
@@ -166,9 +227,16 @@ export class Home implements OnInit, OnDestroy {
     return this.capturedCheckIn2.length > 0;
   }
 
-  /**
-   * Converte um horário no formato HH:MM para minutos totais
-   */
+  get autoSyncTooltip(): string {
+    if (!this.isPontomaisLoggedIn) {
+      return 'Nenhuma integração conectada.';
+    }
+    if (!this.autoImportEnabled) {
+      return 'Sincronização automática desativada. Ative nas configurações.';
+    }
+    return `Sincronização automática a cada ${this.autoImportInterval} minutos`;
+  }
+
   private timeToMinutes(time: string): number {
     if (!time || time.length !== 5) return -1;
     const [hours, minutes] = time.split(':').map(Number);
@@ -179,7 +247,6 @@ export class Home implements OnInit, OnDestroy {
   showError() {
     this.checkInError = true;
 
-    // Cancela timer anterior
     this.errorTimerSub?.unsubscribe();
 
     this.errorTimerSub = timer(3000).subscribe(() => {
@@ -202,9 +269,6 @@ export class Home implements OnInit, OnDestroy {
     this.clearTimeErrors();
   }
 
-  /**
-   * Valida os horários verificando seguindo regras específicas
-   */
   validateTimeInputs(): void {
     const checkIn = this.checkInInput?.nativeElement.value || '';
     const checkOut = this.checkOutInput?.nativeElement.value || '';
@@ -218,7 +282,6 @@ export class Home implements OnInit, OnDestroy {
 
     const errors: Array<{ field: 'checkIn' | 'checkOut' | 'checkIn2'; message: string }> = [];
 
-    // FASE 1: Validar formato dos campos preenchidos
     if (checkIn.length > 0 && checkInMinutes === -1) {
       errors.push({ field: 'checkIn', message: 'Formato de horário de entrada inválido' });
     }
@@ -231,7 +294,6 @@ export class Home implements OnInit, OnDestroy {
       errors.push({ field: 'checkIn2', message: 'Formato de horário de retorno inválido' });
     }
 
-    // Se houver erros de formato, para aqui e não valida regras de negócio
     if (errors.length > 0) {
       errors.forEach(error => {
         if (error.field === 'checkIn') this.checkInError = true;
@@ -252,9 +314,6 @@ export class Home implements OnInit, OnDestroy {
       return;
     }
 
-    // FASE 2: Validar regras de negócio (só executa se todos os campos preenchidos são válidos)
-
-    // Validações de dependência (quando campos posteriores estão preenchidos)
     if (checkOutMinutes !== -1 && checkInMinutes === -1) {
       errors.push({ field: 'checkIn', message: 'Horário de entrada não informado' });
     }
@@ -268,7 +327,6 @@ export class Home implements OnInit, OnDestroy {
       errors.push({ field: 'checkOut', message: 'Horário de saída não informado' });
     }
 
-    // Validação de campo obrigatório (só verifica se nenhum campo posterior está preenchido)
     if (checkIn.length === 0 && checkOut.length === 0 && checkIn2.length === 0) {
       errors.push({ field: 'checkIn', message: 'Horário de entrada não informado' });
     }
@@ -292,7 +350,6 @@ export class Home implements OnInit, OnDestroy {
     } else if (errors.length > 1) {
       const uniqueMessages = new Set(errors.map(e => e.message));
       if (uniqueMessages.size === 1) {
-        // Todos os erros têm a mesma mensagem, mostra ela
         this.toastService.error(errors[0].message, 3000);
       } else {
         this.toastService.error('Horários informados com erro', 3000);
@@ -315,7 +372,6 @@ export class Home implements OnInit, OnDestroy {
   }
 
   onStartMonitoringClick(): void {
-
     this.validateTimeInputs();
 
     if (!this.checkInError && !this.checkOutError && !this.checkIn2Error) {
@@ -352,45 +408,15 @@ export class Home implements OnInit, OnDestroy {
         return;
       }
 
-      // 2. Buscar horários do dia atual
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const today = new Date().toISOString().split('T')[0];
       const workDay = await this.pontoMaisService.getCurrentWorkDay(today);
+      const imported = this.applyImportedCards(workDay);
 
-      // 3. Se não há registros
-      if (!workDay?.work_days?.[0]?.time_cards?.length) {
+      if (imported === 0) {
         this.toastService.error('Nenhum registro encontrado para hoje', 3000);
-        return;
+      } else {
+        this.toastService.success('Horários importados com sucesso!');
       }
-
-      // 4. Extrair horários e formatar usando timeUtils.formatTimeInput()
-      const cards = workDay.work_days[0].time_cards;
-      let importedCount = 0;
-
-      if (cards[0]) {
-        this.checkInInput.nativeElement.value =
-          this.timeUtils.formatTimeInput(cards[0].time);
-        importedCount++;
-      }
-
-      if (cards[1]) {
-        this.checkOutInput.nativeElement.value =
-          this.timeUtils.formatTimeInput(cards[1].time);
-        importedCount++;
-      }
-
-      if (cards[2]) {
-        this.checkIn2Input.nativeElement.value =
-          this.timeUtils.formatTimeInput(cards[2].time);
-        importedCount++;
-      }
-
-      this.toastService.success('Horários importados com sucesso!');
-
-      // 5. Se importou pelo menos 1 horário, iniciar monitoramento automaticamente
-      if (importedCount > 0) {
-        this.onStartMonitoringClick();
-      }
-
     } catch (error) {
       console.error('Erro ao importar:', error);
       this.toastService.error('Erro ao importar horários', 3000);
@@ -405,8 +431,16 @@ export class Home implements OnInit, OnDestroy {
 
   async onCloseSettingsModal(): Promise<void> {
     this.showSettingsModal = false;
-    // Recarregar status de login ao fechar o modal
-    this.isPontomaisLoggedIn = await this.strongholdService.hasToken();
+    // Recarregar estado após fechar configurações (usuário pode ter alterado auto-sync ou feito logout)
+    this.isPontomaisLoggedIn = await this.credentialsService.hasToken();
+    try {
+      const settings = await invoke<{
+        autoImportEnabled: boolean;
+        autoImportInterval: number;
+      }>('load_settings');
+      this.autoImportEnabled = settings.autoImportEnabled;
+      this.autoImportInterval = settings.autoImportInterval;
+    } catch {}
   }
 
   ngOnDestroy(): void {
@@ -420,6 +454,10 @@ export class Home implements OnInit, OnDestroy {
 
     if (this.mouseMoveHandler) {
       document.removeEventListener('mousemove', this.mouseMoveHandler);
+    }
+
+    if (this.autoSyncUnlisten) {
+      this.autoSyncUnlisten();
     }
   }
 }
