@@ -18,10 +18,8 @@ export class ToggleSwitch implements AfterViewInit {
     setTimeout(() => (this.isReady = true));
   }
 
-  onToggle(): void {
-    if (!this.disabled) {
-      this.checked = !this.checked;
-      this.checkedChange.emit(this.checked);
-    }
+  onToggle(event: Event): void {
+    this.checked = (event.target as HTMLInputElement).checked;
+    this.checkedChange.emit(this.checked);
   }
 }

@@ -20,7 +20,6 @@
         autocorrect="off"
         autocapitalize="off"
         autocomplete="off"
-        placeholder="seu.email@exemplo.com"
         [(ngModel)]="settings.pontomaisLogin"
         [readonly]="settings.isLoggedIn"
       />
@@ -34,7 +33,6 @@
           [type]="showPassword ? 'text' : 'password'"
           class="text-input password-input"
           autocomplete="new-password"
-          placeholder="••••••••"
           [(ngModel)]="settings.pontomaisPassword"
           [readonly]="settings.isLoggedIn"
         />
@@ -45,11 +43,11 @@
           [disabled]="settings.isLoggedIn"
           tabindex="-1"
         >
-        <svg *ngIf="!showPassword" width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5">
+        <svg *ngIf="showPassword" width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M21.544 11.045C21.848 11.4713 22 11.6845 22 12C22 12.3155 21.848 12.5287 21.544 12.955C20.1779 14.8706 16.6892 19 12 19C7.31078 19 3.8221 14.8706 2.45604 12.955C2.15201 12.5287 2 12.3155 2 12C2 11.6845 2.15201 11.4713 2.45604 11.045C3.8221 9.12944 7.31078 5 12 5C16.6892 5 20.1779 9.12944 21.544 11.045Z"></path>
           <path d="M15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12Z"></path>
         </svg> 
-        <svg  *ngIf="showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="currentColor" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <svg  *ngIf="!showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="currentColor" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <path d="M6.43385 6.51953C4.22009 7.89049 2.93281 9.86457 2.31858 11.0339C2.10621 11.4382 2.00003 11.6403 2 12.0082C1.99997 12.3761 2.10584 12.5777 2.3176 12.981C3.32862 14.9066 6.16702 19.0195 11.9669 19.0195C14.2454 19.0195 16.0669 18.3848 17.5 17.4972" stroke-linejoin="round"></path>
           <path d="M9.87868 9.87868C9.33579 10.4216 9 11.1716 9 12C9 13.6569 10.3431 15 12 15C12.8284 15 13.5784 14.6642 14.1213 14.1213"></path>
           <path d="M2 2L22 22" stroke-linejoin="round"></path>

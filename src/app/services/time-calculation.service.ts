@@ -134,8 +134,6 @@ export class TimeCalculationService {
     }
     // Cenário D: Ponto de saída final já batido (2º período fechado, não conta mais o "agora")
     else if (checkInMinutes && checkOutMinutes && checkIn2Minutes && checkOut2Minutes) {
-      lunchHourAdded = true;
-
       firstPeriod = this.calculateTimeDifference(checkInMinutes, checkOutMinutes);
       secondPeriod = this.calculateTimeDifference(checkIn2Minutes, checkOut2Minutes);
       totalWorkedMinutes = firstPeriod + secondPeriod;

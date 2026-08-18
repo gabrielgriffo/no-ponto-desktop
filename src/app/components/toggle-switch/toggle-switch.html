@@ -1,5 +1,9 @@
-<div class="toggle-container" (click)="onToggle()" [class.disabled]="disabled">
-  <div class="toggle-track" [class.active]="checked" [class.no-transition]="!isReady">
-    <div class="toggle-thumb" [class.active]="checked" [class.no-transition]="!isReady"></div>
-  </div>
-</div>
+<label class="toggle-switch" [class.disabled]="disabled">
+  <input
+    type="checkbox"
+    [checked]="checked"
+    [disabled]="disabled"
+    (change)="onToggle($event)"
+  />
+  <span class="toggle-slider" [class.no-transition]="!isReady"></span>
+</label>

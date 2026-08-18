@@ -197,7 +197,19 @@ pub async fn fetch_workday(
         .send()
         .await
         .map_err(|e| e.to_string())?;
-    response.json().await.map_err(|e| e.to_string())
+
+    let body: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+
+    let session_expired = body
+        .get("redirect_to_login")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if session_expired {
+        return Err("SESSION_EXPIRED".to_string());
+    }
+
+    Ok(body)
 }
 
 #[tauri::command]

@@ -320,6 +320,7 @@ input:focus {
 }
 
 .help-icon {
+  padding-top: 1px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -476,6 +477,11 @@ input:focus {
     var(--primary-green-light)
   );
   background-size: 15px 15px;
+}
+
+.period-bar.period-solid-green,
+.progress-fill.progress-solid-green {
+  background: var(--primary-green);
 }
 
 .period-label {

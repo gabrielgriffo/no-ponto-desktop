@@ -42,7 +42,7 @@ export class SettingsModal implements OnInit, OnChanges {
   @ViewChild('modalContainer') modalContainer?: ElementRef<HTMLDivElement>;
 
   activeTabIndex: number = 0;
-  tabLabels: string[] = ['Geral', 'Integração', 'Sobre'];
+  tabLabels: string[] = ['Geral', 'Conta', 'Sobre'];
 
   appInfo: AppInfo = {
     version: '',

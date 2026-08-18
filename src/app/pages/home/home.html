@@ -77,7 +77,7 @@
       [disabled]="!isPontomaisLoggedIn"
       tooltipPosition="bottom"
       [tooltipDelay]="500"
-      [appTooltip]="isPontomaisLoggedIn ? 'Importar horários da integração' : 'Conecte-se a uma integração de ponto para importar horários'">
+      [appTooltip]="isPontomaisLoggedIn ? 'Importar registros de ponto' : 'Conecte-se a uma conta para importar os registros de ponto'">
         Importar
         <span *ngIf="!isImporting" class="icon-download"></span>
         <span *ngIf="isImporting" class="spinner"></span>
@@ -109,7 +109,7 @@
       <div class="progress-title">Progresso Total do Expediente</div>
       <div class="progress-content">
         <div class="progress-bar">
-          <div class="progress-fill animated" [style.width.%]="progressPercentageValue"></div>
+          <div class="progress-fill" [ngClass]="isWorkDayComplete ? 'progress-solid-green' : 'animated'" [style.width.%]="progressPercentageValue"></div>
         </div>
         <span class="progress-percentage">{{ progressPercentageValue.toFixed(1).replace('.', ',') }}%</span>
       </div>
@@ -127,7 +127,7 @@
           </div>
           <!-- Segundo período (retorno até agora/fim) -->
           <div class="period-item" [style.width.%]="secondPeriodPercentage" *ngIf="isMonitoring && hasSecondPeriod">
-            <div class="period-bar period-green animated"></div>
+            <div class="period-bar" [ngClass]="isWorkDayComplete ? 'period-solid-green' : 'period-green animated'"></div>
             <span class="period-label">{{ secondPeriodTime | timeFormat:'duration' }}</span>
           </div>
         </div>
@@ -195,16 +195,6 @@
          appTooltip="Notificações do sistema para lembretes de ponto"
          tooltipPosition="top">
       <span class="status-value disabled">Desativada</span>
-    </div>
-    <!-- Status: Conexão com PontoMais -->
-    <div class="status-item"
-         appTooltip="Status da conexão com a integração de ponto"
-         tooltipPosition="top">
-      <span class="status-value"
-            [class.success]="isPontomaisLoggedIn"
-            [class.disabled]="!isPontomaisLoggedIn">
-        {{ isPontomaisLoggedIn ? 'Ok' : 'Desativada' }}
-      </span>
     </div>
   </section>
 </main>

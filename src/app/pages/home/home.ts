@@ -168,9 +168,29 @@ export class Home implements OnInit, OnDestroy {
     if (payload.status === 'success' && payload.data) {
       this.applyImportedCards(payload.data);
     } else if (payload.status === 'error') {
-      console.warn('[auto-sync] Erro:', payload.message);
+      if (payload.message === 'SESSION_EXPIRED') {
+        this.handleSessionExpired();
+      } else {
+        console.warn('[auto-sync] Erro:', payload.message);
+      }
     }
     // 'unauthenticated': sessão ainda não restaurada, ignorar silenciosamente
+  }
+
+  private async handleSessionExpired(): Promise<void> {
+    await this.credentialsService.deleteToken();
+    this.isPontomaisLoggedIn = false;
+
+    try {
+      const fullSettings = await invoke<Record<string, unknown>>('load_settings');
+      await invoke('save_settings', { settings: { ...fullSettings, isPontomaisLoggedIn: false } });
+    } catch (error) {
+      console.error('Erro ao atualizar configurações após expiração de sessão:', error);
+    }
+
+    await invoke('configure_auto_sync', { enabled: false, intervalMins: this.autoImportInterval });
+
+    this.toastService.error('Sessão expirada. Faça login novamente nas configurações.', 5000);
   }
 
   private applyImportedCards(workDay: WorkDaysResponse): number {
@@ -190,9 +210,10 @@ export class Home implements OnInit, OnDestroy {
       this.checkIn2Input.nativeElement.value = this.timeUtils.formatTimeInput(cards[2].time);
       count++;
     }
-    this.capturedCheckOut2 = cards[3] ? this.timeUtils.formatTimeInput(cards[3].time) : '';
     if (count > 0) {
       this.onStartMonitoringClick();
+      this.capturedCheckOut2 = cards[3] ? this.timeUtils.formatTimeInput(cards[3].time) : '';
+      this.updateWorkTime();
     }
     return count;
   }
@@ -242,12 +263,16 @@ export class Home implements OnInit, OnDestroy {
     return this.capturedCheckIn2.length > 0;
   }
 
+  get isWorkDayComplete(): boolean {
+    return this.capturedCheckOut2.length > 0;
+  }
+
   get autoSyncTooltip(): string {
     if (!this.isPontomaisLoggedIn) {
-      return 'Nenhuma integração conectada.';
+      return 'Conecte-se a uma conta';
     }
     if (!this.autoImportEnabled) {
-      return 'Sincronização automática desativada. Ative nas configurações.';
+      return 'Sincronização automática desativada';
     }
     return `Sincronização automática a cada ${this.autoImportInterval} minutos`;
   }
@@ -393,6 +418,7 @@ export class Home implements OnInit, OnDestroy {
       this.capturedCheckIn = this.checkInInput.nativeElement.value;
       this.capturedCheckOut = this.checkOutInput.nativeElement.value;
       this.capturedCheckIn2 = this.checkIn2Input.nativeElement.value;
+      this.capturedCheckOut2 = '';
 
       this.updateWorkTime();
 
@@ -426,7 +452,7 @@ export class Home implements OnInit, OnDestroy {
       }
 
       if (!this.isPontomaisLoggedIn) {
-        this.toastService.error('Configure uma integração nas configurações para importar', 3000);
+        this.toastService.error('Conecte-se a uma conta para importar os registros de ponto', 3000);
         return;
       }
 
@@ -440,8 +466,12 @@ export class Home implements OnInit, OnDestroy {
         this.toastService.success('Horários importados com sucesso!');
       }
     } catch (error) {
-      console.error('Erro ao importar:', error);
-      this.toastService.error('Erro ao importar horários', 3000);
+      if (error === 'SESSION_EXPIRED') {
+        await this.handleSessionExpired();
+      } else {
+        console.error('Erro ao importar:', error);
+        this.toastService.error('Erro ao importar horários', 3000);
+      }
     } finally {
       this.isImporting = false;
     }

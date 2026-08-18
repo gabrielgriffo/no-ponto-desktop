@@ -1,13 +1,23 @@
+app-toggle-switch{
+  display: flex;
+  align-items: center;
+}
+
+.line{
+  border-bottom: 1px solid var(--bg-light);
+}
+
 .tab-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 2px;
 }
 
 .setting-item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  padding: 6px;
+  border-radius: 8px;
 }
 
 .setting-header {
