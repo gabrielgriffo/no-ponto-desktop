@@ -240,7 +240,7 @@ export class SettingsModal implements OnInit, OnChanges {
       // Salvar settings
       await this.saveSettings();
 
-      this.toastService.success('Login efetuado com sucesso!');
+      this.toastService.success('Conta conectada com sucesso!');
     } catch (error) {
       console.error('Erro ao fazer login:', error);
       const message = typeof error === 'string' ? error : 'Erro ao fazer login. Verifique suas credenciais.';
@@ -263,10 +263,10 @@ export class SettingsModal implements OnInit, OnChanges {
       // Salvar settings
       await this.saveSettings();
 
-      this.toastService.success('Logout efetuado com sucesso!');
+      this.toastService.success('Conta desconectada');
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
-      this.toastService.error('Erro ao fazer logout');
+      this.toastService.error('Erro ao desconectar a conta');
     }
   }
 

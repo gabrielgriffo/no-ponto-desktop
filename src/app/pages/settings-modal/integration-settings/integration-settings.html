@@ -1,72 +1,105 @@
 <div class="tab-content">
-  <div class="setting-section">
-    <div class="section-header">
-      <h3 class="section-title">Ponto Mais</h3>
-      <span class="status-badge" *ngIf="settings.isLoggedIn">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="8" cy="8" r="8"/>
-          <path d="M11.5 5.5L6.75 10.25L4.5 8" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </span>
+  <!-- Cabeçalho: identifica a integração e o estado da conexão -->
+  <header class="integration-header">
+    <h3 class="section-title">Ponto Mais</h3>
+
+    <!-- <span class="status-chip" [class.is-online]="settings.isLoggedIn">
+      <span class="status-dot"></span> -->
+    <span class="status-chip" [class.is-online]="settings.isLoggedIn">
+      {{ settings.isLoggedIn ? 'Conectado' : 'Desconectado' }}
+    </span>
+  </header>
+
+  @if (settings.isLoggedIn) {
+    <!-- Estado conectado: a conta vinculada é o conteúdo, não há formulário -->
+    <div class="account-row">
+      <section class="account-card">
+        <p class="account-email"
+        tooltipPosition="top"
+        appTooltip="{{ settings.pontomaisLogin || 'Conta vinculada' }}"
+        >{{ settings.pontomaisLogin || 'Conta vinculada' }}</p>
+      </section>
+
+      <button class="btn-ghost btn-ghost-danger disconnect-button" (click)="onLogout()">
+        Desconectar
+      </button>
     </div>
 
-    <div class="input-group">
-      <label class="input-label">Login/Email</label>
-      <input
-        id="login"
-        type="text"
-        class="text-input"
-        spellcheck="false"
-        autocorrect="off"
-        autocapitalize="off"
-        autocomplete="off"
-        [(ngModel)]="settings.pontomaisLogin"
-        [readonly]="settings.isLoggedIn"
-      />
+    <!-- O que a conexão está alimentando, em nota discreta -->
+    <div class="account-notes">
+      <p class="account-note">Sincronização automática: {{ syncLabel }}</p>
+      <p class="account-note">
+        Importar ao iniciar: {{ importOnStartupEnabled ? 'ativado' : 'desativado' }}
+      </p>
     </div>
-
-    <div class="input-group">
-      <label class="input-label">Senha</label>
-      <div class="password-input-wrapper">
+  } @else {
+    <div class="field">
+      <label class="field-label" for="pm-login">Login ou e-mail</label>
+      <div class="field-control">
         <input
-          id="password"
+          id="pm-login"
+          #loginInput
+          type="text"
+          class="field-input"
+          spellcheck="false"
+          autocorrect="off"
+          autocapitalize="off"
+          autocomplete="off"
+          [(ngModel)]="settings.pontomaisLogin"
+          (keyup.enter)="onSaveCredentials()"
+        />
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="pm-password">Senha</label>
+      <div class="field-control">
+        <input
+          id="pm-password"
           [type]="showPassword ? 'text' : 'password'"
-          class="text-input password-input"
+          class="field-input has-affix"
           autocomplete="new-password"
           [(ngModel)]="settings.pontomaisPassword"
-          [readonly]="settings.isLoggedIn"
+          (keyup.enter)="onSaveCredentials()"
         />
         <button
           type="button"
-          class="password-toggle-btn"
+          class="field-affix"
+          [attr.aria-label]="showPassword ? 'Ocultar senha' : 'Mostrar senha'"
+          (mousedown)="$event.preventDefault()"
           (click)="togglePasswordVisibility()"
-          [disabled]="settings.isLoggedIn"
           tabindex="-1"
         >
-        <svg *ngIf="showPassword" width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" color="currentColor" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M21.544 11.045C21.848 11.4713 22 11.6845 22 12C22 12.3155 21.848 12.5287 21.544 12.955C20.1779 14.8706 16.6892 19 12 19C7.31078 19 3.8221 14.8706 2.45604 12.955C2.15201 12.5287 2 12.3155 2 12C2 11.6845 2.15201 11.4713 2.45604 11.045C3.8221 9.12944 7.31078 5 12 5C16.6892 5 20.1779 9.12944 21.544 11.045Z"></path>
-          <path d="M15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12Z"></path>
-        </svg> 
-        <svg  *ngIf="!showPassword" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="currentColor" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M6.43385 6.51953C4.22009 7.89049 2.93281 9.86457 2.31858 11.0339C2.10621 11.4382 2.00003 11.6403 2 12.0082C1.99997 12.3761 2.10584 12.5777 2.3176 12.981C3.32862 14.9066 6.16702 19.0195 11.9669 19.0195C14.2454 19.0195 16.0669 18.3848 17.5 17.4972" stroke-linejoin="round"></path>
-          <path d="M9.87868 9.87868C9.33579 10.4216 9 11.1716 9 12C9 13.6569 10.3431 15 12 15C12.8284 15 13.5784 14.6642 14.1213 14.1213"></path>
-          <path d="M2 2L22 22" stroke-linejoin="round"></path>
-          <path d="M10 5.14847C10.5934 5.05255 11.224 5 11.8936 5C17.7747 5 20.6528 9.05385 21.6779 10.9517C21.8927 11.3492 22 11.548 22 11.9106C22 12.2733 21.8921 12.4727 21.6765 12.8717C21.3678 13.4428 20.8916 14.2085 20.2167 15" stroke-linejoin="round"></path>
-        </svg>
+          @if (showPassword) {
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+              xmlns="http://www.w3.org/2000/svg">
+              <path d="M21.544 11.045C21.848 11.4713 22 11.6845 22 12C22 12.3155 21.848 12.5287 21.544 12.955C20.1779 14.8706 16.6892 19 12 19C7.31078 19 3.8221 14.8706 2.45604 12.955C2.15201 12.5287 2 12.3155 2 12C2 11.6845 2.15201 11.4713 2.45604 11.045C3.8221 9.12944 7.31078 5 12 5C16.6892 5 20.1779 9.12944 21.544 11.045Z"></path>
+              <path d="M15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12Z"></path>
+            </svg>
+          } @else {
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+              xmlns="http://www.w3.org/2000/svg">
+              <path d="M6.43385 6.51953C4.22009 7.89049 2.93281 9.86457 2.31858 11.0339C2.10621 11.4382 2.00003 11.6403 2 12.0082C1.99997 12.3761 2.10584 12.5777 2.3176 12.981C3.32862 14.9066 6.16702 19.0195 11.9669 19.0195C14.2454 19.0195 16.0669 18.3848 17.5 17.4972"></path>
+              <path d="M9.87868 9.87868C9.33579 10.4216 9 11.1716 9 12C9 13.6569 10.3431 15 12 15C12.8284 15 13.5784 14.6642 14.1213 14.1213"></path>
+              <path d="M2 2L22 22"></path>
+              <path d="M10 5.14847C10.5934 5.05255 11.224 5 11.8936 5C17.7747 5 20.6528 9.05385 21.6779 10.9517C21.8927 11.3492 22 11.548 22 11.9106C22 12.2733 21.8921 12.4727 21.6765 12.8717C21.3678 13.4428 20.8916 14.2085 20.2167 15"></path>
+            </svg>
+          }
         </button>
       </div>
     </div>
-    <div class="action-buttons">
-      <button class="btn-secondary" [disabled]="!settings.isLoggedIn" (click)="onLogout()">
-        Sair
-      </button>
-      <button
-        class="btn-primary"
-        (click)="onSaveCredentials()"
-        [disabled]="isLoggingIn || settings.isLoggedIn">
-        <span *ngIf="!isLoggingIn">Logar com Ponto Mais</span>
-        <span *ngIf="isLoggingIn">Entrando...</span>
+
+    <div class="action-row">
+      <button class="btn-primary connect-button" (click)="onSaveCredentials()" [disabled]="!canSubmit">
+        @if (isLoggingIn) {
+          <span class="spinner"></span>
+          Conectando...
+        } @else {
+          Conectar conta
+        }
       </button>
     </div>
-  </div>
+  }
 </div>

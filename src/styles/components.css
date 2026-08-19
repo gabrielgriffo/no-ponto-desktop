@@ -76,6 +76,165 @@ button{
   border-bottom: 1px solid rgba(255, 255, 255, 0.3);
 }
 
+/* Botão discreto: ação disponível que não deve competir com a ação principal.
+   O modificador .btn-ghost-danger só revela a cor de alerta na interação,
+   sinalizando a consequência no momento em que o usuário se aproxima dela. */
+.btn-ghost {
+  padding: 0 16px;
+  border-radius: 99px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dark);
+  background-color: transparent;
+  border: 1px solid var(--border-gray);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: default;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s;
+}
+
+.btn-ghost:hover {
+  background-color: var(--bg-light);
+  border-color: var(--gray-placeholder);
+}
+
+.btn-ghost:active {
+  background-color: var(--border-gray-light);
+}
+
+.btn-ghost-danger:hover {
+  color: var(--error);
+  background-color: rgba(255, 59, 48, 0.06);
+  border-color: rgba(255, 59, 48, 0.35);
+}
+
+.btn-ghost-danger:active {
+  color: var(--error);
+  background-color: rgba(255, 59, 48, 0.12);
+  border-color: rgba(255, 59, 48, 0.5);
+}
+
+.btn-ghost:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Campo de formulário: rótulo + superfície encaixada com sublinhado animado.
+   Filetes invertidos (claro embaixo) — o oposto dos botões, que são elevados. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-medium);
+}
+
+.field-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background-color: var(--bg-light);
+  transition: background-color 0.2s ease, border-radius 0.3s ease;
+}
+
+.field-control:hover {
+  background-color: var(--border-gray-light);
+}
+
+/* Ao focar, o campo "abre": perde o arredondamento e volta ao sair */
+.field-control:focus-within {
+  border-radius: 0;
+}
+
+/* Sublinhado animado — mesma assinatura dos campos de horário da tela principal */
+.field-control::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background-color: var(--primary-green);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.field-control:focus-within::after {
+  transform: scaleX(1);
+}
+
+.field-input {
+  width: 100%;
+  /* height: 36px; */
+  padding: 8px 12px;
+  border: none;
+  background-color: transparent;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dark);
+  caret-color: var(--primary-green);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.field-input::placeholder {
+  color: var(--text-placeholder);
+}
+
+/* Abre espaço para o botão dentro do campo (ex.: mostrar senha) */
+.field-input.has-affix {
+  padding-right: 38px;
+}
+
+/* Neutraliza o preenchimento automático do webview */
+.field-input:-webkit-autofill,
+.field-input:-webkit-autofill:hover,
+.field-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-dark);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-light) inset;
+}
+
+/* Esconde os ícones nativos de olho e limpar */
+.field-input[type='password']::-ms-reveal,
+.field-input[type='password']::-ms-clear {
+  display: none !important;
+}
+
+.field-input[type='password']::-webkit-credentials-auto-fill-button,
+.field-input[type='password']::-webkit-contacts-auto-fill-button {
+  display: none !important;
+}
+
+.field-affix {
+  position: absolute;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gray-medium);
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.field-affix:hover {
+  color: var(--text-dark);
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.field-affix:active {
+  color: var(--primary-green);
+}
+
 .spinner {
   width: 16px;
   height: 16px;

@@ -93,7 +93,10 @@ pub async fn pontomais_authenticate(
         .json(&payload)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            eprintln!("[pontomais] Erro de rede na autenticação: {}", e);
+            "Não foi possível conectar ao Ponto Mais. Verifique sua conexão.".to_string()
+        })?;
 
     if response.status().as_u16() == 201 {
         // Extrair tokens dos HEADERS
@@ -133,7 +136,9 @@ pub async fn pontomais_authenticate(
             expiry,
         })
     } else {
-        Err(format!("Falha na autenticação: {}", response.status()))
+        // O status técnico fica no log; o usuário recebe uma mensagem simples
+        eprintln!("[pontomais] Falha na autenticação: {}", response.status());
+        Err("Não foi possível entrar. Verifique seu e-mail e senha.".to_string())
     }
 }
 

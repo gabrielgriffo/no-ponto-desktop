@@ -1,136 +1,138 @@
+/* Aba Conta — dois estados excludentes: conectado e desconectado */
+
+:host,
 .tab-content {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.tab-content {
   gap: 12px;
 }
 
-.setting-section {
+.integration-header {
   display: flex;
-  flex-direction: column;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
+  align-items: end;
   gap: 8px;
-  margin-bottom: 12px;
 }
 
 .section-title {
   font-size: 14px;
   font-weight: 600;
+  letter-spacing: -0.2px;
   color: var(--text-dark);
   margin: 0;
 }
 
-.status-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  circle{
-    fill: var(--primary-green);
-  }
-}
-
-.input-group {
-  margin-bottom: 12px;
-}
-
-.input-label {
-  display: block;
+/* Selo de estado: responde "estou conectado?" sem exigir leitura */
+.status-chip {
   font-size: 12px;
   font-weight: 500;
   color: var(--gray-medium);
-  margin-bottom: 6px;
 }
 
-.text-input {
-  width: 100%;
-  padding: 7px 12px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  font-family: 'Inter', sans-serif;
-  font-size: 14px;
-  color: var(--text-dark);
-  background-color: var(--bg-light);
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-  caret-color: var(--primary-green);
-}
-
-.text-input::placeholder {
-  color: var(--text-placeholder);
-}
-
-.text-input[readonly] {
-  user-select: none;
-  pointer-events: none;
-  cursor: default;
-  opacity: 0.7;
-}
-
-/* Esconde o ícone de olho nativo do navegador */
-.text-input[type="password"]::-ms-reveal,
-.text-input[type="password"]::-ms-clear {
-  display: none !important;
-}
-
-.text-input[type="password"]::-webkit-credentials-auto-fill-button,
-.text-input[type="password"]::-webkit-contacts-auto-fill-button {
-  display: none !important;
-}
-
-/* Wrapper para o input de senha com ícone customizado */
-.password-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.password-input {
-  padding-right: 40px;
-}
-
-.password-toggle-btn {
-  position: absolute;
-  right: 8px;
-  background: transparent;
-  border: none;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--gray-medium);
-  transition: color 0.2s;
-  border-radius: 4px;
-}
-
-.password-toggle-btn:hover {
-  color: var(--text-dark);
-}
-
-.password-toggle-btn:active {
+.status-chip.is-online {
   color: var(--primary-green);
 }
 
-.password-toggle-btn:disabled {
-  opacity: 0.3;
-  pointer-events: none;
+.status-dot {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--gray-placeholder);
 }
 
-.action-buttons {
+.status-chip.is-online .status-dot {
+  background-color: var(--primary-green);
+}
+
+/* Halo pulsante: a leitura do crachá está acesa */
+.status-chip.is-online .status-dot::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background-color: var(--primary-green);
+  animation: status-pulse 2.4s ease-out infinite;
+}
+
+@keyframes status-pulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.35;
+  }
+  70%,
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+/* Cartão da conta vinculada + ação de desconectar, lado a lado */
+.account-row {
   display: flex;
+  align-items: center;
   gap: 10px;
-  justify-content: center;
 }
 
-.action-buttons .btn-secondary,
-.action-buttons .btn-primary {
+.account-card {
   flex: 1;
+  position: relative;
+  overflow: hidden;
+  padding: 8px 12px;
+  border-radius: 8px;
+  max-width: 240px;
+  background-color: var(--bg-light);
+}
+
+.account-email {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-dark);  
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Notas discretas: o que a conexão está alimentando */
+.account-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.account-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--gray-medium);
+}
+
+/* Formulário de conexão */
+.connect-intro {
+  margin: -2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--gray-medium);
+  text-wrap: balance;
+}
+
+.action-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.connect-button {
+  width: 100%;
   height: 38px;
 }
 
-.action-buttons .btn-secondary {
-  max-width: 111px;
+.disconnect-button {
+  height: 34px;
+  flex-shrink: 0;
+  margin-left: auto;
 }

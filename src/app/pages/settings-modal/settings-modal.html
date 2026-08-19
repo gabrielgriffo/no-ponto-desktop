@@ -25,6 +25,9 @@
           *ngIf="activeTabIndex === 1"
           [settings]="integrationSettings"
           [isLoggingIn]="isLoggingIn"
+          [autoSyncEnabled]="settings.autoImportEnabled"
+          [autoSyncIntervalMins]="settings.autoImportInterval"
+          [importOnStartupEnabled]="settings.importOnStartupEnabled"
           (saveCredentials)="onSaveCredentials()"
           (logout)="onLogout()">
         </app-integration-settings>
