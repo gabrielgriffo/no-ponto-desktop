@@ -56,7 +56,10 @@
   <!-- Alarme -->
   <div class="setting-item">
     <div class="setting-header">
-      <span class="setting-label">Alarme</span>
+      <div class="setting-label-group">
+        <span class="setting-label">Alarme</span>
+        <span class="dev-badge">Em desenvolvimento</span>
+      </div>
       <app-toggle-switch
         [checked]="settings.alarmEnabled"
         (checkedChange)="settings.alarmEnabled = $event; onToggleChange()"
@@ -70,7 +73,10 @@
   <!-- Notificação -->
   <div class="setting-item">
     <div class="setting-header">
-      <span class="setting-label">Notificação</span>
+      <div class="setting-label-group">
+        <span class="setting-label">Notificação</span>
+        <span class="dev-badge">Em desenvolvimento</span>
+      </div>
       <app-toggle-switch
         [checked]="settings.notificationEnabled"
         (checkedChange)="settings.notificationEnabled = $event; onToggleChange()"

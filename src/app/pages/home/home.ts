@@ -1,4 +1,4 @@
-import { Component, ViewChild, ElementRef, OnDestroy, OnInit } from '@angular/core';
+import { Component, ViewChild, ElementRef, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SettingsModal } from '../settings-modal/settings-modal';
 import { FlipText } from '../../components/flip-text/flip-text';
@@ -69,7 +69,8 @@ export class Home implements OnInit, OnDestroy {
     private windowService: WindowService,
     private toastService: ToastService,
     private pontoMaisService: PontoMaisService,
-    private credentialsService: CredentialsService
+    private credentialsService: CredentialsService,
+    private zone: NgZone
   ) { }
 
   async ngOnInit() {
@@ -87,10 +88,14 @@ export class Home implements OnInit, OnDestroy {
       this.importOnStartupEnabled = cached.importOnStartupEnabled;
     } catch {}
 
-    // Registrar listener ANTES de restaurar sessão para não perder eventos iniciais
+    // Registrar listener ANTES de restaurar sessão para não perder eventos iniciais.
+    // O Tauri entrega eventos avaliando script pelo lado nativo (runCallback), caminho
+    // que o zone.js não intercepta — sem o zone.run o handler rodaria na zona raiz e
+    // nem a detecção de mudanças nem o setInterval de onStartMonitoringClick seriam
+    // agendados no Angular, deixando as métricas congeladas.
     this.autoSyncUnlisten = await listen<AutoSyncPayload>(
       'auto-sync-result',
-      (event) => this.onAutoSyncResult(event.payload)
+      (event) => this.zone.run(() => this.onAutoSyncResult(event.payload))
     );
 
     // Restaurar sessão a partir do keyring do SO em segundo plano
@@ -277,6 +282,18 @@ export class Home implements OnInit, OnDestroy {
     return `Sincronização automática a cada ${this.autoImportInterval} minutos`;
   }
 
+  /**
+   * Data de hoje no fuso local, no formato aceito pela API (YYYY-MM-DD).
+   * Não usar `toISOString()`: ele converte para UTC e, em UTC-3, a partir das 21h
+   * já retorna o dia seguinte — divergindo do `Local::now()` usado no auto-sync.
+   */
+  private todayLocalDate(): string {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${now.getFullYear()}-${month}-${day}`;
+  }
+
   private timeToMinutes(time: string): number {
     if (!time || time.length !== 5) return -1;
     const [hours, minutes] = time.split(':').map(Number);
@@ -456,7 +473,7 @@ export class Home implements OnInit, OnDestroy {
         return;
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = this.todayLocalDate();
       const workDay = await this.pontoMaisService.getCurrentWorkDay(today);
       const imported = this.applyImportedCards(workDay);
 

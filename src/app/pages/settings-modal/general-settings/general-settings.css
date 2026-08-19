@@ -10,13 +10,13 @@ app-toggle-switch{
 .tab-content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
 }
 
 .setting-item {
   display: flex;
   flex-direction: column;
-  padding: 6px;
+  /* padding: 6px; */
   border-radius: 8px;
 }
 
@@ -30,6 +30,26 @@ app-toggle-switch{
   font-size: 14px;
   font-weight: 500;
   color: var(--text-dark);
+}
+
+/* Agrupa rótulo + selo para o space-between do .setting-header
+   continuar empurrando só o toggle para a direita */
+.setting-label-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dev-badge {
+  padding: 2px 6px;
+  border: 1px solid var(--border-gray-light);
+  border-radius: 4px;
+  background-color: var(--bg-light);
+  color: var(--gray-medium);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 .setting-content {
