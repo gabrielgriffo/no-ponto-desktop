@@ -252,6 +252,15 @@ export class SettingsModal implements OnInit, OnChanges {
 
   async onLogout() {
     try {
+      // Revogar o token na API e zerar a sessão do Rust, antes de descartar a
+      // credencial. Isolado num try próprio: uma falha aqui não pode abortar o
+      // logout local, senão a conta ficaria presa como conectada.
+      try {
+        await this.pontoMaisService.clearSession();
+      } catch (error) {
+        console.error('Erro ao encerrar sessão no PontoMais:', error);
+      }
+
       // Remover token do keyring do SO
       await this.credentialsService.deleteToken();
 

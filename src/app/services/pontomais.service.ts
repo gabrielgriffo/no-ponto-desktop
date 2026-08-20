@@ -74,6 +74,11 @@ export class PontoMaisService {
     });
   }
 
+  /** Revoga o token na API e zera a sessão mantida no estado do Rust. */
+  async clearSession(): Promise<void> {
+    await invoke('pontomais_clear_session');
+  }
+
   async getCurrentWorkDay(date: string): Promise<WorkDaysResponse> {
     return await invoke<WorkDaysResponse>('pontomais_current_workday', { date });
   }

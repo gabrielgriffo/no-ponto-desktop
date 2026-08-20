@@ -142,6 +142,46 @@ pub async fn pontomais_authenticate(
     }
 }
 
+/// Encerra a sessão: revoga o token na API e zera o estado em memória.
+///
+/// A revogação é best-effort — se a rede cair ou a API recusar, o estado local é
+/// limpo do mesmo jeito. Sem isso seria impossível desconectar offline, e o token
+/// ficaria preso na memória do processo até reiniciar o app.
+///
+/// O `uuid` é preservado de propósito: ele identifica esta instalação para a API,
+/// não a sessão, e regenerá-lo faria o app parecer um dispositivo novo a cada logout.
+#[tauri::command]
+pub async fn pontomais_clear_session(
+    state: tauri::State<'_, PontoMaisStateType>,
+) -> Result<(), String> {
+    // Mutex liberado antes do .await
+    let headers = {
+        let pm_state = state.lock().unwrap();
+        pm_state.token.as_ref().map(|_| build_headers(&pm_state))
+    };
+
+    if let Some(headers) = headers {
+        let client = Client::new();
+        let url = format!("{}/api/auth/sign_out", BASE_URL);
+
+        match client.delete(&url).headers(headers).send().await {
+            Ok(response) if !response.status().is_success() => {
+                eprintln!("[pontomais] sign_out retornou {}", response.status());
+            }
+            Err(e) => eprintln!("[pontomais] Erro de rede no sign_out: {}", e),
+            _ => {}
+        }
+    }
+
+    let mut pm_state = state.lock().unwrap();
+    pm_state.token = None;
+    pm_state.client_id = None;
+    pm_state.expiry = None;
+    pm_state.username = None;
+
+    Ok(())
+}
+
 pub(crate) fn build_headers(state: &PontoMaisState) -> header::HeaderMap {
     let mut headers = header::HeaderMap::new();
 

@@ -126,6 +126,7 @@ pub fn run() {
             app_info::get_app_info,
             pontomais::pontomais_authenticate,
             pontomais::pontomais_restore_session,
+            pontomais::pontomais_clear_session,
             pontomais::pontomais_current_workday,
             pontomais::pontomais_session,
             pontomais::pontomais_comp_time,

@@ -183,6 +183,14 @@ export class Home implements OnInit, OnDestroy {
   }
 
   private async handleSessionExpired(): Promise<void> {
+    // Mesmo com o token já inválido, zera a sessão do Rust — senão ela sobreviveria
+    // em memória até o app reiniciar, igual acontecia no logout.
+    try {
+      await this.pontoMaisService.clearSession();
+    } catch (error) {
+      console.error('Erro ao encerrar sessão no PontoMais:', error);
+    }
+
     await this.credentialsService.deleteToken();
     this.isPontomaisLoggedIn = false;
 
