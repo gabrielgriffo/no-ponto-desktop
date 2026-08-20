@@ -34,6 +34,7 @@ body {
 /* Scrollbar personalizada */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -41,10 +42,20 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
+  background-color: var(--gray-placeholder);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
+  background-color: var(--gray-medium);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--text-dark);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }

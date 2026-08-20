@@ -13,6 +13,23 @@
   <!-- Linha -->
   <div class="line"></div>
 
+  <!-- Sincronização Inteligente -->
+  <div class="setting-item">
+    <div class="setting-header">
+      <div class="setting-label-group">
+        <span class="setting-label">Sincronização Inteligente</span>
+        <span class="dev-badge">Em desenvolvimento</span>
+      </div>
+      <app-toggle-switch
+        [checked]="settings.smartSyncEnabled"
+        (checkedChange)="settings.smartSyncEnabled = $event; onToggleChange()"
+      ></app-toggle-switch>
+    </div>
+  </div>
+
+  <!-- Linha -->
+  <div class="line"></div>
+
   <!-- Sincronização Automática -->
   <div class="setting-item">
     <div class="setting-header">
@@ -82,5 +99,40 @@
         (checkedChange)="settings.notificationEnabled = $event; onToggleChange()"
       ></app-toggle-switch>
     </div>
+  </div>
+
+  <!-- Linha -->
+  <div class="line"></div>
+
+  <!-- Inicialização Automática de Aplicativo Externo -->
+  <div class="setting-item">
+    <div class="setting-header">
+      <span class="setting-label">Inicialização automática de aplicativo externo</span>
+      <app-toggle-switch
+        [checked]="settings.externalAppAutostartEnabled"
+        (checkedChange)="settings.externalAppAutostartEnabled = $event; onToggleChange()"
+      ></app-toggle-switch>
+    </div>
+    <span class="setting-description" *ngIf="settings.externalAppAutostartEnabled">
+      Inicia automaticamente o aplicativo configurado ao detectar o início do expediente
+    </span>
+    <button
+      type="button"
+      class="app-picker-button"
+      *ngIf="settings.externalAppAutostartEnabled"
+      [disabled]="isPickingApp"
+      [title]="settings.externalApp?.path || ''"
+      (click)="onPickExternalApp()">
+      <span class="app-picker-label">
+        {{ settings.externalApp?.name || 'Selecionar Aplicativo' }}
+      </span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+        xmlns="http://www.w3.org/2000/svg">
+        <path d="M15 3h6v6"></path>
+        <path d="M10 14 21 3"></path>
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+      </svg>
+    </button>
   </div>
 </div>

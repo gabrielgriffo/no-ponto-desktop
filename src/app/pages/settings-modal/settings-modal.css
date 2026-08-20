@@ -4,14 +4,17 @@
   left: 0;
   right: 0;
   bottom: 0;
+  height: 100%;
+  width: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 1000;
   animation: fadeIn 0.2s ease;
   margin-top: 35px;
   padding: 10px;
+  padding-bottom: 45px;
   background-color: var(--border-gray);
+  
+  overflow: auto;
 }
 
 @keyframes fadeIn {
@@ -26,8 +29,6 @@
 .modal-container {
   background-color: white;
   border-radius: 8px;
-  max-width: 420px;
-  max-height: 588px;
   width: 100%;
   height: 100%;
   display: flex;
@@ -79,11 +80,12 @@
 }
 
 .modal-body {
-  height: 320px;
-  padding: 20px;
-  padding-bottom: 24px;
+  padding: 20px 12px 24px 20px;
   overflow-y: auto;
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  height: 340px;
 }

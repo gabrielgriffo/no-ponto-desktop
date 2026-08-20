@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Tabs } from '../../components/tabs/tabs';
-import { GeneralSettingsComponent } from './general-settings/general-settings';
+import { ExternalApp, GeneralSettingsComponent } from './general-settings/general-settings';
 import { IntegrationSettingsComponent } from './integration-settings/integration-settings';
 import { AboutSettingsComponent } from './about-settings/about-settings';
 import { invoke } from '@tauri-apps/api/core';
@@ -11,12 +11,15 @@ import { CredentialsService } from '../../services/credentials.service';
 import { AutostartService } from '../../services/autostart.service';
 
 interface Settings {
+  smartSyncEnabled: boolean;
   autoImportEnabled: boolean;
   autoImportInterval: number;
   importOnStartupEnabled: boolean;
   alarmEnabled: boolean;
   notificationEnabled: boolean;
   autostartEnabled: boolean;
+  externalAppAutostartEnabled: boolean;
+  externalApp: ExternalApp | null;
   pontomaisLogin: string;
   isPontomaisLoggedIn: boolean;
 }
@@ -54,12 +57,15 @@ export class SettingsModal implements OnInit, OnChanges {
   };
 
   settings: Settings = {
+    smartSyncEnabled: false,
     autoImportEnabled: false,
     autoImportInterval: 10,
     importOnStartupEnabled: false,
     alarmEnabled: false,
     notificationEnabled: false,
     autostartEnabled: false,
+    externalAppAutostartEnabled: false,
+    externalApp: null,
     pontomaisLogin: '',
     isPontomaisLoggedIn: false
   };

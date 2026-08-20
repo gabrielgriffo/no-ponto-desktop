@@ -75,6 +75,8 @@ async fn perform_sync(app: &AppHandle) {
 
     match fetch_workday(&*pm_state, &today).await {
         Ok(data) => {
+            handle_external_app_autostart(app, &data, &today);
+
             let _ = app.emit("auto-sync-result", serde_json::json!({
                 "status": "success",
                 "data": data
@@ -87,5 +89,58 @@ async fn perform_sync(app: &AppHandle) {
                 "message": e
             }));
         }
+    }
+}
+
+/// Considera o expediente iniciado quando existe ao menos um registro de ponto
+/// válido no dia.
+///
+/// Cards `disabled` são batidas revogadas: contá-las abriria o aplicativo por
+/// causa de um registro que o próprio PontoMais descartou.
+fn workday_started(data: &serde_json::Value) -> bool {
+    data.get("work_days")
+        .and_then(|days| days.get(0))
+        .and_then(|day| day.get("time_cards"))
+        .and_then(|cards| cards.as_array())
+        .is_some_and(|cards| {
+            cards.iter().any(|card| {
+                !card
+                    .get("disabled")
+                    .and_then(|disabled| disabled.as_bool())
+                    .unwrap_or(false)
+            })
+        })
+}
+
+/// Abre o aplicativo externo configurado quando detecta o início do expediente.
+///
+/// O gatilho vive aqui, e não no frontend, porque a sincronização automática é a
+/// única fonte que observa o ponto sem depender do usuário abrir a janela. Toda
+/// falha é apenas registrada: nada disso pode interromper a sincronização.
+fn handle_external_app_autostart(app: &AppHandle, data: &serde_json::Value, today: &str) {
+    if !workday_started(data) {
+        return;
+    }
+
+    let settings = match crate::settings::read_settings(app) {
+        Ok(settings) => settings,
+        Err(e) => {
+            eprintln!("[external_app] Não foi possível ler as configurações: {}", e);
+            return;
+        }
+    };
+
+    if !settings.external_app_autostart_enabled {
+        return;
+    }
+
+    let Some(target) = settings.external_app.as_ref() else {
+        return;
+    };
+
+    match crate::external_app::launch_once_today(app, target, today) {
+        Ok(true) => println!("[external_app] {} iniciado", target.name),
+        Ok(false) => {}
+        Err(e) => eprintln!("[external_app] {}", e),
     }
 }

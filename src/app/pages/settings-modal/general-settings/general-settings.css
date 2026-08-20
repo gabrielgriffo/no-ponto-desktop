@@ -1,6 +1,7 @@
 app-toggle-switch{
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .line{
@@ -57,10 +58,60 @@ app-toggle-switch{
   padding-left: 0;
 }
 
-.input-label {
+.input-label,
+.setting-description {
   display: block;
   font-size: 12px;
   font-weight: 500;
   color: var(--gray-medium);
+}
+
+.input-label {
   margin-bottom: 6px;
+}
+
+.setting-description {
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.app-picker-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 10px;
+  gap: 8px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--bg-light);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dark);
+  transition: background-color 0.2s;
+}
+
+/* O nome do aplicativo é escolhido pelo usuário e pode ser longo demais para o
+   botão: sem o min-width o item flex se recusa a encolher abaixo do conteúdo e
+   o texto vazaria em vez de reticenciar. */
+.app-picker-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* O ícone nunca encolhe junto com o texto */
+.app-picker-button svg {
+  flex-shrink: 0;
+}
+
+.app-picker-button:hover {
+  background-color: #e8e9e8;
+}
+
+.app-picker-button:active {
+  background-color: var(--border-gray-light);
 }

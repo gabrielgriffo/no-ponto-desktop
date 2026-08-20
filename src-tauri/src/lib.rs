@@ -10,6 +10,7 @@ use tauri_plugin_window_state::{StateFlags, WindowExt};
 mod app_info;
 mod auto_sync;
 mod credentials;
+mod external_app;
 mod pontomais;
 mod settings;
 
@@ -120,6 +121,7 @@ pub fn run() {
             _ => {}
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             settings::save_settings,
             settings::load_settings,
@@ -133,7 +135,8 @@ pub fn run() {
             auto_sync::configure_auto_sync,
             credentials::save_pontomais_token,
             credentials::get_pontomais_token,
-            credentials::delete_pontomais_token
+            credentials::delete_pontomais_token,
+            external_app::pick_external_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
