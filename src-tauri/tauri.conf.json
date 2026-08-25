@@ -54,7 +54,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNEMUMwMUNEM0I2OEEyRjYKUldUMm9tZzd6UUVjUGNsUGdKM0tTMUxDUVlTZi80YnhPdm1tbkF6K0JXYll2cFNPZFYwMFJQbVAK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU0REREMzdERTExNzg2REQKUldUZGhoZmhmZFBkVkVMVzJEMnk4MEYrcmlzNFBXRTBTaUFzQ01zY0dMVEdTYXZ4ekRtRnM0TVMK",
       "endpoints": [
         "https://github.com/gabrielgriffo/no-ponto-desktop/releases/latest/download/latest.json"
       ]
