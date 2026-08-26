@@ -156,7 +156,14 @@ export class Home implements OnInit, OnDestroy {
         // enquanto a importação automática está em andamento. Pula a espera pela
         // sessão pois já estamos dentro dela (evita deadlock com sessionRestorePromise).
         if (this.importOnStartupEnabled) {
-          await this.onImportClick(true);
+          const workDay = await this.onImportClick(true);
+
+          if (workDay) {
+            await invoke('external_app_maybe_launch', {
+              workDay,
+              date: this.todayLocalDate()
+            });
+          }
         }
       } catch (error) {
         console.error('Erro ao restaurar sessão:', error);
@@ -465,8 +472,8 @@ export class Home implements OnInit, OnDestroy {
    * de dentro de `restoreSessionFromStorage` (importação automática ao iniciar), onde
    * aguardar essa mesma promise causaria deadlock.
    */
-  async onImportClick(skipSessionWait = false): Promise<void> {
-    if (this.isImporting) return;
+  async onImportClick(skipSessionWait = false): Promise<WorkDaysResponse | null> {
+    if (this.isImporting) return null;
 
     try {
       this.isImporting = true;
@@ -478,7 +485,7 @@ export class Home implements OnInit, OnDestroy {
 
       if (!this.isPontomaisLoggedIn) {
         this.toastService.error('Conecte-se a uma conta para importar os registros de ponto', 3000);
-        return;
+        return null;
       }
 
       const today = this.todayLocalDate();
@@ -490,6 +497,8 @@ export class Home implements OnInit, OnDestroy {
       } else {
         this.toastService.success('Horários importados com sucesso!');
       }
+
+      return workDay;
     } catch (error) {
       if (error === 'SESSION_EXPIRED') {
         await this.handleSessionExpired();
@@ -497,6 +506,8 @@ export class Home implements OnInit, OnDestroy {
         console.error('Erro ao importar:', error);
         this.toastService.error('Erro ao importar horários', 3000);
       }
+
+      return null;
     } finally {
       this.isImporting = false;
     }

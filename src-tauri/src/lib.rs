@@ -13,6 +13,7 @@ mod credentials;
 mod external_app;
 mod pontomais;
 mod settings;
+mod workday;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -37,6 +38,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            app.manage(external_app::init_launch_guard(app.handle()));
+
             let window = app
                 .get_webview_window("main")
                 .expect("main window not found");
@@ -136,7 +139,8 @@ pub fn run() {
             credentials::save_pontomais_token,
             credentials::get_pontomais_token,
             credentials::delete_pontomais_token,
-            external_app::pick_external_app
+            external_app::pick_external_app,
+            external_app::external_app_maybe_launch
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

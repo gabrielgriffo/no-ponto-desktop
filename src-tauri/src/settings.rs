@@ -18,8 +18,22 @@ pub struct Settings {
     /// Aplicativo escolhido no seletor. `None` enquanto nenhum foi selecionado —
     /// o toggle acima ligado sem isto preenchido deixa o recurso inerte.
     pub external_app: Option<ExternalApp>,
+    pub expected_workday_minutes: u32,
     pub pontomais_login: String,
     pub is_pontomais_logged_in: bool,
+}
+
+/// Jornada padrão: 8 horas.
+pub const DEFAULT_EXPECTED_WORKDAY_MINUTES: u32 = 480;
+
+impl Settings {
+    pub fn expected_workday_minutes(&self) -> u32 {
+        if self.expected_workday_minutes == 0 {
+            DEFAULT_EXPECTED_WORKDAY_MINUTES
+        } else {
+            self.expected_workday_minutes
+        }
+    }
 }
 
 impl Default for Settings {
@@ -34,6 +48,7 @@ impl Default for Settings {
             autostart_enabled: false,
             external_app_autostart_enabled: false,
             external_app: None,
+            expected_workday_minutes: DEFAULT_EXPECTED_WORKDAY_MINUTES,
             pontomais_login: String::new(),
             is_pontomais_logged_in: false,
         }

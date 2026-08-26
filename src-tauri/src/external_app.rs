@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 
@@ -26,8 +28,14 @@ pub struct ExternalApp {
 /// Rust seria apagado no próximo toggle que o usuário mexesse.
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
-struct LaunchState {
+pub struct LaunchState {
     last_launch_date: Option<String>,
+}
+
+pub type LaunchGuard = Mutex<LaunchState>;
+
+pub fn init_launch_guard(app: &AppHandle) -> LaunchGuard {
+    Mutex::new(read_launch_state(app))
 }
 
 /// Abre o seletor nativo de arquivos e resolve o aplicativo escolhido.
@@ -258,13 +266,34 @@ fn parse_exec(exec: &str) -> Vec<String> {
 
 /// Lança o aplicativo no máximo uma vez por dia.
 ///
-/// Retorna `true` se lançou agora, `false` se já havia lançado hoje.
-pub fn launch_once_today(
-    app: &AppHandle,
-    target: &ExternalApp,
-    today: &str,
-) -> Result<bool, String> {
-    if read_launch_state(app).last_launch_date.as_deref() == Some(today) {
+/// Retorna `true` se lançou agora, `false` se alguma condição barrou: já lançou
+/// hoje, recurso desligado, aplicativo não configurado, expediente ainda não
+/// iniciado ou já encerrado.
+pub fn maybe_launch(app: &AppHandle, work_day: &Value, today: &str) -> Result<bool, String> {
+    let Some(guard) = app.try_state::<LaunchGuard>() else {
+        return Ok(false);
+    };
+
+    // A trava cobre o ciclo inteiro — verificar, lançar e gravar. No boot os dois
+    // gatilhos chegam quase juntos e passariam pela verificação antes de qualquer
+    // um gravar, abrindo o aplicativo duas vezes.
+    let mut state = guard.lock().unwrap();
+
+    if state.last_launch_date.as_deref() == Some(today) {
+        return Ok(false);
+    }
+
+    let settings = crate::settings::read_settings(app)?;
+
+    if !settings.external_app_autostart_enabled {
+        return Ok(false);
+    }
+
+    let Some(target) = settings.external_app.as_ref() else {
+        return Ok(false);
+    };
+
+    if !crate::workday::should_launch(work_day, settings.expected_workday_minutes()) {
         return Ok(false);
     }
 
@@ -272,14 +301,25 @@ pub fn launch_once_today(
 
     // Registrado só depois do spawn dar certo: marcar antes faria uma falha
     // pontual (app sendo atualizado, por exemplo) consumir a tentativa do dia.
-    write_launch_state(
-        app,
-        &LaunchState {
-            last_launch_date: Some(today.to_string()),
-        },
-    )?;
+    state.last_launch_date = Some(today.to_string());
+    write_launch_state(app, &state)?;
+
+    println!("[external_app] {} iniciado", target.name);
 
     Ok(true)
+}
+
+#[tauri::command]
+pub fn external_app_maybe_launch(
+    app: AppHandle,
+    work_day: Value,
+    date: String,
+) -> Result<(), String> {
+    if let Err(e) = maybe_launch(&app, &work_day, &date) {
+        eprintln!("[external_app] {}", e);
+    }
+
+    Ok(())
 }
 
 pub fn launch(target: &ExternalApp) -> Result<(), String> {

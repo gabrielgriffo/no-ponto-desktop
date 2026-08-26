@@ -23,6 +23,7 @@ export interface GeneralSettings {
   autostartEnabled: boolean;
   externalAppAutostartEnabled: boolean;
   externalApp: ExternalApp | null;
+  expectedWorkdayMinutes: number;
 }
 
 @Component({

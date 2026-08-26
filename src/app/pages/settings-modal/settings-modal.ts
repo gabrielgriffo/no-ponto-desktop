@@ -20,6 +20,7 @@ interface Settings {
   autostartEnabled: boolean;
   externalAppAutostartEnabled: boolean;
   externalApp: ExternalApp | null;
+  expectedWorkdayMinutes: number;
   pontomaisLogin: string;
   isPontomaisLoggedIn: boolean;
 }
@@ -66,6 +67,7 @@ export class SettingsModal implements OnInit, OnChanges {
     autostartEnabled: false,
     externalAppAutostartEnabled: false,
     externalApp: null,
+    expectedWorkdayMinutes: 480,
     pontomaisLogin: '',
     isPontomaisLoggedIn: false
   };
