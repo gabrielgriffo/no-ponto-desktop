@@ -1,0 +1,57 @@
+<div class="settings-screen">
+  <div class="setting-item">
+    <div class="setting-header">
+      <span class="setting-label">Sincronização Automática</span>
+      <app-toggle-switch
+        [checked]="settings.autoImportEnabled"
+        (checkedChange)="settings.autoImportEnabled = $event; onChange()"
+      ></app-toggle-switch>
+    </div>
+    <span class="setting-description">
+      Busca os registros do dia em segundo plano, mesmo com a janela fechada
+    </span>
+  </div>
+
+  @if (settings.autoImportEnabled) {
+    <div class="setting-item">
+      <div class="setting-content">
+        <label class="input-label">Intervalo da Sincronização Automática</label>
+        <app-custom-select
+          [options]="intervalOptions"
+          [(value)]="settings.autoImportInterval"
+          (valueChange)="onChange()">
+        </app-custom-select>
+      </div>
+    </div>
+  }
+
+  <div class="line"></div>
+
+  <div class="setting-item">
+    <div class="setting-header">
+      <span class="setting-label">Importar ao Iniciar</span>
+      <app-toggle-switch
+        [checked]="settings.importOnStartupEnabled"
+        (checkedChange)="settings.importOnStartupEnabled = $event; onChange()"
+      ></app-toggle-switch>
+    </div>
+    <span class="setting-description">
+      Importa uma vez a cada abertura do aplicativo
+    </span>
+  </div>
+
+  <div class="line"></div>
+
+  <div class="setting-item">
+    <div class="setting-header">
+      <div class="setting-label-group">
+        <span class="setting-label">Sincronização Inteligente</span>
+        <span class="dev-badge">Em desenvolvimento</span>
+      </div>
+      <app-toggle-switch
+        [checked]="settings.smartSyncEnabled"
+        (checkedChange)="settings.smartSyncEnabled = $event; onChange()"
+      ></app-toggle-switch>
+    </div>
+  </div>
+</div>

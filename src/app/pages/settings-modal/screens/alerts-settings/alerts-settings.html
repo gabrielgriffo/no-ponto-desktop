@@ -1,0 +1,35 @@
+<div class="settings-screen">
+  <div class="setting-item">
+    <div class="setting-header">
+      <div class="setting-label-group">
+        <span class="setting-label">Alarme</span>
+        <span class="dev-badge">Em desenvolvimento</span>
+      </div>
+      <app-toggle-switch
+        [checked]="settings.alarmEnabled"
+        (checkedChange)="settings.alarmEnabled = $event; onChange()"
+      ></app-toggle-switch>
+    </div>
+    <span class="setting-description">
+      Aviso sonoro quando o expediente chegar ao fim
+    </span>
+  </div>
+
+  <div class="line"></div>
+
+  <div class="setting-item">
+    <div class="setting-header">
+      <div class="setting-label-group">
+        <span class="setting-label">Notificação</span>
+        <span class="dev-badge">Em desenvolvimento</span>
+      </div>
+      <app-toggle-switch
+        [checked]="settings.notificationEnabled"
+        (checkedChange)="settings.notificationEnabled = $event; onChange()"
+      ></app-toggle-switch>
+    </div>
+    <span class="setting-description">
+      Notificações do sistema para lembretes de ponto
+    </span>
+  </div>
+</div>

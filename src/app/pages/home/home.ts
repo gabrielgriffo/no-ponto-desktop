@@ -5,7 +5,9 @@ import { FlipText } from '../../components/flip-text/flip-text';
 import { TooltipDirective } from '../../directives/tooltip.directive';
 import { TimeFormatPipe } from '../../pipes/time-format.pipe';
 import { TimeInputDirective } from '../../directives/time-input.directive';
-import { TimeCalculationService } from '../../services/time-calculation.service';
+import { TimeCalculationService, DEFAULT_JOURNEY_MINUTES, DEFAULT_BREAK_MINUTES } from '../../services/time-calculation.service';
+import { AppSettings, formatDurationLong } from '../settings-modal/settings.model';
+import { UpdateService } from '../../services/update.service';
 import { WindowService } from '../../services/window.service';
 import { TimeObject } from '../../models/time-object';
 import { TimeUtilsService } from '../../services/time-utils.service';
@@ -36,6 +38,8 @@ export class Home implements OnInit, OnDestroy {
   autoImportEnabled = false;
   autoImportInterval = 10;
   importOnStartupEnabled = false;
+  expectedWorkdayMinutes = DEFAULT_JOURNEY_MINUTES;
+  defaultBreakMinutes = DEFAULT_BREAK_MINUTES;
 
   @ViewChild('checkInInput') checkInInput!: ElementRef<HTMLInputElement>;
   @ViewChild('checkOutInput') checkOutInput!: ElementRef<HTMLInputElement>;
@@ -70,6 +74,7 @@ export class Home implements OnInit, OnDestroy {
     private toastService: ToastService,
     private pontoMaisService: PontoMaisService,
     private credentialsService: CredentialsService,
+    private updateService: UpdateService,
     private zone: NgZone
   ) { }
 
@@ -81,11 +86,15 @@ export class Home implements OnInit, OnDestroy {
         autoImportEnabled: boolean;
         autoImportInterval: number;
         importOnStartupEnabled: boolean;
+        expectedWorkdayMinutes: number;
+        defaultBreakMinutes: number;
       }>('load_settings');
       this.isPontomaisLoggedIn = cached.isPontomaisLoggedIn;
       this.autoImportEnabled = cached.autoImportEnabled;
       this.autoImportInterval = cached.autoImportInterval;
       this.importOnStartupEnabled = cached.importOnStartupEnabled;
+      this.expectedWorkdayMinutes = cached.expectedWorkdayMinutes;
+      this.defaultBreakMinutes = cached.defaultBreakMinutes;
     } catch {}
 
     // Registrar listener ANTES de restaurar sessão para não perder eventos iniciais.
@@ -101,6 +110,8 @@ export class Home implements OnInit, OnDestroy {
     // Restaurar sessão a partir do keyring do SO em segundo plano
     // onImportClick aguarda essa promise antes de executar
     this.sessionRestorePromise = this.restoreSessionFromStorage();
+
+    this.checkForUpdateSilently();
 
     // Remover foco quando a janela se tornar visível ou mouse se mover
     const removeFocus = () => {
@@ -243,7 +254,9 @@ export class Home implements OnInit, OnDestroy {
       this.capturedCheckIn,
       this.capturedCheckOut,
       this.capturedCheckIn2,
-      this.capturedCheckOut2
+      this.capturedCheckOut2,
+      this.expectedWorkdayMinutes,
+      this.defaultBreakMinutes
     );
 
     this.firstPeriodTime = result.firstPeriod;
@@ -254,24 +267,31 @@ export class Home implements OnInit, OnDestroy {
     this.hasLunchHourAdded = result.lunchHourAdded;
   }
 
+  get lunchHourTooltip(): string {
+    return `O cálculo foi ajustado para incluir ${formatDurationLong(this.defaultBreakMinutes)} de intervalo`;
+  }
+
+  private get journeyMinutes(): number {
+    return this.expectedWorkdayMinutes > 0
+      ? this.expectedWorkdayMinutes
+      : DEFAULT_JOURNEY_MINUTES;
+  }
+
   get progressPercentageValue(): number {
     const totalWorkMinutes = (this.workedTime.hours * 60) + this.workedTime.minutes;
-    const totalJourneyMinutes = 8 * 60;
-    const percentage = (totalWorkMinutes / totalJourneyMinutes) * 100;
+    const percentage = (totalWorkMinutes / this.journeyMinutes) * 100;
     return Math.min(percentage, 100);
   }
 
   get firstPeriodPercentage(): number {
     const firstPeriodMinutes = (this.firstPeriodTime.hours * 60) + this.firstPeriodTime.minutes;
-    const totalJourneyMinutes = 8 * 60;
-    const percentage = (firstPeriodMinutes / totalJourneyMinutes) * 100;
+    const percentage = (firstPeriodMinutes / this.journeyMinutes) * 100;
     return Math.min(percentage, 100);
   }
 
   get secondPeriodPercentage(): number {
     const secondPeriodMinutes = (this.secondPeriodTime.hours * 60) + this.secondPeriodTime.minutes;
-    const totalJourneyMinutes = 8 * 60;
-    const percentage = (secondPeriodMinutes / totalJourneyMinutes) * 100;
+    const percentage = (secondPeriodMinutes / this.journeyMinutes) * 100;
     return Math.min(percentage, 100);
   }
 
@@ -492,10 +512,10 @@ export class Home implements OnInit, OnDestroy {
       const workDay = await this.pontoMaisService.getCurrentWorkDay(today);
       const imported = this.applyImportedCards(workDay);
 
+      // Só o caso vazio avisa: quando há registros, eles próprios aparecem nos
+      // campos e nas métricas — um toast repetiria o que a tela já mostrou.
       if (imported === 0) {
         this.toastService.error('Nenhum registro encontrado para hoje', 3000);
-      } else {
-        this.toastService.success('Horários importados com sucesso!');
       }
 
       return workDay;
@@ -517,6 +537,21 @@ export class Home implements OnInit, OnDestroy {
     this.showSettingsModal = true;
   }
 
+  private async checkForUpdateSilently(): Promise<void> {
+    try {
+      const update = await this.updateService.checkForUpdate();
+
+      const settings = await invoke<AppSettings>('load_settings');
+      settings.lastUpdateCheck = new Date().toISOString();
+      settings.lastUpdateResult = update ? 'available' : 'up-to-date';
+      settings.lastUpdateVersion = update?.version ?? '';
+
+      await invoke('save_settings', { settings });
+    } catch (error) {
+      console.error('Erro ao verificar atualizações na inicialização:', error);
+    }
+  }
+
   async onCloseSettingsModal(): Promise<void> {
     this.showSettingsModal = false;
     // Recarregar estado após fechar configurações (usuário pode ter alterado auto-sync ou feito logout)
@@ -526,10 +561,21 @@ export class Home implements OnInit, OnDestroy {
         autoImportEnabled: boolean;
         autoImportInterval: number;
         importOnStartupEnabled: boolean;
+        expectedWorkdayMinutes: number;
+        defaultBreakMinutes: number;
       }>('load_settings');
       this.autoImportEnabled = settings.autoImportEnabled;
       this.autoImportInterval = settings.autoImportInterval;
       this.importOnStartupEnabled = settings.importOnStartupEnabled;
+
+      // Jornada e intervalo mudam o tempo restante e o fim do expediente: sem
+      // recalcular aqui, as métricas ficariam nos valores antigos até a próxima
+      // batida.
+      this.expectedWorkdayMinutes = settings.expectedWorkdayMinutes;
+      this.defaultBreakMinutes = settings.defaultBreakMinutes;
+      if (this.isMonitoring) {
+        this.updateWorkTime();
+      }
     } catch {}
   }
 

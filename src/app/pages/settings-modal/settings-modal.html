@@ -1,43 +1,138 @@
-<div class="modal-overlay" *ngIf="isOpen" (click)="onOverlayClick($event)">
-  <div class="modal-container" #modalContainer tabindex="-1">
-    <div class="modal-header">
-      <h2 class="modal-title">Configurações</h2>
-      <button class="close-button" (click)="onClose()">
-        <span class="icon-close"></span>
-      </button>
-    </div>
+@if (isOpen) {
+  <div class="modal-overlay" (click)="onOverlayClick($event)">
+    <div class="modal-container" #modalContainer tabindex="-1">
+      <div class="modal-header">
+        @if (currentScreen) {
+          <button class="header-button back-button" (click)="goBack()" aria-label="Voltar">
+            <span class="icon-chevron-left"></span>
+          </button>
+        }
 
-    <app-tabs
-      [tabs]="tabLabels"
-      [(activeIndex)]="activeTabIndex">
+        <h2 class="modal-title">{{ title }}</h2>
+
+        <button class="header-button close-button" (click)="onClose()" aria-label="Fechar">
+          <span class="icon-close"></span>
+        </button>
+      </div>
 
       <div class="modal-body">
-        <!-- Aba 1: Geral -->
-        <app-general-settings
-          *ngIf="activeTabIndex === 0 && settingsLoaded"
-          [settings]="settings"
-          [intervalOptions]="intervalOptions"
-          (settingsChange)="saveSettings()">
-        </app-general-settings>
+        @if (settingsLoaded) {
+          <div class="screen">
+            @switch (currentScreen) {
+              @case ('conta') {
+                <app-integration-settings
+                  [settings]="integrationSettings"
+                  [isLoggingIn]="isLoggingIn"
+                  (saveCredentials)="onSaveCredentials()"
+                  (logout)="onLogout()">
+                </app-integration-settings>
+              }
 
-        <!-- Aba 2: Conta -->
-        <app-integration-settings
-          *ngIf="activeTabIndex === 1"
-          [settings]="integrationSettings"
-          [isLoggingIn]="isLoggingIn"
-          [autoSyncEnabled]="settings.autoImportEnabled"
-          [autoSyncIntervalMins]="settings.autoImportInterval"
-          [importOnStartupEnabled]="settings.importOnStartupEnabled"
-          (saveCredentials)="onSaveCredentials()"
-          (logout)="onLogout()">
-        </app-integration-settings>
+              @case ('sincronizacao') {
+                <app-sync-settings
+                  [settings]="settings"
+                  (settingsChange)="saveSettings()">
+                </app-sync-settings>
+              }
 
-        <!-- Aba 3: Sobre -->
-        <app-about-settings
-          *ngIf="activeTabIndex === 2"
-          [appInfo]="appInfo">
-        </app-about-settings>
+              @case ('expediente') {
+                <app-workday-settings
+                  [settings]="settings"
+                  (settingsChange)="saveSettings()">
+                </app-workday-settings>
+              }
+
+              @case ('avisos') {
+                <app-alerts-settings
+                  [settings]="settings"
+                  (settingsChange)="saveSettings()">
+                </app-alerts-settings>
+              }
+
+              @case ('sistema') {
+                <app-system-settings
+                  [settings]="settings"
+                  (settingsChange)="saveSettings()">
+                </app-system-settings>
+              }
+
+              @case ('app-externo') {
+                <app-external-app-settings
+                  [settings]="settings"
+                  (settingsChange)="saveSettings()">
+                </app-external-app-settings>
+              }
+
+              @case ('sobre') {
+                <app-about-settings
+                  [appInfo]="appInfo"
+                  [settings]="settings"
+                  (settingsChange)="saveSettings()">
+                </app-about-settings>
+              }
+
+              @default {
+                <app-settings-group>
+                  <app-settings-row
+                    icon="icon-user"
+                    label="Conta"
+                    [value]="accountValue"
+                    (action)="openScreen('conta')">
+                  </app-settings-row>
+                </app-settings-group>
+
+                <app-settings-group label="Importação">
+                  <app-settings-row
+                    icon="icon-sync"
+                    label="Sincronização"
+                    [value]="syncValue"
+                    (action)="openScreen('sincronizacao')">
+                  </app-settings-row>
+                  <app-settings-row
+                    icon="icon-clock"
+                    label="Expediente"
+                    [value]="workdayValue"
+                    (action)="openScreen('expediente')">
+                  </app-settings-row>
+                </app-settings-group>
+
+                <app-settings-group label="Avisos">
+                  <!-- Sem valor por regra: a categoria não tem recurso ativo, e
+                       anunciar "Ativado" afirmaria o que o app não faz. -->
+                  <app-settings-row
+                    icon="icon-bell"
+                    label="Alarme e notificações"
+                    badge="Em desenvolvimento"
+                    (action)="openScreen('avisos')">
+                  </app-settings-row>
+                </app-settings-group>
+
+                <app-settings-group label="Aplicativo">
+                  <app-settings-row
+                    icon="icon-computer"
+                    label="Sistema"
+                    (action)="openScreen('sistema')">
+                  </app-settings-row>
+                  <app-settings-row
+                    icon="icon-link"
+                    label="Aplicativo externo"
+                    [value]="externalAppValue"
+                    (action)="openScreen('app-externo')">
+                  </app-settings-row>
+                  <app-settings-row
+                    icon="icon-info"
+                    label="Sobre"
+                    [value]="appInfo.version"
+                    [showValueTooltip]="false"
+                    [dot]="hasUpdate"
+                    (action)="openScreen('sobre')">
+                  </app-settings-row>
+                </app-settings-group>
+              }
+            }
+          </div>
+        }
       </div>
-    </app-tabs>
+    </div>
   </div>
-</div>
+}

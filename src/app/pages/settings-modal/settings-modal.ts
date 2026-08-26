@@ -1,42 +1,58 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ViewChild, ElementRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { Tabs } from '../../components/tabs/tabs';
-import { ExternalApp, GeneralSettingsComponent } from './general-settings/general-settings';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ViewChild, ElementRef, HostListener } from '@angular/core';
+import { SettingsRow } from './settings-row/settings-row';
+import { SettingsGroup } from './settings-group/settings-group';
 import { IntegrationSettingsComponent } from './integration-settings/integration-settings';
-import { AboutSettingsComponent } from './about-settings/about-settings';
+import { AboutSettingsComponent, AppInfo } from './about-settings/about-settings';
+import { SyncSettingsComponent } from './screens/sync-settings/sync-settings';
+import { WorkdaySettingsComponent } from './screens/workday-settings/workday-settings';
+import { AlertsSettingsComponent } from './screens/alerts-settings/alerts-settings';
+import { SystemSettingsComponent } from './screens/system-settings/system-settings';
+import { ExternalAppSettingsComponent } from './screens/external-app-settings/external-app-settings';
 import { invoke } from '@tauri-apps/api/core';
 import { ToastService } from '../../services/toast.service';
 import { PontoMaisService } from '../../services/pontomais.service';
 import { CredentialsService } from '../../services/credentials.service';
 import { AutostartService } from '../../services/autostart.service';
+import {
+  AppSettings,
+  DEFAULT_BREAK_MINUTES,
+  DEFAULT_EXPECTED_WORKDAY_MINUTES,
+  INTERVAL_OPTIONS,
+  formatWorkday,
+} from './settings.model';
 
-interface Settings {
-  smartSyncEnabled: boolean;
-  autoImportEnabled: boolean;
-  autoImportInterval: number;
-  importOnStartupEnabled: boolean;
-  alarmEnabled: boolean;
-  notificationEnabled: boolean;
-  autostartEnabled: boolean;
-  externalAppAutostartEnabled: boolean;
-  externalApp: ExternalApp | null;
-  expectedWorkdayMinutes: number;
-  pontomaisLogin: string;
-  isPontomaisLoggedIn: boolean;
-}
+type ScreenId =
+  | 'conta'
+  | 'sincronizacao'
+  | 'expediente'
+  | 'avisos'
+  | 'sistema'
+  | 'app-externo'
+  | 'sobre';
 
-interface AppInfo {
-  version: string;
-  product_name: string;
-  tauri_version: string;
-  architecture: string;
-  os_platform: string;
-  build_type: string;
-}
+const SCREEN_TITLES: Record<ScreenId, string> = {
+  'conta': 'Conta',
+  'sincronizacao': 'Sincronização',
+  'expediente': 'Expediente',
+  'avisos': 'Alarme e notificações',
+  'sistema': 'Sistema',
+  'app-externo': 'Aplicativo externo',
+  'sobre': 'Sobre',
+};
 
 @Component({
   selector: 'app-settings-modal',
-  imports: [CommonModule, Tabs, GeneralSettingsComponent, IntegrationSettingsComponent, AboutSettingsComponent],
+  imports: [
+    SettingsRow,
+    SettingsGroup,
+    IntegrationSettingsComponent,
+    AboutSettingsComponent,
+    SyncSettingsComponent,
+    WorkdaySettingsComponent,
+    AlertsSettingsComponent,
+    SystemSettingsComponent,
+    ExternalAppSettingsComponent,
+  ],
   templateUrl: './settings-modal.html',
   styleUrl: './settings-modal.css',
 })
@@ -45,8 +61,7 @@ export class SettingsModal implements OnInit, OnChanges {
   @Output() close = new EventEmitter<void>();
   @ViewChild('modalContainer') modalContainer?: ElementRef<HTMLDivElement>;
 
-  activeTabIndex: number = 0;
-  tabLabels: string[] = ['Geral', 'Conta', 'Sobre'];
+  screenStack: ScreenId[] = [];
 
   appInfo: AppInfo = {
     version: '',
@@ -57,7 +72,7 @@ export class SettingsModal implements OnInit, OnChanges {
     build_type: ''
   };
 
-  settings: Settings = {
+  settings: AppSettings = {
     smartSyncEnabled: false,
     autoImportEnabled: false,
     autoImportInterval: 10,
@@ -67,7 +82,11 @@ export class SettingsModal implements OnInit, OnChanges {
     autostartEnabled: false,
     externalAppAutostartEnabled: false,
     externalApp: null,
-    expectedWorkdayMinutes: 480,
+    expectedWorkdayMinutes: DEFAULT_EXPECTED_WORKDAY_MINUTES,
+    defaultBreakMinutes: DEFAULT_BREAK_MINUTES,
+    lastUpdateCheck: '',
+    lastUpdateResult: '',
+    lastUpdateVersion: '',
     pontomaisLogin: '',
     isPontomaisLoggedIn: false
   };
@@ -81,13 +100,6 @@ export class SettingsModal implements OnInit, OnChanges {
   isLoggingIn = false;
   settingsLoaded = false;
 
-  intervalOptions = [
-    { value: 10, label: '10 minutos' },
-    { value: 15, label: '15 minutos' },
-    { value: 30, label: '30 minutos' },
-    { value: 60, label: '1 hora' }
-  ];
-
   constructor(
     private toastService: ToastService,
     private pontoMaisService: PontoMaisService,
@@ -95,20 +107,70 @@ export class SettingsModal implements OnInit, OnChanges {
     private autostartService: AutostartService
   ) {}
 
+  get currentScreen(): ScreenId | null {
+    return this.screenStack.length ? this.screenStack[this.screenStack.length - 1] : null;
+  }
+
+  get title(): string {
+    const screen = this.currentScreen;
+    return screen ? SCREEN_TITLES[screen] : 'Configurações';
+  }
+
+  get accountValue(): string {
+    if (!this.settings.isPontomaisLoggedIn) return 'Não conectada';
+    return this.settings.pontomaisLogin || 'Conectada';
+  }
+
+  get syncValue(): string {
+    if (!this.settings.autoImportEnabled) return '';
+    const option = INTERVAL_OPTIONS.find(opt => opt.value === this.settings.autoImportInterval);
+    return option?.label ?? `${this.settings.autoImportInterval} minutos`;
+  }
+
+  get hasUpdate(): boolean {
+    return this.settings.lastUpdateResult === 'available';
+  }
+
+  get workdayValue(): string {
+    return formatWorkday(this.settings.expectedWorkdayMinutes);
+  }
+
+  get externalAppValue(): string {
+    if (!this.settings.externalAppAutostartEnabled) return '';
+    return this.settings.externalApp?.name ?? '';
+  }
+
+  openScreen(screen: ScreenId): void {
+    this.screenStack.push(screen);
+  }
+
+  goBack(): void {
+    this.screenStack.pop();
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (!this.isOpen) return;
+
+    if (this.screenStack.length) {
+      this.goBack();
+    } else {
+      this.onClose();
+    }
+  }
+
   async ngOnInit() {
     await this.loadAppInfo();
   }
 
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
     if (changes['isOpen'] && changes['isOpen'].currentValue === true) {
-      this.activeTabIndex = 0;
+      this.screenStack = [];
       this.settingsLoaded = false;
 
-      // Carregar settings ao abrir o modal
       await this.loadSettings();
       this.settingsLoaded = true;
 
-      // Remover foco do botão de fechar ao abrir o modal
       setTimeout(() => {
         this.modalContainer?.nativeElement.focus();
       }, 0);
@@ -117,25 +179,20 @@ export class SettingsModal implements OnInit, OnChanges {
 
   async loadSettings() {
     try {
-      const loadedSettings = await invoke<Settings>('load_settings');
+      const loadedSettings = await invoke<AppSettings>('load_settings');
       this.settings = loadedSettings;
 
-      // Verificar o status REAL do autostart no sistema
       const actualAutostartStatus = await this.autostartService.isEnabled();
 
-      // Se o status real for diferente do salvo, sincronizar
       if (actualAutostartStatus !== this.settings.autostartEnabled) {
         this.settings.autostartEnabled = actualAutostartStatus;
         await this.saveSettings();
       }
 
-      // SEMPRE verificar o keyring do SO como fonte da verdade
       const token = await this.credentialsService.getToken();
 
       if (token) {
-        // Token existe no keyring
         try {
-          // Restaurar sessão no backend Rust
           await this.pontoMaisService.restoreSession(
             token.token,
             token.client_id,
@@ -143,33 +200,27 @@ export class SettingsModal implements OnInit, OnChanges {
             token.uid
           );
 
-          // Atualizar TODOS os estados como logado
           this.integrationSettings.isLoggedIn = true;
           this.settings.isPontomaisLoggedIn = true;
 
-          // Se o settings.json não tinha o login salvo, atualizar
           if (!loadedSettings.isPontomaisLoggedIn) {
             await this.saveSettings();
           }
         } catch (error) {
           console.error('Erro ao restaurar sessão no modal:', error);
-          // Se falhar ao restaurar, marcar como não logado
           this.integrationSettings.isLoggedIn = false;
           this.settings.isPontomaisLoggedIn = false;
           await this.saveSettings();
         }
       } else {
-        // Token não existe no keyring
         this.integrationSettings.isLoggedIn = false;
         this.settings.isPontomaisLoggedIn = false;
 
-        // Se o settings.json tinha marcado como logado, corrigir
         if (loadedSettings.isPontomaisLoggedIn) {
           await this.saveSettings();
         }
       }
 
-      // Atualizar dados de integração
       this.integrationSettings.pontomaisLogin = this.settings.pontomaisLogin;
       this.integrationSettings.pontomaisPassword = '';
 
@@ -189,20 +240,16 @@ export class SettingsModal implements OnInit, OnChanges {
 
   async saveSettings() {
     try {
-      // Sincronizar autostart com o sistema operacional
       const currentAutostartStatus = await this.autostartService.isEnabled();
 
       if (this.settings.autostartEnabled && !currentAutostartStatus) {
-        // Usuário quer habilitar e não está habilitado
         await this.autostartService.enable();
       } else if (!this.settings.autostartEnabled && currentAutostartStatus) {
-        // Usuário quer desabilitar e está habilitado
         await this.autostartService.disable();
       }
 
       await invoke('save_settings', { settings: this.settings });
 
-      // Reconfigura o timer de sincronização automática conforme as novas configurações
       await invoke('configure_auto_sync', {
         enabled: this.settings.autoImportEnabled && this.settings.isPontomaisLoggedIn,
         intervalMins: this.settings.autoImportInterval
@@ -221,13 +268,11 @@ export class SettingsModal implements OnInit, OnChanges {
     this.isLoggingIn = true;
 
     try {
-      // Tentar autenticar
       const authResponse = await this.pontoMaisService.authenticate({
         username: this.integrationSettings.pontomaisLogin,
         password: this.integrationSettings.pontomaisPassword
       });
 
-      // Salvar token no keyring do SO
       await this.credentialsService.saveToken({
         token: authResponse.token,
         client_id: authResponse.client_id,
@@ -235,20 +280,17 @@ export class SettingsModal implements OnInit, OnChanges {
         uid: authResponse.uid
       });
 
-      // Atualizar settings
       this.settings.pontomaisLogin = this.integrationSettings.pontomaisLogin;
       this.settings.isPontomaisLoggedIn = true;
 
-      // LIMPAR senha da memória
       this.integrationSettings.pontomaisPassword = '';
 
-      // Atualizar UI
       this.integrationSettings.isLoggedIn = true;
 
-      // Salvar settings
       await this.saveSettings();
 
-      this.toastService.success('Conta conectada com sucesso!');
+      // Sem toast de sucesso: a tela troca o formulário pela conta conectada,
+      // o que já comunica o resultado.
     } catch (error) {
       console.error('Erro ao fazer login:', error);
       const message = typeof error === 'string' ? error : 'Erro ao fazer login. Verifique suas credenciais.';
@@ -269,15 +311,12 @@ export class SettingsModal implements OnInit, OnChanges {
         console.error('Erro ao encerrar sessão no PontoMais:', error);
       }
 
-      // Remover token do keyring do SO
       await this.credentialsService.deleteToken();
 
-      // Atualizar settings
       this.settings.isPontomaisLoggedIn = false;
       this.integrationSettings.isLoggedIn = false;
       this.integrationSettings.pontomaisPassword = '';
 
-      // Salvar settings
       await this.saveSettings();
 
       this.toastService.success('Conta desconectada');
@@ -292,7 +331,6 @@ export class SettingsModal implements OnInit, OnChanges {
   }
 
   onOverlayClick(event: MouseEvent) {
-    // Fecha o modal apenas se clicar no overlay, não no conteúdo
     if (event.target === event.currentTarget) {
       this.onClose();
     }

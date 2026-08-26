@@ -97,21 +97,6 @@
   text-overflow: ellipsis;
 }
 
-/* Notas discretas: o que a conexão está alimentando */
-.account-notes {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 2px;
-}
-
-.account-note {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--gray-medium);
-}
-
 /* Formulário de conexão */
 .connect-intro {
   margin: -2px 0 0;

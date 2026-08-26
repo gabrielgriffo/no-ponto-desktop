@@ -1,0 +1,87 @@
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font-family: 'Inter', sans-serif;
+  text-align: left;
+  transition: background-color 0.2s;
+}
+
+.settings-row:hover {
+  background-color: var(--bg-light);
+}
+
+.settings-row:active {
+  background-color: var(--border-gray-light);
+}
+
+.settings-row-icon {
+  flex-shrink: 0;
+  color: var(--text-dark);
+}
+
+/* `flex: 1 1 auto`, e não `flex: 1`. O atalho `flex: 1` zera a base, e como o
+   encolhimento é ponderado pelo tamanho-base, um bloco de base zero não participa
+   da divisão: com um valor longo ele ficava com largura 0 e o rótulo vazava por
+   cima. Com base automática os dois encolhem proporcionalmente. O min-width é o
+   que permite encolher abaixo do conteúdo — sem ele o item flex se recusa. */
+.settings-row-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settings-row-label,
+.settings-row-description {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.settings-row-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dark);
+}
+
+.settings-row-description {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--gray-medium);
+}
+
+/* O teto é o que garante o rótulo legível: sem ele, um e-mail ou nome de
+   aplicativo longo ocuparia a linha inteira e sobraria pouco para o nome da
+   categoria. O valor reticencia dentro do próprio teto. */
+.settings-row-value {
+  flex: 0 1 auto;
+  max-width: 45%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-medium);
+}
+
+.settings-row-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--primary-green);
+}
+
+.settings-row-chevron {
+  flex-shrink: 0;
+  color: var(--gray-placeholder);
+}

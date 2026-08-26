@@ -54,13 +54,13 @@
   -webkit-mask-size: contain;
 }
 
-.icon-bell {
+.icon-alarm {
   width: 14px;
   height: 14px;
   background-color: currentColor;
-  mask: url('/assets/icons/clock-icon.svg') no-repeat center;
+  mask: url('/assets/icons/alarm-clock.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/clock-icon.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/alarm-clock.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -71,5 +71,95 @@
   mask: url('/assets/icons/play.svg') no-repeat center;
   mask-size: contain;
   -webkit-mask: url('/assets/icons/play.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-chevron-right {
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: url('/assets/icons/arrow-right-01.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/arrow-right-01.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-chevron-left {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/arrow-left-01.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/arrow-left-01.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-user {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/user-circle.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/user-circle.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-sync {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/refresh.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/refresh.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-clock {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/clock-01.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/clock-01.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-bell {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/notification-01.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/notification-01.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-computer {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/computer.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/computer.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-link {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/link-square-01.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/link-square-01.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-info {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/information-circle.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/information-circle.svg') no-repeat center;
   -webkit-mask-size: contain;
 }

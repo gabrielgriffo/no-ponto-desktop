@@ -1,62 +1,84 @@
 <div class="tab-content">
   <div class="about-section">
+    <div class="about-column">
+      <div class="about-item">
+        <span class="about-label">Aplicativo</span>
+        <span class="about-value">{{ appInfo.product_name }}</span>
+      </div>
 
-    <div class="about-item">
-      <span class="about-value">{{ appInfo.product_name }}</span>
+      <div class="about-item">
+        <span class="about-label">Versão do Aplicativo</span>
+        <span class="about-value">{{ appInfo.version }}</span>
+      </div>
+
+      <div class="about-item">
+        <span class="about-label">Versão do Tauri</span>
+        <span class="about-value">{{ appInfo.tauri_version }}</span>
+      </div>
     </div>
 
-    <div class="about-item">
-      <span class="about-label">Versão</span>
-      <span class="about-value">{{ appInfo.version }}</span>
+    <div class="about-column">
+      <div class="about-item">
+        <span class="about-label">Arquitetura</span> 
+        <span class="about-value">{{ appInfo.architecture }}</span>
+      </div>
+
+      <div class="about-item">
+        <span class="about-label">Plataforma</span>
+        <span class="about-value">{{ appInfo.os_platform }}</span>
+      </div>
+
+      <div class="about-item">
+        <span class="about-label">Tipo de Build</span>
+        <span class="about-value">{{ appInfo.build_type }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="line"></div>
+
+  <h3 class="section-title">Atualização</h3>
+
+  <div class="about-section">
+    <div class="about-column">
+      <div class="about-item">
+        <span class="about-label">Última verificação</span>
+        <span class="about-value">{{ lastCheckLabel }}</span>
+      </div>
     </div>
 
-    <div class="about-item">
-      <span class="about-label">Versão do Tauri</span>
-      <span class="about-value">{{ appInfo.tauri_version }}</span>
-    </div>
-
-    <div class="about-item">
-      <span class="about-label">Arquitetura</span>
-      <span class="about-value">{{ appInfo.architecture }}</span>
-    </div>
-
-    <div class="about-item">
-      <span class="about-label">Plataforma</span>
-      <span class="about-value">{{ appInfo.os_platform }}</span>
-    </div>
-
-    <div class="about-item">
-      <span class="about-label">Tipo de Build</span>
-      <span class="about-value">{{ appInfo.build_type }}</span>
+    <div class="about-column">
+      <div class="about-item">
+        <span class="about-label">Situação</span>
+        <span class="about-value" [class.is-available]="isUpdateAvailable">{{ statusLabel }}</span>
+      </div>
     </div>
   </div>
 
   <div class="update-section">
-    @if (updateState === 'idle' || updateState === 'checking') {
-      <button class="btn-primary update-button" (click)="onCheckForUpdate()">
-        {{ updateState === 'checking' ? 'Verificando...' : 'Verificar atualizações' }}
+    <button class="app-picker-button update-button" (click)="onCheckForUpdate()">
+      {{ updateState === 'checking' ? 'Verificando...' : 'Verificar atualizações' }}
+    </button>
+
+    @if (canInstall) {
+      <button class="app-picker-button update-button" (click)="onInstallUpdate()">
+        Baixar e instalar
       </button>
     }
 
-    @if (updateState === 'up-to-date') {
-      <span class="update-status">Você já está na última versão</span>
+    @if (updateState === 'ready') {
+      <button class="app-picker-button update-button" (click)="onRelaunch()">
+        Reiniciar agora
+      </button>
     }
+  </div>
 
-    @if (updateState === 'available') {
-      <span class="update-status">Nova versão {{ pendingUpdate?.version }} disponível</span>
-      <button class="btn-primary update-button" (click)="onInstallUpdate()">Baixar e instalar</button>
-    }
-
-    @if (updateState === 'downloading') {
-      <span class="update-status">Baixando... {{ downloadProgress }}%</span>
+  @if (updateState === 'downloading') {
+    <div class="download">
+      <span class="download-label">{{ downloadProgress }}%</span>
       <div class="progress-bar">
         <div class="progress-bar-fill" [style.width.%]="downloadProgress"></div>
       </div>
-    }
-
-    @if (updateState === 'ready') {
-      <span class="update-status">Atualização instalada</span>
-      <button class="btn-primary update-button" (click)="onRelaunch()">Reiniciar agora</button>
-    }
-  </div>
+    </div>
+  }
 </div>

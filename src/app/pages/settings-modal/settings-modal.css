@@ -4,16 +4,12 @@
   left: 0;
   right: 0;
   bottom: 0;
-  height: 100%;
   width: 100%;
   display: flex;
   z-index: 1000;
   animation: fadeIn 0.2s ease;
   margin-top: 35px;
-  padding: 10px;
-  padding-bottom: 45px;
   background-color: var(--border-gray);
-  
   overflow: auto;
 }
 
@@ -28,44 +24,43 @@
 
 .modal-container {
   background-color: white;
-  border-radius: 8px;
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   border-top: 1px solid rgba(255, 255, 255, 0.3);
-  animation: slideUp 0.1s ease;
   outline: none;
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
 
 .modal-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  gap: 8px;
+  padding: 12px 12px 12px 20px;
   border-bottom: 1px solid var(--border-gray);
 }
 
+/* O título ocupa o espaço restante entre os botões. Como o voltar só existe nas
+   telas internas, deixar o título crescer mantém o alinhamento à esquerda nos
+   dois casos, sem depender de qual botão está presente. */
 .modal-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: 18px;
   font-weight: 600;
   color: var(--text-dark);
   margin: 0;
 }
 
-.close-button {
+.header-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   background: none;
   border: none;
   width: 32px;
@@ -75,17 +70,31 @@
   transition: background-color 0.2s;
 }
 
-.close-button:hover {
+.header-button:hover {
   background-color: rgba(0, 0, 0, 0.06);
 }
 
+.back-button {
+  margin-left: -8px;
+  color: var(--text-dark);
+}
+
 .modal-body {
-  padding: 20px 12px 24px 20px;
+  padding: 16px 12px 24px 16px;
   overflow-y: auto;
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: auto;
   scrollbar-gutter: stable;
   height: 340px;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+}
+
+app-settings-group + app-settings-group {
+  margin-top: 14px;
 }

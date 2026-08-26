@@ -17,25 +17,12 @@ export interface IntegrationSettings {
 export class IntegrationSettingsComponent implements AfterViewInit {
   @Input() settings!: IntegrationSettings;
   @Input() isLoggingIn: boolean = false;
-  @Input() autoSyncEnabled: boolean = false;
-  @Input() autoSyncIntervalMins: number = 10;
-  @Input() importOnStartupEnabled: boolean = false;
   @Output() saveCredentials = new EventEmitter<void>();
   @Output() logout = new EventEmitter<void>();
 
   @ViewChild('loginInput') loginInput?: ElementRef<HTMLInputElement>;
 
   showPassword: boolean = false;
-
-  /** Estado da sincronização automática exibido na nota da conta conectada. */
-  get syncLabel(): string {
-    if (!this.autoSyncEnabled) {
-      return 'desativada';
-    }
-
-    const mins = this.autoSyncIntervalMins;
-    return mins >= 60 ? `a cada ${mins / 60}h` : `a cada ${mins} min`;
-  }
 
   get canSubmit(): boolean {
     const login = this.settings?.pontomaisLogin?.trim() ?? '';

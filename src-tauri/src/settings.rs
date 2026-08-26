@@ -19,12 +19,18 @@ pub struct Settings {
     /// o toggle acima ligado sem isto preenchido deixa o recurso inerte.
     pub external_app: Option<ExternalApp>,
     pub expected_workday_minutes: u32,
+    pub default_break_minutes: u32,
+    pub last_update_check: String,
+    pub last_update_result: String,
+    pub last_update_version: String,
     pub pontomais_login: String,
     pub is_pontomais_logged_in: bool,
 }
 
 /// Jornada padrão: 8 horas.
 pub const DEFAULT_EXPECTED_WORKDAY_MINUTES: u32 = 480;
+
+pub const DEFAULT_BREAK_MINUTES: u32 = 60;
 
 impl Settings {
     pub fn expected_workday_minutes(&self) -> u32 {
@@ -49,6 +55,10 @@ impl Default for Settings {
             external_app_autostart_enabled: false,
             external_app: None,
             expected_workday_minutes: DEFAULT_EXPECTED_WORKDAY_MINUTES,
+            default_break_minutes: DEFAULT_BREAK_MINUTES,
+            last_update_check: String::new(),
+            last_update_result: String::new(),
+            last_update_version: String::new(),
             pontomais_login: String::new(),
             is_pontomais_logged_in: false,
         }

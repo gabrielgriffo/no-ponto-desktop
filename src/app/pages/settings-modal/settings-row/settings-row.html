@@ -1,0 +1,26 @@
+<button class="settings-row" type="button" (click)="action.emit()">
+  @if (icon) {
+    <span [class]="'settings-row-icon ' + icon"></span>
+  }
+
+  <span class="settings-row-text">
+    <span class="settings-row-label">{{ label }}</span>
+    @if (description) {
+      <span class="settings-row-description">{{ description }}</span>
+    }
+  </span>
+
+  @if (badge) {
+    <span class="dev-badge">{{ badge }}</span>
+  } @else if (value) {
+    <span class="settings-row-value"
+          [appTooltip]="showValueTooltip ? value : ''"
+          tooltipPosition="top">{{ value }}</span>
+  }
+
+  @if (dot) {
+    <span class="settings-row-dot"></span>
+  }
+
+  <span class="settings-row-chevron icon-chevron-right"></span>
+</button>

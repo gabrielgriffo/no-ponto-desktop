@@ -1,0 +1,39 @@
+<div class="settings-screen">
+  <div class="setting-item">
+    <div class="setting-header">
+      <span class="setting-label">Inicialização automática</span>
+      <app-toggle-switch
+        [checked]="settings.externalAppAutostartEnabled"
+        (checkedChange)="settings.externalAppAutostartEnabled = $event; onChange()"
+      ></app-toggle-switch>
+    </div>
+
+    @if (settings.externalAppAutostartEnabled) {
+      <!-- Sem citar cada gatilho: a Sincronização Inteligente já está prevista como
+           terceiro, e uma lista nominal ficaria desatualizada a cada um novo. -->
+      <span class="setting-description">
+        Inicia o aplicativo configurado quando o expediente começa, detectado pelas
+        importações automáticas em Sincronização
+      </span>
+
+      <button
+        type="button"
+        class="app-picker-button"
+        [disabled]="isPickingApp"
+        (click)="onPickExternalApp()">
+        <span class="app-picker-label"
+              [appTooltip]="settings.externalApp?.path || ''"
+              tooltipPosition="top">
+          {{ settings.externalApp?.name || 'Selecionar Aplicativo' }}
+        </span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+          xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 3h6v6"></path>
+          <path d="M10 14 21 3"></path>
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+        </svg>
+      </button>
+    }
+  </div>
+</div>

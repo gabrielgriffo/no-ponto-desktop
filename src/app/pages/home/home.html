@@ -151,7 +151,7 @@
             <span
               *ngIf="hasLunchHourAdded"
               class="help-icon"
-              appTooltip="O cálculo foi ajustado para incluir 1 hora de intervalo"
+              [appTooltip]="lunchHourTooltip"
               tooltipPosition="top">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="7" cy="7" r="6.5" fill="currentColor" stroke-width="1"/>
@@ -188,7 +188,7 @@
     <div class="status-item"
          appTooltip="Notificação sonora quando chegar ao fim do expediente"
          tooltipPosition="top">
-      <span class="icon-bell status-value disabled"></span>
+      <span class="icon-alarm status-value disabled"></span>
     </div>
     <!-- Status: Notificação (não implementado) -->
     <div class="status-item"
