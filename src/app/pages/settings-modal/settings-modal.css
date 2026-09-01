@@ -41,9 +41,6 @@
   border-bottom: 1px solid var(--border-gray);
 }
 
-/* O título ocupa o espaço restante entre os botões. Como o voltar só existe nas
-   telas internas, deixar o título crescer mantém o alinhamento à esquerda nos
-   dois casos, sem depender de qual botão está presente. */
 .modal-title {
   flex: 1;
   min-width: 0;

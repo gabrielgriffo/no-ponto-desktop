@@ -307,6 +307,10 @@ export class Home implements OnInit, OnDestroy {
     return this.capturedCheckOut2.length > 0;
   }
 
+  get isOnBreak(): boolean {
+    return this.hasFirstPeriod && this.capturedCheckOut.length > 0 && !this.hasSecondPeriod;
+  }
+
   get autoSyncTooltip(): string {
     if (!this.isPontomaisLoggedIn) {
       return 'Conecte-se a uma conta';

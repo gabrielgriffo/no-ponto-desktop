@@ -138,7 +138,6 @@
   justify-content: center;
 }
 
-/* styling of whole input container */
 .form {
   --timing: 0.3s;
   --border-height: 2px;
@@ -181,7 +180,6 @@
   }
 }
 
-/* styling of Input */
 .input {
   background-color: transparent;
   width: 100%;
@@ -204,7 +202,6 @@
   transition: color var(--transition-default);
 }
 
-/* styling of animated border */
 .form:before {
   content: '';
   position: absolute;
@@ -219,7 +216,6 @@
   transition: transform var(--timing) ease;
 }
 
-/* Hover on Input */
 .form:focus-within {
   border-radius: var(--after-border-radius);
 }
@@ -228,7 +224,6 @@ input:focus {
   outline: none;
 }
 
-/* here is code of animated border */
 .form:focus-within:before {
   transform: scale(1);
 }
@@ -348,7 +343,6 @@ input:focus {
   color: var(--border-gray);
 }
 
-/* Progress Section */
 .progress-section {
   padding: 0 20px;
   background-color: var(--bg-white);

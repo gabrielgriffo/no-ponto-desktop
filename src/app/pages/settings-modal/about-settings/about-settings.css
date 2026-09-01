@@ -15,14 +15,6 @@
   border-bottom: 1px solid var(--bg-light);
 }
 
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
-  color: var(--text-dark);
-  margin: 0;
-}
-
 .about-section {
   display: grid;
   grid-template-columns: 1fr 1fr;

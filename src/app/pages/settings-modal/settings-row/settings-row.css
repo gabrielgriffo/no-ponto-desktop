@@ -25,11 +25,6 @@
   color: var(--text-dark);
 }
 
-/* `flex: 1 1 auto`, e não `flex: 1`. O atalho `flex: 1` zera a base, e como o
-   encolhimento é ponderado pelo tamanho-base, um bloco de base zero não participa
-   da divisão: com um valor longo ele ficava com largura 0 e o rótulo vazava por
-   cima. Com base automática os dois encolhem proporcionalmente. O min-width é o
-   que permite encolher abaixo do conteúdo — sem ele o item flex se recusa. */
 .settings-row-text {
   display: flex;
   flex-direction: column;
@@ -58,9 +53,6 @@
   color: var(--gray-medium);
 }
 
-/* O teto é o que garante o rótulo legível: sem ele, um e-mail ou nome de
-   aplicativo longo ocuparia a linha inteira e sobraria pouco para o nome da
-   categoria. O valor reticencia dentro do próprio teto. */
 .settings-row-value {
   flex: 0 1 auto;
   max-width: 45%;

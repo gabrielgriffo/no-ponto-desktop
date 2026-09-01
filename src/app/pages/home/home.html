@@ -109,7 +109,7 @@
       <div class="progress-title">Progresso Total do Expediente</div>
       <div class="progress-content">
         <div class="progress-bar">
-          <div class="progress-fill" [ngClass]="isWorkDayComplete ? 'progress-solid-green' : 'animated'" [style.width.%]="progressPercentageValue"></div>
+          <div class="progress-fill" [ngClass]="isWorkDayComplete || isOnBreak ? 'progress-solid-green' : 'animated'" [style.width.%]="progressPercentageValue"></div>
         </div>
         <span class="progress-percentage">{{ progressPercentageValue.toFixed(1).replace('.', ',') }}%</span>
       </div>
@@ -122,7 +122,7 @@
         <div class="periods-back-bar">
           <!-- Primeiro período (entrada até saída) -->
           <div class="period-item" [style.width.%]="firstPeriodPercentage" *ngIf="isMonitoring && hasFirstPeriod">
-            <div class="period-bar" [ngClass]="hasSecondPeriod ? 'period-ended' : 'period-green animated'"></div>
+            <div class="period-bar" [ngClass]="hasSecondPeriod ? 'period-ended' : (isOnBreak ? 'period-solid-green' : 'period-green animated')"></div>
             <span class="period-label">{{ firstPeriodTime | timeFormat:'duration' }}</span>
           </div>
           <!-- Segundo período (retorno até agora/fim) -->

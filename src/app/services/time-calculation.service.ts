@@ -151,7 +151,9 @@ export class TimeCalculationService {
       if (totalWorkedMinutes >= targetJourneyMinutes) {
         endTimeMinutes = checkInMinutes + targetJourneyMinutes + breakMinutes;
       } else {
-        endTimeMinutes = currentMinutes + remainingMinutes + breakMinutes;
+        const breakEndMinutes = checkOutMinutes + breakMinutes;
+        lunchHourAdded = breakEndMinutes > currentMinutes;
+        endTimeMinutes = Math.max(breakEndMinutes, currentMinutes) + remainingMinutes;
       }
     }
     // Cenário D: Ponto de saída final já batido (2º período fechado, não conta mais o "agora")

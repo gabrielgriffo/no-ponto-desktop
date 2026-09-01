@@ -303,7 +303,13 @@ button{
   margin-top: 6px;
 }
 
-.input-label,
+.input-label{
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dark);
+}
+
 .setting-description {
   display: block;
   font-size: 12px;
@@ -363,4 +369,12 @@ button{
 
 .app-picker-button:active {
   background-color: var(--border-gray-light);
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  color: var(--text-dark);
+  margin: 0;
 }

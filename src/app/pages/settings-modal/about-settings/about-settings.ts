@@ -34,6 +34,10 @@ export class AboutSettingsComponent {
 
   private lastResult: 'up-to-date' | 'available' | 'ready' | null = null;
 
+  private get isWindows(): boolean {
+    return (this.appInfo?.os_platform ?? '').toLowerCase().startsWith('windows');
+  }
+
   get isUpdateBusy(): boolean {
     return this.updateState === 'checking'
       || this.updateState === 'downloading'
@@ -96,12 +100,12 @@ export class AboutSettingsComponent {
   async onCheckForUpdate() {
     if (this.isUpdateBusy) return;
 
-    if (await this.resolvePendingUpdate()) {
+    if (await this.resolvePendingUpdate(true)) {
       this.updateState = 'available';
     }
   }
 
-  private async resolvePendingUpdate(): Promise<Update | null> {
+  private async resolvePendingUpdate(notify: boolean): Promise<Update | null> {
     this.updateState = 'checking';
 
     try {
@@ -115,15 +119,21 @@ export class AboutSettingsComponent {
       if (update) {
         this.pendingUpdate = update;
         this.lastResult = 'available';
+        if (notify) {
+          this.toastService.info(`Versão ${update.version} disponível`);
+        }
       } else {
         this.updateState = 'up-to-date';
         this.lastResult = 'up-to-date';
+        if (notify) {
+          this.toastService.success('Você já está na versão mais recente');
+        }
       }
 
       return update;
     } catch (error) {
       console.error('Erro ao verificar atualizações:', error);
-      this.toastService.error('Erro ao verificar atualizações');
+      this.toastService.error('Não foi possível verificar atualizações');
       this.updateState = 'idle';
       return null;
     }
@@ -134,9 +144,13 @@ export class AboutSettingsComponent {
       return;
     }
 
-    const update = this.pendingUpdate ?? await this.resolvePendingUpdate();
+    const update = this.pendingUpdate ?? await this.resolvePendingUpdate(false);
     if (!update) {
       return;
+    }
+
+    if (this.isWindows) {
+      this.toastService.info('O app será fechado para instalar a atualização');
     }
 
     this.updateState = 'downloading';
@@ -151,9 +165,10 @@ export class AboutSettingsComponent {
 
       this.updateState = 'ready';
       this.lastResult = 'ready';
+      this.toastService.success('Atualização instalada, reinicie para aplicar');
     } catch (error) {
       console.error('Erro ao baixar/instalar atualização:', error);
-      this.toastService.error('Erro ao baixar atualização');
+      this.toastService.error('Não foi possível baixar a atualização');
       this.updateState = 'available';
     }
   }

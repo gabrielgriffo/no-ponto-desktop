@@ -69,11 +69,10 @@ pub fn run() {
             window.set_fullscreen(false)?;
             window.set_maximizable(false)?;
 
-            let title_i = MenuItem::with_id(app, "title", "No Ponto", false, None::<&str>)?;
-            let separator_i = PredefinedMenuItem::separator(app)?;
             let open_i = MenuItem::with_id(app, "open", "Exibir Janela", true, None::<&str>)?;
+            let separator_i = PredefinedMenuItem::separator(app)?;
             let quit_i = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&title_i, &separator_i, &open_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&open_i, &separator_i, &quit_i])?;
 
             let tray_icon = app.default_window_icon().unwrap().clone();
             let _tray = TrayIconBuilder::with_id("com.gabrielgriffo.noponto.tray")
