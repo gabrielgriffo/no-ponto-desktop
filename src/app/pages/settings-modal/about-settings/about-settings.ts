@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Update } from '@tauri-apps/plugin-updater';
 import { UpdateService } from '../../../services/update.service';
 import { ToastService } from '../../../services/toast.service';
-import { AppSettings } from '../settings.model';
+import { AppSettings, isNewerVersion } from '../settings.model';
 
 export interface AppInfo {
   version: string;
@@ -32,7 +32,7 @@ export class AboutSettingsComponent {
   downloadProgress = 0;
   pendingUpdate: Update | null = null;
 
-  private lastResult: 'up-to-date' | 'available' | 'ready' | null = null;
+  private lastResult: 'up-to-date' | 'available' | 'ready' | 'error' | null = null;
 
   private get isWindows(): boolean {
     return (this.appInfo?.os_platform ?? '').toLowerCase().startsWith('windows');
@@ -64,7 +64,12 @@ export class AboutSettingsComponent {
     if (this.lastResult) {
       return this.lastResult === 'available';
     }
-    return this.settings?.lastUpdateResult === 'available';
+    return this.hasCachedUpdate;
+  }
+
+  private get hasCachedUpdate(): boolean {
+    return this.settings?.lastUpdateResult === 'available'
+      && isNewerVersion(this.settings.lastUpdateVersion, this.appInfo?.version ?? '');
   }
 
   private get availableLabel(): string {
@@ -80,13 +85,20 @@ export class AboutSettingsComponent {
         return this.availableLabel;
       case 'ready':
         return 'Pronto para reiniciar';
+      case 'error':
+        return 'Falha na verificação';
+    }
+
+    if (this.hasCachedUpdate) {
+      return this.availableLabel;
     }
 
     switch (this.settings?.lastUpdateResult) {
       case 'up-to-date':
-        return 'Atualizado';
       case 'available':
-        return this.availableLabel;
+        return 'Atualizado';
+      case 'error':
+        return 'Falha na verificação';
       default:
         return 'Não verificado';
     }
@@ -133,6 +145,14 @@ export class AboutSettingsComponent {
       return update;
     } catch (error) {
       console.error('Erro ao verificar atualizações:', error);
+
+      this.settings.lastUpdateCheck = new Date().toISOString();
+      this.settings.lastUpdateResult = 'error';
+      this.settings.lastUpdateVersion = '';
+      this.settingsChange.emit();
+
+      this.pendingUpdate = null;
+      this.lastResult = 'error';
       this.toastService.error('Não foi possível verificar atualizações');
       this.updateState = 'idle';
       return null;

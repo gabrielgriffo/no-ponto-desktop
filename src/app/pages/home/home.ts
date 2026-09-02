@@ -553,6 +553,17 @@ export class Home implements OnInit, OnDestroy {
       await invoke('save_settings', { settings });
     } catch (error) {
       console.error('Erro ao verificar atualizações na inicialização:', error);
+
+      try {
+        const settings = await invoke<AppSettings>('load_settings');
+        settings.lastUpdateCheck = new Date().toISOString();
+        settings.lastUpdateResult = 'error';
+        settings.lastUpdateVersion = '';
+
+        await invoke('save_settings', { settings });
+      } catch (saveError) {
+        console.error('Erro ao registrar falha da verificação:', saveError);
+      }
     }
   }
 

@@ -8,6 +8,8 @@ export interface ExternalApp {
   args: string[];
 }
 
+export type UpdateResult = '' | 'up-to-date' | 'available' | 'error';
+
 /// Espelha a struct `Settings` do Rust (`src-tauri/src/settings.rs`).
 export interface AppSettings {
   smartSyncEnabled: boolean;
@@ -22,10 +24,29 @@ export interface AppSettings {
   expectedWorkdayMinutes: number;
   defaultBreakMinutes: number;
   lastUpdateCheck: string;
-  lastUpdateResult: string;
+  lastUpdateResult: UpdateResult;
   lastUpdateVersion: string;
   pontomaisLogin: string;
   isPontomaisLoggedIn: boolean;
+}
+
+export function isNewerVersion(candidate: string, current: string): boolean {
+  if (!candidate || !current) return false;
+
+  const parse = (value: string) =>
+    value.split('.').map(part => Number.parseInt(part, 10) || 0);
+
+  const left = parse(candidate);
+  const right = parse(current);
+  const length = Math.max(left.length, right.length);
+
+  for (let i = 0; i < length; i++) {
+    const a = left[i] ?? 0;
+    const b = right[i] ?? 0;
+    if (a !== b) return a > b;
+  }
+
+  return false;
 }
 
 export const DEFAULT_EXPECTED_WORKDAY_MINUTES = 480;

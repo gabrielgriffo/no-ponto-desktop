@@ -19,6 +19,7 @@ import {
   DEFAULT_EXPECTED_WORKDAY_MINUTES,
   INTERVAL_OPTIONS,
   formatWorkday,
+  isNewerVersion,
 } from './settings.model';
 
 type ScreenId =
@@ -128,7 +129,8 @@ export class SettingsModal implements OnInit, OnChanges {
   }
 
   get hasUpdate(): boolean {
-    return this.settings.lastUpdateResult === 'available';
+    return this.settings.lastUpdateResult === 'available'
+      && isNewerVersion(this.settings.lastUpdateVersion, this.appInfo.version);
   }
 
   get workdayValue(): string {
