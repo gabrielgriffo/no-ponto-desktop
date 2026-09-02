@@ -1,0 +1,13 @@
+<input
+  class="range-slider-input"
+  type="range"
+  [min]="min"
+  [max]="max"
+  [step]="step"
+  [value]="value"
+  [disabled]="disabled"
+  [attr.aria-label]="ariaLabel || null"
+  [style.background]="trackBackground"
+  (input)="onInput($event)"
+  (change)="onCommit()"
+/>

@@ -10,6 +10,8 @@ export interface ExternalApp {
 
 export type UpdateResult = '' | 'up-to-date' | 'available' | 'error';
 
+export type AlarmMode = 'single' | 'continuous';
+
 /// Espelha a struct `Settings` do Rust (`src-tauri/src/settings.rs`).
 export interface AppSettings {
   smartSyncEnabled: boolean;
@@ -17,8 +19,15 @@ export interface AppSettings {
   autoImportInterval: number;
   importOnStartupEnabled: boolean;
   alarmEnabled: boolean;
+  alarmSound: string;
+  alarmVolume: number;
+  alarmMode: AlarmMode;
+  alarmDurationSeconds: number;
   notificationEnabled: boolean;
   autostartEnabled: boolean;
+  startMinimizedEnabled: boolean;
+  autoCloseWithoutWorkdayEnabled: boolean;
+  autoCloseWithoutWorkdayTime: number;
   externalAppAutostartEnabled: boolean;
   externalApp: ExternalApp | null;
   expectedWorkdayMinutes: number;
@@ -51,6 +60,40 @@ export function isNewerVersion(candidate: string, current: string): boolean {
 
 export const DEFAULT_EXPECTED_WORKDAY_MINUTES = 480;
 export const DEFAULT_BREAK_MINUTES = 60;
+
+export const DEFAULT_ALARM_SOUND = 'classico';
+export const DEFAULT_ALARM_VOLUME = 70;
+export const DEFAULT_ALARM_MODE: AlarmMode = 'single';
+export const DEFAULT_ALARM_DURATION_SECONDS = 30;
+
+export const DEFAULT_AUTO_CLOSE_TIME = 660;
+
+export const ALARM_SOUND_OPTIONS: SelectOption[] = [
+  { value: 'classico', label: 'Clássico' },
+  { value: 'suave', label: 'Suave' },
+  { value: 'digital', label: 'Digital' },
+  { value: 'sino', label: 'Sino' },
+];
+
+export const ALARM_MODE_OPTIONS: SelectOption[] = [
+  { value: 'single', label: 'Tocar uma vez' },
+  { value: 'continuous', label: 'Tocar continuamente' },
+];
+
+export const ALARM_DURATION_OPTIONS: SelectOption[] = [
+  { value: 15, label: '15 segundos' },
+  { value: 30, label: '30 segundos' },
+  { value: 60, label: '1 minuto' },
+  { value: 120, label: '2 minutos' },
+];
+
+export const AUTO_CLOSE_TIME_OPTIONS: SelectOption[] = [
+  { value: 540, label: '09:00' },
+  { value: 600, label: '10:00' },
+  { value: 660, label: '11:00' },
+  { value: 720, label: '12:00' },
+  { value: 840, label: '14:00' },
+];
 
 export const CUSTOM_DURATION = -1;
 

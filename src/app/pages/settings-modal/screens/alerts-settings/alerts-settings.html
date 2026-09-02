@@ -7,12 +7,75 @@
       </div>
       <app-toggle-switch
         [checked]="settings.alarmEnabled"
-        (checkedChange)="settings.alarmEnabled = $event; onChange()"
+        (checkedChange)="onAlarmToggle($event)"
       ></app-toggle-switch>
     </div>
     <span class="setting-description">
       Aviso sonoro quando o expediente chegar ao fim
     </span>
+
+    @if (settings.alarmEnabled) {
+      <div class="setting-content">
+        <label class="input-label">Som</label>
+        <div class="sound-row">
+          <app-custom-select
+            [options]="soundOptions"
+            [(value)]="settings.alarmSound"
+            (valueChange)="onSoundChange()">
+          </app-custom-select>
+          <button
+            type="button"
+            class="sound-test-button"
+            [attr.aria-label]="isPreviewing ? 'Parar som' : 'Testar som'"
+            (click)="onTogglePreview()">
+            @if (isPreviewing) {
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
+                xmlns="http://www.w3.org/2000/svg">
+                <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+              </svg>
+            } @else {
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M7 4.5v15a1 1 0 0 0 1.53.85l12-7.5a1 1 0 0 0 0-1.7l-12-7.5A1 1 0 0 0 7 4.5Z"></path>
+              </svg>
+            }
+          </button>
+        </div>
+      </div>
+
+      <div class="setting-content">
+        <label class="input-label">Volume</label>
+        <div class="volume-row">
+          <app-range-slider
+            ariaLabel="Volume do alarme"
+            [value]="settings.alarmVolume"
+            (valueChange)="onVolumeInput($event)"
+            (commit)="onVolumeCommit()">
+          </app-range-slider>
+          <span class="volume-value">{{ settings.alarmVolume }}%</span>
+        </div>
+      </div>
+
+      <div class="setting-content">
+        <label class="input-label">Modo do alarme</label>
+        <app-custom-select
+          [options]="modeOptions"
+          [(value)]="settings.alarmMode"
+          (valueChange)="onChange()">
+        </app-custom-select>
+      </div>
+
+      @if (settings.alarmMode === 'continuous') {
+        <div class="setting-content">
+          <label class="input-label">Duração</label>
+          <app-custom-select
+            [options]="durationOptions"
+            [(value)]="settings.alarmDurationSeconds"
+            (valueChange)="onChange()">
+          </app-custom-select>
+        </div>
+      }
+    }
   </div>
 
   <div class="line"></div>

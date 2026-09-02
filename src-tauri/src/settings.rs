@@ -12,8 +12,15 @@ pub struct Settings {
     pub auto_import_interval: u32,
     pub import_on_startup_enabled: bool,
     pub alarm_enabled: bool,
+    pub alarm_sound: String,
+    pub alarm_volume: u32,
+    pub alarm_mode: String,
+    pub alarm_duration_seconds: u32,
     pub notification_enabled: bool,
     pub autostart_enabled: bool,
+    pub start_minimized_enabled: bool,
+    pub auto_close_without_workday_enabled: bool,
+    pub auto_close_without_workday_time: u32,
     pub external_app_autostart_enabled: bool,
     /// Aplicativo escolhido no seletor. `None` enquanto nenhum foi selecionado —
     /// o toggle acima ligado sem isto preenchido deixa o recurso inerte.
@@ -31,6 +38,13 @@ pub struct Settings {
 pub const DEFAULT_EXPECTED_WORKDAY_MINUTES: u32 = 480;
 
 pub const DEFAULT_BREAK_MINUTES: u32 = 60;
+
+pub const DEFAULT_ALARM_SOUND: &str = "classico";
+pub const DEFAULT_ALARM_VOLUME: u32 = 70;
+pub const DEFAULT_ALARM_MODE: &str = "single";
+pub const DEFAULT_ALARM_DURATION_SECONDS: u32 = 30;
+
+pub const DEFAULT_AUTO_CLOSE_TIME: u32 = 660;
 
 impl Settings {
     pub fn expected_workday_minutes(&self) -> u32 {
@@ -50,8 +64,15 @@ impl Default for Settings {
             auto_import_interval: 10,
             import_on_startup_enabled: false,
             alarm_enabled: false,
+            alarm_sound: DEFAULT_ALARM_SOUND.to_string(),
+            alarm_volume: DEFAULT_ALARM_VOLUME,
+            alarm_mode: DEFAULT_ALARM_MODE.to_string(),
+            alarm_duration_seconds: DEFAULT_ALARM_DURATION_SECONDS,
             notification_enabled: false,
             autostart_enabled: false,
+            start_minimized_enabled: false,
+            auto_close_without_workday_enabled: false,
+            auto_close_without_workday_time: DEFAULT_AUTO_CLOSE_TIME,
             external_app_autostart_enabled: false,
             external_app: None,
             expected_workday_minutes: DEFAULT_EXPECTED_WORKDAY_MINUTES,

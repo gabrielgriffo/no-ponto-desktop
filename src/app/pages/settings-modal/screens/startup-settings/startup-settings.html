@@ -1,0 +1,62 @@
+<div class="settings-screen">
+  <div class="setting-item">
+    <div class="setting-header">
+      <span class="setting-label">Iniciar com o Sistema</span>
+      <app-toggle-switch
+        [checked]="settings.autostartEnabled"
+        (checkedChange)="settings.autostartEnabled = $event; onChange()"
+      ></app-toggle-switch>
+    </div>
+    <span class="setting-description">
+      Inicia junto com o sistema, já minimizado na bandeja
+    </span>
+  </div>
+
+  <div class="line"></div>
+
+  <div class="setting-item">
+    <div class="setting-header">
+      <div class="setting-label-group">
+        <span class="setting-label">Iniciar Minimizado</span>
+        <span class="dev-badge">Em desenvolvimento</span>
+      </div>
+      <app-toggle-switch
+        [checked]="settings.startMinimizedEnabled"
+        (checkedChange)="settings.startMinimizedEnabled = $event; onChange()"
+      ></app-toggle-switch>
+    </div>
+    <span class="setting-description">
+      Abre direto na bandeja também quando você inicia o aplicativo manualmente
+    </span>
+  </div>
+
+  <div class="line"></div>
+
+  <div class="setting-item">
+    <div class="setting-header">
+      <div class="setting-label-group">
+        <span class="setting-label">Fechar sem Expediente</span>
+        <span class="dev-badge">Em desenvolvimento</span>
+      </div>
+      <app-toggle-switch
+        [checked]="settings.autoCloseWithoutWorkdayEnabled"
+        (checkedChange)="settings.autoCloseWithoutWorkdayEnabled = $event; onChange()"
+      ></app-toggle-switch>
+    </div>
+    <span class="setting-description">
+      Encerra o aplicativo quando nenhum registro de ponto aparecer até o horário
+      limite — fim de semana, feriado ou folga
+    </span>
+
+    @if (settings.autoCloseWithoutWorkdayEnabled) {
+      <div class="setting-content">
+        <label class="input-label">Horário limite</label>
+        <app-custom-select
+          [options]="autoCloseTimeOptions"
+          [(value)]="settings.autoCloseWithoutWorkdayTime"
+          (valueChange)="onChange()">
+        </app-custom-select>
+      </div>
+    }
+  </div>
+</div>

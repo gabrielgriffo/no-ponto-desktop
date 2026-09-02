@@ -1,0 +1,56 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.range-slider-input {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 6px;
+  margin: 0;
+  border-radius: 999px;
+  background-color: var(--bg-light);
+  outline: none;
+  cursor: default;
+}
+
+.range-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--bg-white);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.range-slider-input:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.range-slider-input:active::-webkit-slider-thumb {
+  transform: scale(0.95);
+}
+
+.range-slider-input:focus-visible {
+  outline: 2px solid var(--primary-green);
+  outline-offset: 4px;
+}
+
+.range-slider-input:disabled {
+  opacity: 0.5;
+}
+
+.range-slider-input:disabled::-webkit-slider-thumb {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .range-slider-input::-webkit-slider-thumb {
+    transition: none;
+  }
+}

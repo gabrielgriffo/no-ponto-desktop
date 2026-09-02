@@ -371,6 +371,57 @@ button{
   background-color: var(--border-gray-light);
 }
 
+.sound-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sound-row app-custom-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.sound-test-button {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background-color: var(--bg-light);
+  color: var(--text-dark);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.sound-test-button:hover {
+  background-color: #e8e9e8;
+}
+
+.sound-test-button:active {
+  background-color: var(--border-gray-light);
+  color: var(--primary-green);
+}
+
+.volume-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.volume-row app-range-slider {
+  flex: 1;
+  min-width: 0;
+}
+
+.volume-value {
+  flex-shrink: 0;
+  width: 34px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-medium);
+  font-variant-numeric: tabular-nums;
+}
+
 .section-title {
   font-size: 14px;
   font-weight: 500;

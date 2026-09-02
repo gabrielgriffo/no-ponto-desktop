@@ -6,7 +6,7 @@ import { AboutSettingsComponent, AppInfo } from './about-settings/about-settings
 import { SyncSettingsComponent } from './screens/sync-settings/sync-settings';
 import { WorkdaySettingsComponent } from './screens/workday-settings/workday-settings';
 import { AlertsSettingsComponent } from './screens/alerts-settings/alerts-settings';
-import { SystemSettingsComponent } from './screens/system-settings/system-settings';
+import { StartupSettingsComponent } from './screens/startup-settings/startup-settings';
 import { ExternalAppSettingsComponent } from './screens/external-app-settings/external-app-settings';
 import { invoke } from '@tauri-apps/api/core';
 import { ToastService } from '../../services/toast.service';
@@ -15,6 +15,11 @@ import { CredentialsService } from '../../services/credentials.service';
 import { AutostartService } from '../../services/autostart.service';
 import {
   AppSettings,
+  DEFAULT_ALARM_DURATION_SECONDS,
+  DEFAULT_ALARM_MODE,
+  DEFAULT_ALARM_SOUND,
+  DEFAULT_ALARM_VOLUME,
+  DEFAULT_AUTO_CLOSE_TIME,
   DEFAULT_BREAK_MINUTES,
   DEFAULT_EXPECTED_WORKDAY_MINUTES,
   INTERVAL_OPTIONS,
@@ -27,7 +32,7 @@ type ScreenId =
   | 'sincronizacao'
   | 'expediente'
   | 'avisos'
-  | 'sistema'
+  | 'inicializacao'
   | 'app-externo'
   | 'sobre';
 
@@ -36,7 +41,7 @@ const SCREEN_TITLES: Record<ScreenId, string> = {
   'sincronizacao': 'Sincronização',
   'expediente': 'Expediente',
   'avisos': 'Alarme e notificações',
-  'sistema': 'Sistema',
+  'inicializacao': 'Inicialização',
   'app-externo': 'Aplicativo externo',
   'sobre': 'Sobre',
 };
@@ -51,7 +56,7 @@ const SCREEN_TITLES: Record<ScreenId, string> = {
     SyncSettingsComponent,
     WorkdaySettingsComponent,
     AlertsSettingsComponent,
-    SystemSettingsComponent,
+    StartupSettingsComponent,
     ExternalAppSettingsComponent,
   ],
   templateUrl: './settings-modal.html',
@@ -79,8 +84,15 @@ export class SettingsModal implements OnInit, OnChanges {
     autoImportInterval: 10,
     importOnStartupEnabled: false,
     alarmEnabled: false,
+    alarmSound: DEFAULT_ALARM_SOUND,
+    alarmVolume: DEFAULT_ALARM_VOLUME,
+    alarmMode: DEFAULT_ALARM_MODE,
+    alarmDurationSeconds: DEFAULT_ALARM_DURATION_SECONDS,
     notificationEnabled: false,
     autostartEnabled: false,
+    startMinimizedEnabled: false,
+    autoCloseWithoutWorkdayEnabled: false,
+    autoCloseWithoutWorkdayTime: DEFAULT_AUTO_CLOSE_TIME,
     externalAppAutostartEnabled: false,
     externalApp: null,
     expectedWorkdayMinutes: DEFAULT_EXPECTED_WORKDAY_MINUTES,

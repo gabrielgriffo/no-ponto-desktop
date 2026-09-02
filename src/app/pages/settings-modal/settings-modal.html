@@ -49,11 +49,11 @@
                 </app-alerts-settings>
               }
 
-              @case ('sistema') {
-                <app-system-settings
+              @case ('inicializacao') {
+                <app-startup-settings
                   [settings]="settings"
                   (settingsChange)="saveSettings()">
-                </app-system-settings>
+                </app-startup-settings>
               }
 
               @case ('app-externo') {
@@ -110,8 +110,8 @@
                 <app-settings-group label="Aplicativo">
                   <app-settings-row
                     icon="icon-computer"
-                    label="Sistema"
-                    (action)="openScreen('sistema')">
+                    label="Inicialização"
+                    (action)="openScreen('inicializacao')">
                   </app-settings-row>
                   <app-settings-row
                     icon="icon-link"
