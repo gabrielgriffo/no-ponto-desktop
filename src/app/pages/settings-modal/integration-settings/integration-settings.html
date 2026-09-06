@@ -25,6 +25,9 @@
       </button>
     </div>
 
+    <div class="account-divider"></div>
+    <ng-container *ngTemplateOutlet="savePasswordOption"></ng-container>
+
   } @else {
     <div class="field">
       <label class="field-label" for="pm-login">Login ou e-mail</label>
@@ -84,6 +87,8 @@
       </div>
     </div>
 
+    <ng-container *ngTemplateOutlet="savePasswordOption"></ng-container>
+
     <div class="action-row">
       <button class="btn-primary connect-button" (click)="onSaveCredentials()" [disabled]="!canSubmit">
         @if (isLoggingIn) {
@@ -96,3 +101,21 @@
     </div>
   }
 </div>
+
+<ng-template #savePasswordOption>
+  <div class="setting-item">
+    <div class="setting-header">
+      <div class="setting-label-group">
+        <span class="setting-label">Salvar Senha</span>
+        <span class="dev-badge">Em desenvolvimento</span>
+      </div>
+      <app-toggle-switch
+        [checked]="savePassword"
+        (checkedChange)="onSavePasswordChange($event)"
+      ></app-toggle-switch>
+    </div>
+    <span class="setting-description">
+      Guarda a senha no cofre do sistema e reconecta a conta sozinho quando o token expirar
+    </span>
+  </div>
+</ng-template>

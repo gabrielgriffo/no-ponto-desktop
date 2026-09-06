@@ -488,7 +488,9 @@ input:focus {
 }
 
 .status-footer {
-  padding: 0 5px;
+  padding: 3px 3px 4px 3px;
+  margin-top: -5px;
+  gap: 3px;
   display: flex;
   flex-direction: row-reverse;
   background-color: var(--bg-light);
@@ -498,8 +500,10 @@ input:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 12px;
-  border-left: 1px solid white;
+  gap: 5px;
+  padding: 4px 8px;
+  background: var(--border-gray-light);
+  border-radius: 4px;
 }
 
 .status-label {
@@ -511,6 +515,15 @@ input:focus {
 .status-value {
   font-size: 12px;
   font-weight: 500;
+}
+
+.status-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.icon-sync {
+  width: 10px;
 }
 
 .status-value.success {

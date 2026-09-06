@@ -37,6 +37,7 @@ export interface AppSettings {
   lastUpdateVersion: string;
   pontomaisLogin: string;
   isPontomaisLoggedIn: boolean;
+  savePasswordEnabled: boolean;
 }
 
 export function isNewerVersion(candidate: string, current: string): boolean {
@@ -126,6 +127,14 @@ export function formatWorkday(minutes: number): string {
   const total = minutes > 0 ? minutes : DEFAULT_EXPECTED_WORKDAY_MINUTES;
   const hours = Math.floor(total / 60);
   const rest = total % 60;
+  return rest === 0 ? `${hours}h` : `${hours}h${String(rest).padStart(2, '0')}`;
+}
+
+export function formatIntervalShort(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
   return rest === 0 ? `${hours}h` : `${hours}h${String(rest).padStart(2, '0')}`;
 }
 

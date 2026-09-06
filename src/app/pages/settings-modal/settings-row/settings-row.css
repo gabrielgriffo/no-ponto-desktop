@@ -22,7 +22,7 @@
 
 .settings-row-icon {
   flex-shrink: 0;
-  color: var(--text-dark);
+  color: var(--gray-placeholder);
 }
 
 .settings-row-text {
@@ -30,6 +30,7 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-width: 0;
+  margin-bottom: 1px;
 }
 
 .settings-row-label,

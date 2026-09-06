@@ -6,7 +6,7 @@ import { TooltipDirective } from '../../directives/tooltip.directive';
 import { TimeFormatPipe } from '../../pipes/time-format.pipe';
 import { TimeInputDirective } from '../../directives/time-input.directive';
 import { TimeCalculationService, DEFAULT_JOURNEY_MINUTES, DEFAULT_BREAK_MINUTES } from '../../services/time-calculation.service';
-import { AppSettings, formatDurationLong } from '../settings-modal/settings.model';
+import { AppSettings, formatDurationLong, formatIntervalShort } from '../settings-modal/settings.model';
 import { UpdateService } from '../../services/update.service';
 import { WindowService } from '../../services/window.service';
 import { TimeObject } from '../../models/time-object';
@@ -316,9 +316,13 @@ export class Home implements OnInit, OnDestroy {
       return 'Conecte-se a uma conta';
     }
     if (!this.autoImportEnabled) {
-      return 'Sincronização automática desativada';
+      return 'Sincronização automática';
     }
-    return `Sincronização automática a cada ${this.autoImportInterval} minutos`;
+    return `Sincronização automática a cada ${formatDurationLong(this.autoImportInterval)}`;
+  }
+
+  get autoSyncIntervalLabel(): string {
+    return formatIntervalShort(this.autoImportInterval);
   }
 
   /**

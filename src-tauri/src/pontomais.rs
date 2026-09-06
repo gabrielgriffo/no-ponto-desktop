@@ -1,7 +1,7 @@
 use reqwest::{header, Client};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use uuid::Uuid;
+use tauri::AppHandle;
 
 pub struct PontoMaisState {
     pub token: Option<String>,
@@ -12,26 +12,22 @@ pub struct PontoMaisState {
 }
 
 impl PontoMaisState {
-    pub fn new() -> Self {
+    /// O `uuid` vem de fora porque identifica a instalação e precisa sobreviver ao
+    /// processo — ver `device::load_or_create`.
+    pub fn new(uuid: String) -> Self {
         Self {
             token: None,
             client_id: None,
             expiry: None,
             username: None,
-            uuid: Uuid::new_v4().to_string(),
+            uuid,
         }
-    }
-}
-
-impl Default for PontoMaisState {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
 pub type PontoMaisStateType = Mutex<PontoMaisState>;
 
-const BASE_URL: &str = "https://api.pontomais.com.br";
+pub(crate) const BASE_URL: &str = "https://api.pontomais.com.br";
 const APP_ORIGIN: &str = "https://app2.pontomais.com.br";
 
 #[derive(Serialize, Deserialize)]
@@ -50,22 +46,33 @@ pub struct AuthResponse {
 
 #[tauri::command]
 pub async fn pontomais_restore_session(
+    app: AppHandle,
     state: tauri::State<'_, PontoMaisStateType>,
     token: String,
     client_id: String,
     expiry: String,
     uid: String,
 ) -> Result<(), String> {
-    let mut pm_state = state.lock().unwrap();
-    pm_state.token = Some(token);
-    pm_state.client_id = Some(client_id);
-    pm_state.expiry = Some(expiry);
-    pm_state.username = Some(uid);
+    // Mutex liberado antes do .await
+    {
+        let mut pm_state = state.lock().unwrap();
+        pm_state.token = Some(token);
+        pm_state.client_id = Some(client_id);
+        pm_state.expiry = Some(expiry);
+        pm_state.username = Some(uid);
+    }
+
+    // Uma sessão anterior à persistência do uuid carrega um token válido com um
+    // dispositivo que nunca foi registrado; `register` é idempotente por conta e
+    // não faz nada quando o registro já existe.
+    crate::device::register(&app, &state).await;
+
     Ok(())
 }
 
 #[tauri::command]
 pub async fn pontomais_authenticate(
+    app: AppHandle,
     state: tauri::State<'_, PontoMaisStateType>,
     credentials: Credentials,
 ) -> Result<AuthResponse, String> {
@@ -122,12 +129,18 @@ pub async fn pontomais_authenticate(
             .unwrap_or("")
             .to_string();
 
-        // Salvar no estado
-        let mut pm_state = state.lock().unwrap();
-        pm_state.token = Some(token.clone());
-        pm_state.client_id = Some(client_id.clone());
-        pm_state.expiry = Some(expiry.clone());
-        pm_state.username = Some(credentials.username);
+        // Salvar no estado; mutex liberado antes do .await seguinte
+        {
+            let mut pm_state = state.lock().unwrap();
+            pm_state.token = Some(token.clone());
+            pm_state.client_id = Some(client_id.clone());
+            pm_state.expiry = Some(expiry.clone());
+            pm_state.username = Some(credentials.username);
+        }
+
+        // O app web registra o dispositivo logo depois do login; é o que vincula
+        // este uuid à conta.
+        crate::device::register(&app, &state).await;
 
         Ok(AuthResponse {
             token,

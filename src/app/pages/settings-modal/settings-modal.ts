@@ -101,7 +101,8 @@ export class SettingsModal implements OnInit, OnChanges {
     lastUpdateResult: '',
     lastUpdateVersion: '',
     pontomaisLogin: '',
-    isPontomaisLoggedIn: false
+    isPontomaisLoggedIn: false,
+    savePasswordEnabled: false
   };
 
   integrationSettings = {

@@ -1,6 +1,8 @@
 import { Component, Input, Output, EventEmitter, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TooltipDirective } from '../../../directives/tooltip.directive';
+import { ToggleSwitch } from '../../../components/toggle-switch/toggle-switch';
 
 export interface IntegrationSettings {
   pontomaisLogin: string;
@@ -10,15 +12,17 @@ export interface IntegrationSettings {
 
 @Component({
   selector: 'app-integration-settings',
-  imports: [FormsModule, TooltipDirective],
+  imports: [NgTemplateOutlet, FormsModule, TooltipDirective, ToggleSwitch],
   templateUrl: './integration-settings.html',
   styleUrl: './integration-settings.css',
 })
 export class IntegrationSettingsComponent implements AfterViewInit {
   @Input() settings!: IntegrationSettings;
   @Input() isLoggingIn: boolean = false;
+  @Input() savePassword: boolean = false;
   @Output() saveCredentials = new EventEmitter<void>();
   @Output() logout = new EventEmitter<void>();
+  @Output() savePasswordChange = new EventEmitter<boolean>();
 
   @ViewChild('loginInput') loginInput?: ElementRef<HTMLInputElement>;
 
@@ -48,5 +52,10 @@ export class IntegrationSettingsComponent implements AfterViewInit {
 
   togglePasswordVisibility(): void {
     this.showPassword = !this.showPassword;
+  }
+
+  onSavePasswordChange(enabled: boolean): void {
+    this.savePassword = enabled;
+    this.savePasswordChange.emit(enabled);
   }
 }

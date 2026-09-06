@@ -32,6 +32,7 @@ pub struct Settings {
     pub last_update_version: String,
     pub pontomais_login: String,
     pub is_pontomais_logged_in: bool,
+    pub save_password_enabled: bool,
 }
 
 /// Jornada padrão: 8 horas.
@@ -82,6 +83,7 @@ impl Default for Settings {
             last_update_version: String::new(),
             pontomais_login: String::new(),
             is_pontomais_logged_in: false,
+            save_password_enabled: false,
         }
     }
 }

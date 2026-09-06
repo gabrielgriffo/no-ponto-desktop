@@ -178,23 +178,23 @@
     <div class="status-item"
          [appTooltip]="autoSyncTooltip"
          tooltipPosition="top">
-      <span class="status-value"
+      <span class="icon-sync status-icon status-value"
             [class.success]="autoImportEnabled && isPontomaisLoggedIn"
-            [class.disabled]="!autoImportEnabled || !isPontomaisLoggedIn">
-        {{ autoImportEnabled && isPontomaisLoggedIn ? autoImportInterval + 'm' : 'Desativada' }}
-      </span>
+            [class.disabled]="!autoImportEnabled || !isPontomaisLoggedIn"></span>
+      <span *ngIf="autoImportEnabled && isPontomaisLoggedIn"
+            class="status-value success">{{ autoSyncIntervalLabel }}</span>
     </div>
     <!-- Status: Alarme (não implementado) -->
     <div class="status-item"
-         appTooltip="Notificação sonora quando chegar ao fim do expediente"
+         appTooltip="Alarme para sinalizar o fim do expediente"
          tooltipPosition="top">
-      <span class="icon-alarm status-value disabled"></span>
+      <span class="icon-alarm status-icon status-value disabled"></span>
     </div>
     <!-- Status: Notificação (não implementado) -->
     <div class="status-item"
-         appTooltip="Notificações do sistema para lembretes de ponto"
+         appTooltip="Notificações do sistema para sinalizar o fim do expediente"
          tooltipPosition="top">
-      <span class="status-value disabled">Desativada</span>
+      <span class="icon-notification status-icon status-value disabled"></span>
     </div>
   </section>
 </main>

@@ -1,4 +1,3 @@
-use pontomais::PontoMaisState;
 use std::sync::Mutex;
 use tauri::Manager;
 use tauri::{
@@ -10,6 +9,7 @@ use tauri_plugin_window_state::{StateFlags, WindowExt};
 mod app_info;
 mod auto_sync;
 mod credentials;
+mod device;
 mod external_app;
 mod pontomais;
 mod settings;
@@ -24,7 +24,6 @@ pub fn run() {
                 .app_name("NoPonto")
                 .build()
         )
-        .manage(Mutex::new(PontoMaisState::new()))
         .manage(Mutex::new(auto_sync::AutoSyncState::new()))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // Quando uma segunda instância é detectada, foca a janela existente
@@ -42,6 +41,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            // Precisa do AppHandle para ler a identidade da instalação em disco,
+            // por isso fica aqui e não no `.manage()` do builder.
+            app.manage(Mutex::new(device::init_pontomais_state(app.handle())));
             app.manage(external_app::init_launch_guard(app.handle()));
 
             let window = app

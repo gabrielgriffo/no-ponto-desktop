@@ -23,8 +23,10 @@
                 <app-integration-settings
                   [settings]="integrationSettings"
                   [isLoggingIn]="isLoggingIn"
+                  [savePassword]="settings.savePasswordEnabled"
                   (saveCredentials)="onSaveCredentials()"
-                  (logout)="onLogout()">
+                  (logout)="onLogout()"
+                  (savePasswordChange)="settings.savePasswordEnabled = $event; saveSettings()">
                 </app-integration-settings>
               }
 
