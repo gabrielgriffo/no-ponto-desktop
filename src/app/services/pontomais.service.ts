@@ -6,12 +6,8 @@ export interface PontoMaisCredentials {
   password: string;
 }
 
-export interface AuthResponse {
-  token: string;
-  client_id: string;
-  uid: string;
-  expiry: string;
-}
+/** Estado da conta devolvido pelo Rust. Nenhuma credencial atravessa junto. */
+export type SessionStatus = 'connected' | 'signedOut';
 
 export interface TimeCard {
   id: number;
@@ -61,17 +57,20 @@ export interface WorkDaysResponse {
 })
 export class PontoMaisService {
 
-  async authenticate(credentials: PontoMaisCredentials): Promise<AuthResponse> {
-    return await invoke<AuthResponse>('pontomais_authenticate', { credentials });
+  /**
+   * Conecta a conta. A senha vai para o Rust e não volta: a resposta é só o sucesso
+   * ou a mensagem do erro. Quem grava token e senha no cofre é o Rust.
+   */
+  async authenticate(credentials: PontoMaisCredentials): Promise<void> {
+    await invoke('pontomais_authenticate', { credentials });
   }
 
-  async restoreSession(token: string, clientId: string, expiry: string, uid: string): Promise<void> {
-    await invoke('pontomais_restore_session', {
-      token,
-      clientId,
-      expiry,
-      uid
-    });
+  /**
+   * Põe a sessão de pé a partir do cofre do sistema. Sem argumentos e sem segredos
+   * na resposta — só o estado da conta.
+   */
+  async ensureSession(): Promise<SessionStatus> {
+    return await invoke<SessionStatus>('pontomais_ensure_session');
   }
 
   /** Revoga o token na API e zera a sessão mantida no estado do Rust. */

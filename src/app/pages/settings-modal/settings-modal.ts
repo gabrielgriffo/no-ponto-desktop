@@ -11,7 +11,6 @@ import { ExternalAppSettingsComponent } from './screens/external-app-settings/ex
 import { invoke } from '@tauri-apps/api/core';
 import { ToastService } from '../../services/toast.service';
 import { PontoMaisService } from '../../services/pontomais.service';
-import { CredentialsService } from '../../services/credentials.service';
 import { AutostartService } from '../../services/autostart.service';
 import {
   AppSettings,
@@ -102,7 +101,7 @@ export class SettingsModal implements OnInit, OnChanges {
     lastUpdateVersion: '',
     pontomaisLogin: '',
     isPontomaisLoggedIn: false,
-    savePasswordEnabled: false
+    autoReconnectEnabled: false
   };
 
   integrationSettings = {
@@ -117,7 +116,6 @@ export class SettingsModal implements OnInit, OnChanges {
   constructor(
     private toastService: ToastService,
     private pontoMaisService: PontoMaisService,
-    private credentialsService: CredentialsService,
     private autostartService: AutostartService
   ) {}
 
@@ -204,36 +202,20 @@ export class SettingsModal implements OnInit, OnChanges {
         await this.saveSettings();
       }
 
-      const token = await this.credentialsService.getToken();
+      // O Rust diz se há conta vinculada; nem token nem senha passam por aqui.
+      let connected: boolean;
+      try {
+        connected = (await this.pontoMaisService.ensureSession()) === 'connected';
+      } catch (error) {
+        console.error('Erro ao restaurar sessão no modal:', error);
+        connected = false;
+      }
 
-      if (token) {
-        try {
-          await this.pontoMaisService.restoreSession(
-            token.token,
-            token.client_id,
-            token.expiry,
-            token.uid
-          );
+      this.integrationSettings.isLoggedIn = connected;
+      this.settings.isPontomaisLoggedIn = connected;
 
-          this.integrationSettings.isLoggedIn = true;
-          this.settings.isPontomaisLoggedIn = true;
-
-          if (!loadedSettings.isPontomaisLoggedIn) {
-            await this.saveSettings();
-          }
-        } catch (error) {
-          console.error('Erro ao restaurar sessão no modal:', error);
-          this.integrationSettings.isLoggedIn = false;
-          this.settings.isPontomaisLoggedIn = false;
-          await this.saveSettings();
-        }
-      } else {
-        this.integrationSettings.isLoggedIn = false;
-        this.settings.isPontomaisLoggedIn = false;
-
-        if (loadedSettings.isPontomaisLoggedIn) {
-          await this.saveSettings();
-        }
+      if (loadedSettings.isPontomaisLoggedIn !== connected) {
+        await this.saveSettings();
       }
 
       this.integrationSettings.pontomaisLogin = this.settings.pontomaisLogin;
@@ -283,16 +265,11 @@ export class SettingsModal implements OnInit, OnChanges {
     this.isLoggingIn = true;
 
     try {
-      const authResponse = await this.pontoMaisService.authenticate({
+      // O Rust autentica, grava o token e — se a Reconexão Automática estiver ligada —
+      // a senha. Aqui não sobra credencial nenhuma.
+      await this.pontoMaisService.authenticate({
         username: this.integrationSettings.pontomaisLogin,
         password: this.integrationSettings.pontomaisPassword
-      });
-
-      await this.credentialsService.saveToken({
-        token: authResponse.token,
-        client_id: authResponse.client_id,
-        expiry: authResponse.expiry,
-        uid: authResponse.uid
       });
 
       this.settings.pontomaisLogin = this.integrationSettings.pontomaisLogin;
@@ -317,16 +294,14 @@ export class SettingsModal implements OnInit, OnChanges {
 
   async onLogout() {
     try {
-      // Revogar o token na API e zerar a sessão do Rust, antes de descartar a
-      // credencial. Isolado num try próprio: uma falha aqui não pode abortar o
-      // logout local, senão a conta ficaria presa como conectada.
+      // Revoga o token na API, zera a sessão do Rust e apaga o cofre — tudo do lado
+      // de lá. Isolado num try próprio: uma falha aqui não pode abortar o logout
+      // local, senão a conta ficaria presa como conectada.
       try {
         await this.pontoMaisService.clearSession();
       } catch (error) {
         console.error('Erro ao encerrar sessão no PontoMais:', error);
       }
-
-      await this.credentialsService.deleteToken();
 
       this.settings.isPontomaisLoggedIn = false;
       this.integrationSettings.isLoggedIn = false;

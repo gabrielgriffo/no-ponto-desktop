@@ -32,7 +32,7 @@ pub struct Settings {
     pub last_update_version: String,
     pub pontomais_login: String,
     pub is_pontomais_logged_in: bool,
-    pub save_password_enabled: bool,
+    pub auto_reconnect_enabled: bool,
 }
 
 /// Jornada padrão: 8 horas.
@@ -83,7 +83,7 @@ impl Default for Settings {
             last_update_version: String::new(),
             pontomais_login: String::new(),
             is_pontomais_logged_in: false,
-            save_password_enabled: false,
+            auto_reconnect_enabled: false,
         }
     }
 }
@@ -123,9 +123,15 @@ pub fn read_settings(app: &AppHandle) -> Result<Settings, String> {
 
 #[tauri::command]
 pub fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
-    let settings_path = get_settings_path(&app)?;
+    write_settings(&app, &settings)
+}
 
-    let json = serde_json::to_string_pretty(&settings)
+/// Grava as settings a partir do Rust. Existe porque o frontend não é o único a
+/// mexer nelas: a desvinculação da conta precisa registrar `isPontomaisLoggedIn`.
+pub fn write_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
+    let settings_path = get_settings_path(app)?;
+
+    let json = serde_json::to_string_pretty(settings)
         .map_err(|e| format!("Failed to serialize settings: {}", e))?;
 
     fs::write(&settings_path, json).map_err(|e| format!("Failed to write settings file: {}", e))?;

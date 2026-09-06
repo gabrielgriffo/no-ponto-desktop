@@ -13,7 +13,6 @@ import { TimeObject } from '../../models/time-object';
 import { TimeUtilsService } from '../../services/time-utils.service';
 import { ToastService } from '../../services/toast.service';
 import { PontoMaisService, WorkDaysResponse } from '../../services/pontomais.service';
-import { CredentialsService } from '../../services/credentials.service';
 import { Subscription, timer } from 'rxjs';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
@@ -73,7 +72,6 @@ export class Home implements OnInit, OnDestroy {
     private windowService: WindowService,
     private toastService: ToastService,
     private pontoMaisService: PontoMaisService,
-    private credentialsService: CredentialsService,
     private updateService: UpdateService,
     private zone: NgZone
   ) { }
@@ -142,48 +140,45 @@ export class Home implements OnInit, OnDestroy {
   }
 
   private async restoreSessionFromStorage(): Promise<void> {
-    const token = await this.credentialsService.getToken();
-    if (token) {
-      try {
-        await this.pontoMaisService.restoreSession(
-          token.token,
-          token.client_id,
-          token.expiry,
-          token.uid
-        );
-        this.isPontomaisLoggedIn = true;
+    try {
+      const status = await this.pontoMaisService.ensureSession();
 
-        // Iniciar sincronização automática agora que a sessão está no estado Rust
-        if (this.autoImportEnabled) {
-          await invoke('configure_auto_sync', {
-            enabled: true,
-            intervalMins: this.autoImportInterval
+      if (status === 'signedOut') {
+        this.isPontomaisLoggedIn = false;
+        return;
+      }
+
+      this.isPontomaisLoggedIn = true;
+
+      // Iniciar sincronização automática agora que a sessão está no estado Rust
+      if (this.autoImportEnabled) {
+        await invoke('configure_auto_sync', {
+          enabled: true,
+          intervalMins: this.autoImportInterval
+        });
+      }
+
+      // Importar horários automaticamente ao iniciar, se habilitado.
+      // Chama onImportClick diretamente para reaproveitar o feedback visual
+      // (spinner/toast) e o guard de isImporting, evitando clique duplicado
+      // enquanto a importação automática está em andamento. Pula a espera pela
+      // sessão pois já estamos dentro dela (evita deadlock com sessionRestorePromise).
+      if (this.importOnStartupEnabled) {
+        const workDay = await this.onImportClick(true);
+
+        if (workDay) {
+          await invoke('external_app_maybe_launch', {
+            workDay,
+            date: this.todayLocalDate()
           });
         }
-
-        // Importar horários automaticamente ao iniciar, se habilitado.
-        // Chama onImportClick diretamente para reaproveitar o feedback visual
-        // (spinner/toast) e o guard de isImporting, evitando clique duplicado
-        // enquanto a importação automática está em andamento. Pula a espera pela
-        // sessão pois já estamos dentro dela (evita deadlock com sessionRestorePromise).
-        if (this.importOnStartupEnabled) {
-          const workDay = await this.onImportClick(true);
-
-          if (workDay) {
-            await invoke('external_app_maybe_launch', {
-              workDay,
-              date: this.todayLocalDate()
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao restaurar sessão:', error);
-        // Token existe no keyring mas a restauração falhou (sessão expirada, erro de rede).
-        // Manter isPontomaisLoggedIn como estava no cache — o usuário ainda está "logado",
-        // mas a sessão ativa pode estar inválida. Evita divergência com as configurações.
       }
-    } else {
-      this.isPontomaisLoggedIn = false;
+    } catch (error) {
+      console.error('Erro ao restaurar sessão:', error);
+      // Não deu para ler o cofre. A conta continua vinculada — a próxima busca dirá se
+      // a sessão vale —, mas o usuário precisa saber que o app subiu sem sessão em vez
+      // de descobrir sozinho quando a importação não trouxer nada.
+      this.toastService.error('Não foi possível restaurar a sessão. Tente importar novamente.', 5000);
     }
   }
 
@@ -200,24 +195,13 @@ export class Home implements OnInit, OnDestroy {
     // 'unauthenticated': sessão ainda não restaurada, ignorar silenciosamente
   }
 
+  /**
+   * A sessão morreu e o Rust já desvinculou a conta: zerou o estado, apagou o cofre,
+   * gravou `isPontomaisLoggedIn: false` e trouxe a janela para frente. Aqui sobra
+   * só o que é da tela.
+   */
   private async handleSessionExpired(): Promise<void> {
-    // Mesmo com o token já inválido, zera a sessão do Rust — senão ela sobreviveria
-    // em memória até o app reiniciar, igual acontecia no logout.
-    try {
-      await this.pontoMaisService.clearSession();
-    } catch (error) {
-      console.error('Erro ao encerrar sessão no PontoMais:', error);
-    }
-
-    await this.credentialsService.deleteToken();
     this.isPontomaisLoggedIn = false;
-
-    try {
-      const fullSettings = await invoke<Record<string, unknown>>('load_settings');
-      await invoke('save_settings', { settings: { ...fullSettings, isPontomaisLoggedIn: false } });
-    } catch (error) {
-      console.error('Erro ao atualizar configurações após expiração de sessão:', error);
-    }
 
     await invoke('configure_auto_sync', { enabled: false, intervalMins: this.autoImportInterval });
 
@@ -312,11 +296,11 @@ export class Home implements OnInit, OnDestroy {
   }
 
   get autoSyncTooltip(): string {
-    if (!this.isPontomaisLoggedIn) {
-      return 'Conecte-se a uma conta';
-    }
     if (!this.autoImportEnabled) {
-      return 'Sincronização automática';
+      return 'Sincronização automática desativada';
+    }
+    if (!this.isPontomaisLoggedIn) {
+      return 'Conecte-se a uma conta para ativar a sincronização';
     }
     return `Sincronização automática a cada ${formatDurationLong(this.autoImportInterval)}`;
   }
@@ -530,6 +514,11 @@ export class Home implements OnInit, OnDestroy {
     } catch (error) {
       if (error === 'SESSION_EXPIRED') {
         await this.handleSessionExpired();
+      } else if (error === 'RECONNECT_PENDING') {
+        // A sessão caiu e a reconexão não foi adiante desta vez. A conta continua
+        // vinculada — dizer "erro ao importar" mandaria o usuário procurar defeito no
+        // lugar errado.
+        this.toastService.error('Não foi possível reconectar agora. Tentando de novo em instantes.', 4000);
       } else {
         console.error('Erro ao importar:', error);
         this.toastService.error('Erro ao importar horários', 3000);
@@ -574,7 +563,7 @@ export class Home implements OnInit, OnDestroy {
   async onCloseSettingsModal(): Promise<void> {
     this.showSettingsModal = false;
     // Recarregar estado após fechar configurações (usuário pode ter alterado auto-sync ou feito logout)
-    this.isPontomaisLoggedIn = await this.credentialsService.hasToken();
+    this.isPontomaisLoggedIn = (await this.pontoMaisService.ensureSession()) === 'connected';
     try {
       const settings = await invoke<{
         autoImportEnabled: boolean;

@@ -502,8 +502,11 @@ input:focus {
   align-items: center;
   gap: 5px;
   padding: 4px 8px;
-  background: var(--border-gray-light);
   border-radius: 4px;
+}
+
+.status-item:hover{
+  background: var(--border-gray-light);
 }
 
 .status-label {

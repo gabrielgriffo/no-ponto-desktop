@@ -37,7 +37,7 @@ export interface AppSettings {
   lastUpdateVersion: string;
   pontomaisLogin: string;
   isPontomaisLoggedIn: boolean;
-  savePasswordEnabled: boolean;
+  autoReconnectEnabled: boolean;
 }
 
 export function isNewerVersion(candidate: string, current: string): boolean {

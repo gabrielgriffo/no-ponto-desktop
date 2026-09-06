@@ -84,10 +84,6 @@
   text-overflow: ellipsis;
 }
 
-.account-divider {
-  border-bottom: 1px solid var(--bg-light);
-}
-
 .connect-intro {
   margin: -2px 0 0;
   font-size: 12px;

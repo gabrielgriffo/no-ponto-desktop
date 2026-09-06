@@ -7,12 +7,14 @@ use tauri::{
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 mod app_info;
+mod auth_state;
 mod auto_sync;
 mod credentials;
 mod device;
 mod external_app;
 mod pontomais;
 mod settings;
+mod window;
 mod workday;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -135,15 +137,12 @@ pub fn run() {
             settings::load_settings,
             app_info::get_app_info,
             pontomais::pontomais_authenticate,
-            pontomais::pontomais_restore_session,
+            pontomais::pontomais_ensure_session,
             pontomais::pontomais_clear_session,
             pontomais::pontomais_current_workday,
             pontomais::pontomais_session,
             pontomais::pontomais_comp_time,
             auto_sync::configure_auto_sync,
-            credentials::save_pontomais_token,
-            credentials::get_pontomais_token,
-            credentials::delete_pontomais_token,
             external_app::pick_external_app,
             external_app::external_app_maybe_launch
         ])

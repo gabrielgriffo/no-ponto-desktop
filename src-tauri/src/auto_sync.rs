@@ -1,4 +1,4 @@
-use crate::pontomais::{fetch_workday, PontoMaisStateType};
+use crate::pontomais::{fetch_workday_reconnecting, PontoMaisStateType};
 use chrono::Local;
 use rand::Rng;
 use std::sync::Mutex;
@@ -73,7 +73,7 @@ async fn perform_sync(app: &AppHandle) {
 
     let today = Local::now().format("%Y-%m-%d").to_string();
 
-    match fetch_workday(&*pm_state, &today).await {
+    match fetch_workday_reconnecting(app, &pm_state, &today).await {
         Ok(data) => {
             if let Err(e) = crate::external_app::maybe_launch(app, &data, &today) {
                 eprintln!("[external_app] {}", e);

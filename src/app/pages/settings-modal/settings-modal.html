@@ -23,10 +23,10 @@
                 <app-integration-settings
                   [settings]="integrationSettings"
                   [isLoggingIn]="isLoggingIn"
-                  [savePassword]="settings.savePasswordEnabled"
+                  [autoReconnect]="settings.autoReconnectEnabled"
                   (saveCredentials)="onSaveCredentials()"
                   (logout)="onLogout()"
-                  (savePasswordChange)="settings.savePasswordEnabled = $event; saveSettings()">
+                  (autoReconnectChange)="settings.autoReconnectEnabled = $event; saveSettings()">
                 </app-integration-settings>
               }
 
