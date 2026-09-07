@@ -43,6 +43,7 @@ export class Home implements OnInit, OnDestroy {
   @ViewChild('checkInInput') checkInInput!: ElementRef<HTMLInputElement>;
   @ViewChild('checkOutInput') checkOutInput!: ElementRef<HTMLInputElement>;
   @ViewChild('checkIn2Input') checkIn2Input!: ElementRef<HTMLInputElement>;
+  @ViewChild(SettingsModal) settingsModal?: SettingsModal;
 
   checkInError = false;
   checkOutError = false;
@@ -531,6 +532,11 @@ export class Home implements OnInit, OnDestroy {
   }
 
   onSettingsClick(): void {
+    if (this.showSettingsModal) {
+      this.settingsModal?.resetToRootScreen();
+      return;
+    }
+
     this.showSettingsModal = true;
   }
 

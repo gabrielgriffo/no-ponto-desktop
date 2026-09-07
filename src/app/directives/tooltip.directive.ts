@@ -86,8 +86,27 @@ export class TooltipDirective implements OnDestroy {
     this.hide();
   }
 
+  @HostListener('click')
+  onClick(): void {
+    this.cancelShow();
+  }
+
+  @HostListener('window:blur')
+  onWindowBlur(): void {
+    this.dismissImmediately();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    if (document.hidden) {
+      this.dismissImmediately();
+    }
+  }
+
   private scheduleShow(): void {
     if (!this.appTooltip()) return;
+
+    this.cancelShow();
 
     this.showTimeout = setTimeout(() => {
       this.show();
@@ -184,6 +203,21 @@ export class TooltipDirective implements OnDestroy {
     }, 200);
   }
 
+  private dismissImmediately(): void {
+    this.cancelShow();
+
+    if (this.hideTimeout) {
+      clearTimeout(this.hideTimeout);
+      this.hideTimeout = null;
+    }
+
+    if (this.overlayRef) {
+      this.overlayRef.dispose();
+      this.overlayRef = null;
+      this.tooltipRef = null;
+    }
+  }
+
   private getConnectedPositions(): ConnectedPosition[] {
     const gap = 8;
     const position = this.tooltipPosition();
@@ -249,17 +283,6 @@ export class TooltipDirective implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.cancelShow();
-
-    if (this.hideTimeout) {
-      clearTimeout(this.hideTimeout);
-      this.hideTimeout = null;
-    }
-
-    if (this.overlayRef) {
-      this.overlayRef.dispose();
-      this.overlayRef = null;
-      this.tooltipRef = null;
-    }
+    this.dismissImmediately();
   }
 }

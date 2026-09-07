@@ -161,6 +161,10 @@ export class SettingsModal implements OnInit, OnChanges {
     this.screenStack.pop();
   }
 
+  resetToRootScreen(): void {
+    this.screenStack = [];
+  }
+
   @HostListener('document:keydown.escape')
   onEscape(): void {
     if (!this.isOpen) return;
@@ -178,7 +182,7 @@ export class SettingsModal implements OnInit, OnChanges {
 
   async ngOnChanges(changes: SimpleChanges): Promise<void> {
     if (changes['isOpen'] && changes['isOpen'].currentValue === true) {
-      this.screenStack = [];
+      this.resetToRootScreen();
       this.settingsLoaded = false;
 
       await this.loadSettings();
