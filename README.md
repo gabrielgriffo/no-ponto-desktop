@@ -1,87 +1,94 @@
-<p align="center">
-  <img src="branding/app.svg" width="200" height="200" alt="Ícone do No Ponto">
-</p>
+<div align="center">
+  <p>
+    <img src="branding/app.svg" width="120" height="120" alt="No Ponto" />
+  </p>
 
-<h1 align="center">No Ponto</h1>
+  <h1>No Ponto</h1>
 
-<p align="center">
-  <strong>No Ponto</strong> é um aplicativo desktop multiplataforma para acompanhar sua jornada de trabalho, importando os registros de ponto direto da API do PontoMais.<br>
-  Construído com Tauri 2 e Angular 20.<br>
-  <sub>Projeto independente, sem qualquer vínculo com a PontoMais. Veja o <a href="#aviso-legal">Aviso Legal</a>.</sub>
-</p>
+  <p>
+    No Ponto é um aplicativo desktop multiplataforma para acompanhar sua jornada de trabalho, importando os registros de ponto direto da API do PontoMais.<br>
+    Construído com Tauri 2 e Angular 20.<br>
+    <sub>Projeto independente, sem qualquer vínculo com a PontoMais. Veja o <a href="#aviso-legal">Aviso Legal</a>.</sub>
+  </p>
 
-<p align="center">
-  <a href="https://github.com/gabrielgriffo/no-ponto-desktop">
-    <img src="https://img.shields.io/badge/GitHub-gabrielgriffo%2Fno--ponto--desktop-blue?logo=github" alt="GitHub">
-  </a>
-</p>
+  <p>
+    <a href="https://github.com/gabrielgriffo/no-ponto-desktop/actions/workflows/release.yml">
+      <img
+        src="https://img.shields.io/github/actions/workflow/status/gabrielgriffo/no-ponto-desktop/release.yml?label=CI&style=flat-square"
+        alt="CI" /></a>
+    <a href="https://github.com/gabrielgriffo/no-ponto-desktop/releases/latest">
+      <img
+        src="https://img.shields.io/github/v/release/gabrielgriffo/no-ponto-desktop?label=release&style=flat-square&color=2563eb"
+        alt="Release" /></a>
+    <a href="LICENSE">
+      <img
+        src="https://img.shields.io/github/license/gabrielgriffo/no-ponto-desktop?label=license&style=flat-square&color=6b7280"
+        alt="License" /></a>
+  </p>
+  <p>
+    <a href="https://github.com/gabrielgriffo/no-ponto-desktop/releases">
+      <img src="https://img.shields.io/badge/Download-Windows_·_Linux-16a34a?style=for-the-badge&logo=github&logoColor=white" alt="Baixar o No Ponto" /></a>
+  </p>
+</div>
 
 ## Tecnologias
 
-- **Frontend**: Angular 20 (TypeScript)
-- **Backend**: Rust via Tauri 2
-- **Integração com o PontoMais**: [`reqwest`](https://crates.io/crates/reqwest)
-- **Armazenamento de credenciais**: [`keyring`](https://crates.io/crates/keyring) (nativo do sistema)
+- **Interface:** Angular 20 e TypeScript
+- **Aplicativo desktop:** Rust e Tauri 2
+- **Integração com a API:** [`reqwest`](https://crates.io/crates/reqwest)
+- **Armazenamento de credenciais:** [`keyring`](https://crates.io/crates/keyring), utilizando o armazenamento seguro nativo do sistema operacional
 
-## Pré-requisitos
+## Executando localmente
 
-- [Node.js](https://nodejs.org/) 20+
-- [Rust](https://www.rust-lang.org/tools/install) (toolchain stable)
-- [Pré-requisitos do Tauri CLI](https://v2.tauri.app/start/prerequisites/) para o seu sistema
-- No Linux: `gnome-keyring` (ou outro provedor Secret Service) para guardar as credenciais
+Pré-requisitos:
 
-## Primeiros Passos
+- [Node.js](https://nodejs.org/) 20 ou superior
+- [Rust](https://www.rust-lang.org/tools/install) com a toolchain `stable`
+- [Pré-requisitos do Tauri](https://v2.tauri.app/start/prerequisites/) para o sistema operacional utilizado
+- No Linux: `gnome-keyring` ou outro provedor compatível com o padrão Secret Service para o armazenamento seguro das credenciais
 
 ```bash
 # Instalar as dependências
 npm install
 
-# Iniciar o ambiente de desenvolvimento completo (Angular + Tauri)
+# Iniciar o ambiente de desenvolvimento (Angular + Tauri)
 npm run tauri dev
 
-# Iniciar apenas o frontend Angular (http://localhost:1420)
-npm run start
-```
-
-## Build
-
-```bash
-# Compilar apenas o frontend Angular
-npm run build
-
-# Compilar o aplicativo desktop de produção (gera o instalador)
+# Gerar a compilação de produção
 npm run tauri build
 ```
 
-O instalador é gerado em `src-tauri/target/release/bundle/`.
+Os arquivos de distribuição são gerados em `src-tauri/target/release/bundle/`.
 
 ## Estrutura do Projeto
 
 ```
-├── src/                          # Frontend Angular
+├── src/                              # Aplicação Angular
 │   └── app/
-│       ├── components/           # Componentes de UI reutilizáveis
-│       ├── pages/                # Tela principal e modal de configurações
-│       ├── services/             # PontoMais, credenciais, cálculo de horas
-│       ├── app.ts                # Componente raiz
-│       ├── app.config.ts         # Configuração de bootstrap da aplicação
-│       └── app.routes.ts         # Configuração de rotas
-└── src-tauri/                    # Backend Rust/Tauri
+│       ├── components/               # Componentes de interface reutilizáveis
+│       ├── pages/                    # Páginas e telas da aplicação
+│       ├── services/                 # Serviços e regras de negócio
+│       ├── app.ts                    # Componente raiz
+│       ├── app.config.ts             # Configuração da aplicação
+│       └── app.routes.ts             # Configuração das rotas
+│
+└── src-tauri/                        # Aplicação Rust/Tauri
     ├── src/
-    │   ├── pontomais.rs          # Integração com a API do PontoMais
-    │   ├── auto_sync.rs          # Timer de sincronização em segundo plano
-    │   ├── settings.rs           # Persistência das configurações
-    │   ├── credentials.rs        # Acesso ao keyring do sistema
-    │   ├── external_app.rs       # Inicialização de aplicativo externo
-    │   ├── app_info.rs           # Metadados do aplicativo
-    │   ├── lib.rs                # Registro dos comandos Tauri
-    │   └── main.rs               # Ponto de entrada
-    └── tauri.conf.json           # Configuração de janela e empacotamento
+    │   ├── pontomais.rs              # Integração com a API do PontoMais
+    │   ├── auto_sync.rs              # Sincronização periódica em segundo plano
+    │   ├── settings.rs               # Persistência das configurações
+    │   ├── credentials.rs            # Acesso ao armazenamento seguro de credenciais
+    │   ├── external_app.rs           # Integração com aplicativos externos
+    │   ├── app_info.rs               # Metadados da aplicação
+    │   ├── lib.rs                    # Registro dos comandos Tauri
+    │   └── main.rs                   # Ponto de entrada
+    │
+    └── tauri.conf.json               # Configuração e empacotamento
 ```
 
-## Privacidade e Dados
+## Privacidade e Armazenamento de Dados
 
-O No Ponto é um aplicativo **100% local**. Ele não utiliza servidores próprios, backends intermediários, telemetria ou qualquer outro mecanismo de coleta de dados.
+O No Ponto é um aplicativo de execução local. Ele não utiliza servidores próprios, backends intermediários, telemetria ou mecanismos de coleta de dados.
 
 * As requisições são enviadas **diretamente da sua máquina para a API do PontoMais**, utilizando exclusivamente as suas próprias credenciais.
 * Tokens e senhas são armazenados no **keyring nativo do sistema operacional**. Essas informações não são expostas ao webview e não são gravadas em arquivos do aplicativo.
@@ -103,5 +110,7 @@ O software é fornecido "como está", sem garantias de qualquer natureza, nos te
 
 
 ## Licença
+
+Distribuído sob a licença MIT.
 
 MIT © [Gabriel Griffo](https://github.com/gabrielgriffo)
