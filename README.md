@@ -109,6 +109,10 @@ O acesso à API do PontoMais é realizado utilizando exclusivamente as credencia
 O software é fornecido "como está", sem garantias de qualquer natureza, nos termos da licença MIT. O No Ponto não substitui o sistema oficial de registro de ponto: os dados e valores exibidos têm caráter exclusivamente informativo, e a fonte oficial dos registros de jornada continua sendo o PontoMais.
 
 
+## Créditos
+
+Este projeto utiliza ícones dos conjuntos [Solar Icons](https://icon-sets.iconify.design/solar/), [Coolicons](https://icon-sets.iconify.design/ci/) e [Font Awesome 4](https://fontawesome.com/v4/). Os respectivos créditos e informações de licenciamento estão em [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
 ## Licença
 
 Distribuído sob a licença MIT.

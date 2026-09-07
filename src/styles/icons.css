@@ -25,22 +25,22 @@
 }
 
 .icon-close {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   background-color: currentColor;
-  mask: url('/assets/icons/close-bold.svg') no-repeat center;
+  mask: url('/assets/icons/close-md.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/close-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/close-md.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
 .icon-minimize {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   background-color: currentColor;
-  mask: url('/assets/icons/minus-bold.svg') no-repeat center;
+  mask: url('/assets/icons/remove-minus.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/minus-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/remove-minus.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -78,9 +78,9 @@
   width: 16px;
   height: 16px;
   background-color: currentColor;
-  mask: url('/assets/icons/arrow-right-01.svg') no-repeat center;
+  mask: url('/assets/icons/chevron-right.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/arrow-right-01.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/chevron-right.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -88,9 +88,9 @@
   width: 18px;
   height: 18px;
   background-color: currentColor;
-  mask: url('/assets/icons/arrow-left-01.svg') no-repeat center;
+  mask: url('/assets/icons/chevron-left.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/arrow-left-01.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/chevron-left.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -104,8 +104,8 @@
   -webkit-mask-size: contain;
 }
 
-/* Único ícone fora do Solar: "refresh" do Font Awesome 4, a pedido. Vem numa
-   grade de 1536, não de 24 — o mask-size: contain resolve a escala. */
+/* Fora do Solar, como os do coolicons: "refresh" do Font Awesome 4, a pedido.
+   Vem numa grade de 1536, não de 24 — o mask-size: contain resolve a escala. */
 .icon-sync {
   width: 18px;
   height: 15px;
