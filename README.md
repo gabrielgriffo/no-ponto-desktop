@@ -1,34 +1,19 @@
 <div align="center">
-  <p>
-    <img src="branding/app.svg" width="120" height="120" alt="No Ponto" />
-  </p>
-
-  <h1>No Ponto</h1>
+  <h1>
+    <img src="branding/banner.svg" width="360" alt="No Ponto" />
+  </h1>
 
   <p>
     No Ponto é um aplicativo desktop multiplataforma para acompanhar sua jornada de trabalho, importando os registros de ponto direto da API do PontoMais.<br>
-    Construído com Tauri 2 e Angular 20.<br>
-    <sub>Projeto independente, sem qualquer vínculo com a PontoMais. Veja o <a href="#aviso-legal">Aviso Legal</a>.</sub>
   </p>
 
-  <p>
-    <a href="https://github.com/gabrielgriffo/no-ponto-desktop/actions/workflows/release.yml">
-      <img
-        src="https://img.shields.io/github/actions/workflow/status/gabrielgriffo/no-ponto-desktop/release.yml?label=CI&style=flat-square"
-        alt="CI" /></a>
-    <a href="https://github.com/gabrielgriffo/no-ponto-desktop/releases/latest">
-      <img
-        src="https://img.shields.io/github/v/release/gabrielgriffo/no-ponto-desktop?label=release&style=flat-square&color=2563eb"
-        alt="Release" /></a>
-    <a href="LICENSE">
-      <img
-        src="https://img.shields.io/github/license/gabrielgriffo/no-ponto-desktop?label=license&style=flat-square&color=6b7280"
-        alt="License" /></a>
-  </p>
+[![Release](https://img.shields.io/github/v/release/gabrielgriffo/no-ponto-desktop?color=blue)](https://github.com/gabrielgriffo/no-ponto-desktop/releases/latest) [![License](https://img.shields.io/github/license/gabrielgriffo/no-ponto-desktop?label=license&color=yellow)](LICENSE) [![Built with Rust](https://img.shields.io/badge/built_with-Rust-orange)](https://www.rust-lang.org/)
+
   <p>
     <a href="https://github.com/gabrielgriffo/no-ponto-desktop/releases">
-      <img src="https://img.shields.io/badge/Download-Windows_·_Linux-16a34a?style=for-the-badge&logo=github&logoColor=white" alt="Baixar o No Ponto" /></a>
+      <img src="https://img.shields.io/badge/Download-Windows_·_Linux-6b7280?style=for-the-badge&logo=github&logoColor=white&labelColor=16a34a" alt="Baixar o No Ponto" /></a>
   </p>
+
 </div>
 
 ## Tecnologias
@@ -59,32 +44,6 @@ npm run tauri build
 ```
 
 Os arquivos de distribuição são gerados em `src-tauri/target/release/bundle/`.
-
-## Estrutura do Projeto
-
-```
-├── src/                              # Aplicação Angular
-│   └── app/
-│       ├── components/               # Componentes de interface reutilizáveis
-│       ├── pages/                    # Páginas e telas da aplicação
-│       ├── services/                 # Serviços e regras de negócio
-│       ├── app.ts                    # Componente raiz
-│       ├── app.config.ts             # Configuração da aplicação
-│       └── app.routes.ts             # Configuração das rotas
-│
-└── src-tauri/                        # Aplicação Rust/Tauri
-    ├── src/
-    │   ├── pontomais.rs              # Integração com a API do PontoMais
-    │   ├── auto_sync.rs              # Sincronização periódica em segundo plano
-    │   ├── settings.rs               # Persistência das configurações
-    │   ├── credentials.rs            # Acesso ao armazenamento seguro de credenciais
-    │   ├── external_app.rs           # Integração com aplicativos externos
-    │   ├── app_info.rs               # Metadados da aplicação
-    │   ├── lib.rs                    # Registro dos comandos Tauri
-    │   └── main.rs                   # Ponto de entrada
-    │
-    └── tauri.conf.json               # Configuração e empacotamento
-```
 
 ## Privacidade e Armazenamento de Dados
 

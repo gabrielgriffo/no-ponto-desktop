@@ -14,13 +14,13 @@
   -webkit-mask-size: contain;
 }
 
-.icon-foco {
+.icon-app {
   width: 18px;
   height: 18px;
   background-color: currentColor;
-  mask: url('/assets/icons/icon-foco.ico') no-repeat center;
+  mask: url('/assets/icons/app-white.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/icon-foco.ico') no-repeat center;
+  -webkit-mask: url('/assets/icons/app-white.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 

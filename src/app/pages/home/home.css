@@ -22,10 +22,14 @@
 }
 
 .logo-text {
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: -0.2px;
-  padding-top: 1px;
+  margin-bottom: -1px;
+  height: 11px;
+  aspect-ratio: 4488 / 710;
+  background-color: currentColor;
+  mask: url('/assets/images/no-ponto-wordmark.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/images/no-ponto-wordmark.svg') no-repeat center;
+  -webkit-mask-size: contain;
 }
 
 .header-right {
