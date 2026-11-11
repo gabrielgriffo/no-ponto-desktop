@@ -70,7 +70,7 @@
   position: relative;
   overflow: hidden;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   max-width: 240px;
   background-color: var(--bg-light);
 }

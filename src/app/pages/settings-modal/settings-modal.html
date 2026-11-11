@@ -10,9 +10,11 @@
 
         <h2 class="modal-title">{{ title }}</h2>
 
-        <button class="header-button close-button" (click)="onClose()" aria-label="Fechar">
-          <span class="icon-close"></span>
-        </button>
+        @if (!currentScreen) {
+          <button class="header-button close-button" (click)="onClose()" aria-label="Fechar">
+            <span class="icon-close"></span>
+          </button>
+        }
       </div>
 
       <div class="modal-body">

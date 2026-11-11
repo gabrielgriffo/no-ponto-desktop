@@ -33,7 +33,7 @@
 
 .toast {
   background-color: var(--bg-white);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 8px 10px;
   min-width: 320px;
   max-width: 400px;
@@ -52,7 +52,7 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--text-dark);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font);
 }
 
 .toast-close {

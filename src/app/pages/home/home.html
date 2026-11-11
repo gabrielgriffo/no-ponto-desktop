@@ -32,6 +32,66 @@
 
 <!-- Conteúdo principal -->
 <main class="main-content">
+  <!-- Container de métricas -->
+  <div class="metrics-container" [class.is-idle]="!isMonitoring">
+    <!-- Métrica principal: Tempo Restante -->
+    <section class="metrics-section">
+      <div class="metrics-line">
+        <div class="metric-focus">
+          <div class="metric-label">Tempo Restante</div>
+          <div class="metric-focus-value">
+            <app-flip-text class="align-start on-dark" [text]="remainingTime | timeFormat:'duration'" [fontSize]="58" [grayPrefix]="'00h'"></app-flip-text>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Barra de progresso do expediente -->
+    <section class="progress-section">
+      <div class="progress-content">
+        <div class="progress-bar">
+          <div class="progress-fill" [ngClass]="isWorkDayComplete || isOnBreak ? 'progress-solid-green' : 'animated'" [style.width.%]="progressPercentageValue"></div>
+        </div>
+        <span class="progress-percentage" *ngIf="isMonitoring">{{ progressPercentageValue.toFixed(1).replace('.', ',') }}%</span>
+        <span class="progress-idle" *ngIf="!isMonitoring">Monitoramento parado</span>
+      </div>
+    </section>
+
+    <!-- Métricas complementares -->
+    <section class="metrics-comp-section">
+      <div class="metrics-line">
+        <!-- Cartão: Tempo Trabalhado -->
+        <div class="metric-card">
+          <div class="metric-label">Tempo Trabalhado</div>
+          <div class="metric-value">
+            <app-flip-text class="align-start on-dark" [text]="workedTime | timeFormat:'duration'" [fontSize]="18" [grayPrefix]="'00h'"></app-flip-text>
+          </div>
+        </div>
+        <!-- Cartão: Fim do Expediente -->
+        <div class="metric-card">
+          <div class="metric-label">
+            Fim do Expediente
+            <span
+              *ngIf="hasLunchHourAdded"
+              class="help-icon"
+              [appTooltip]="lunchHourTooltip"
+              tooltipPosition="top">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="7" cy="7" r="6.5" fill="currentColor" stroke-width="1"/>
+                <text x="7" y="10" font-size="10" text-anchor="middle" font-family="serif">?</text>
+              </svg>
+            </span>
+          </div>
+          <div class="metric-value-ended">{{ isMonitoring ? (endTime | timeFormat:'clock') : '--:--' }}</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="metrics-frost" *ngIf="!isMonitoring">
+      <p class="frost-message"><span class="frost-highlight">Inicie o monitoramento</span> para visualizar suas métricas</p>
+    </div>
+  </div>
+
   <!-- Seção de entrada de horários e ações -->
   <section class="time-actions">
     <!-- Inputs de horário -->
@@ -42,7 +102,7 @@
         <label for="checkIn" class="time-label">Entrada</label>
         <div class="time-input">
           <div class="form">
-            <input class="input" id="checkIn" placeholder="HH:MM" type="text" autocomplete="off"
+            <input class="input" id="checkIn" placeholder="--:--" type="text" autocomplete="off"
               maxlength="5" appTimeInput #checkInInput (focus)="clearTimeErrors()" />
           </div>
         </div>
@@ -52,7 +112,7 @@
         <label for="checkOut" class="time-label">Saída</label>
         <div class="time-input">
           <div class="form">
-            <input class="input" id="checkOut" placeholder="HH:MM" type="text" autocomplete="off"
+            <input class="input" id="checkOut" placeholder="--:--" type="text" autocomplete="off"
               maxlength="5" appTimeInput #checkOutInput (focus)="clearTimeErrors()" />
           </div>
         </div>
@@ -62,7 +122,7 @@
         <label for="checkIn2" class="time-label">Retorno</label>
         <div class="time-input">
           <div class="form">
-            <input class="input" id="checkIn2" placeholder="HH:MM" type="text" autocomplete="off"
+            <input class="input" id="checkIn2" placeholder="--:--" type="text" autocomplete="off"
               maxlength="5" appTimeInput #checkIn2Input (focus)="clearTimeErrors()" />
           </div>
         </div>
@@ -90,87 +150,24 @@
     </div>
   </section>
 
-  <!-- Container de métricas -->
-  <div class="metrics-container">
-    <!-- Métrica principal: Tempo Restante -->
-    <section class="metrics-section">
-      <div class="metrics-line">
-        <div class="metric-focus">
-          <div class="metric-label">Tempo Restante</div>
-          <div class="metric-focus-value">
-            <app-flip-text [text]="remainingTime | timeFormat:'duration'" [fontSize]="48" [grayPrefix]="'00h'"></app-flip-text>
-          </div>
+  <!-- Visualização dos períodos de trabalho -->
+  <section class="work-periods">
+    <div class="work-periods-title">Períodos de Trabalho</div>
+    <div class="periods-container">
+      <div class="periods-back-bar">
+        <!-- Primeiro período (entrada até saída) -->
+        <div class="period-item" [style.width.%]="firstPeriodPercentage" *ngIf="isMonitoring && hasFirstPeriod">
+          <div class="period-bar" [ngClass]="hasSecondPeriod ? 'period-ended' : (isOnBreak ? 'period-solid-green' : 'period-green animated')"></div>
+          <span class="period-label">{{ firstPeriodTime | timeFormat:'duration' }}</span>
         </div>
-      </div>
-    </section>
-
-    <!-- Barra de progresso do expediente -->
-    <section class="progress-section">
-      <div class="progress-title">Progresso Total do Expediente</div>
-      <div class="progress-content">
-        <div class="progress-bar">
-          <div class="progress-fill" [ngClass]="isWorkDayComplete || isOnBreak ? 'progress-solid-green' : 'animated'" [style.width.%]="progressPercentageValue"></div>
+        <!-- Segundo período (retorno até agora/fim) -->
+        <div class="period-item" [style.width.%]="secondPeriodPercentage" *ngIf="isMonitoring && hasSecondPeriod">
+          <div class="period-bar" [ngClass]="isWorkDayComplete ? 'period-solid-green' : 'period-green animated'"></div>
+          <span class="period-label">{{ secondPeriodTime | timeFormat:'duration' }}</span>
         </div>
-        <span class="progress-percentage">{{ progressPercentageValue.toFixed(1).replace('.', ',') }}%</span>
-      </div>
-    </section>
-
-    <!-- Visualização dos períodos de trabalho -->
-    <section class="work-periods">
-      <div class="work-periods-title">Períodos de Trabalho</div>
-      <div class="periods-container">
-        <div class="periods-back-bar">
-          <!-- Primeiro período (entrada até saída) -->
-          <div class="period-item" [style.width.%]="firstPeriodPercentage" *ngIf="isMonitoring && hasFirstPeriod">
-            <div class="period-bar" [ngClass]="hasSecondPeriod ? 'period-ended' : (isOnBreak ? 'period-solid-green' : 'period-green animated')"></div>
-            <span class="period-label">{{ firstPeriodTime | timeFormat:'duration' }}</span>
-          </div>
-          <!-- Segundo período (retorno até agora/fim) -->
-          <div class="period-item" [style.width.%]="secondPeriodPercentage" *ngIf="isMonitoring && hasSecondPeriod">
-            <div class="period-bar" [ngClass]="isWorkDayComplete ? 'period-solid-green' : 'period-green animated'"></div>
-            <span class="period-label">{{ secondPeriodTime | timeFormat:'duration' }}</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Métricas complementares -->
-    <section class="metrics-comp-section">
-      <div class="metrics-line">
-        <!-- Cartão: Tempo Trabalhado -->
-        <div class="metric-card">
-          <div class="metric-label">Tempo Trabalhado</div>
-          <div class="metric-value">
-            <app-flip-text [text]="workedTime | timeFormat:'duration'" [fontSize]="18" [grayPrefix]="'00h'"></app-flip-text>
-          </div>
-        </div>
-        <!-- Cartão: Fim do Expediente -->
-        <div class="metric-card">
-          <div class="metric-label">
-            Fim do Expediente
-            <span
-              *ngIf="hasLunchHourAdded"
-              class="help-icon"
-              [appTooltip]="lunchHourTooltip"
-              tooltipPosition="top">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="7" cy="7" r="6.5" fill="currentColor" stroke-width="1"/>
-                <text x="7" y="10" font-size="10" text-anchor="middle" font-family="serif">?</text>
-              </svg>
-            </span>
-          </div>
-          <div class="metric-value-ended">{{ endTime | timeFormat:'clock' }}</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Estado vazio (quando não está monitorando) -->
-    <div class="metrics-empty-state" *ngIf="!isMonitoring">
-      <div class="empty-state-content">
-        <p class="empty-state-text"><span class="highlight-green">Inicie o monitoramento</span> <br> para visualizar suas métricas</p>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- Rodapé com status do sistema -->
   <section class="status-footer">

@@ -29,15 +29,9 @@
             [attr.aria-label]="isPreviewing ? 'Parar som' : 'Testar som'"
             (click)="onTogglePreview()">
             @if (isPreviewing) {
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
-                xmlns="http://www.w3.org/2000/svg">
-                <rect x="5" y="5" width="14" height="14" rx="2"></rect>
-              </svg>
+              <span class="i icon-stop"></span>
             } @else {
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
-                xmlns="http://www.w3.org/2000/svg">
-                <path d="M7 4.5v15a1 1 0 0 0 1.53.85l12-7.5a1 1 0 0 0 0-1.7l-12-7.5A1 1 0 0 0 7 4.5Z"></path>
-              </svg>
+              <span class="i icon-play"></span>
             }
           </button>
         </div>

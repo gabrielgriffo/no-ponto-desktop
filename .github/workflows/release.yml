@@ -262,8 +262,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
-          releaseName: 'No Ponto v__VERSION__'
-          releaseBody: 'Veja os assets abaixo para baixar e instalar esta versão.'
+          releaseName: 'v__VERSION__'
           releaseDraft: true
           prerelease: false
 
@@ -274,6 +273,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build downloads table
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/release-downloads.sh "$GITHUB_REF_NAME"
+
       - name: Publish draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

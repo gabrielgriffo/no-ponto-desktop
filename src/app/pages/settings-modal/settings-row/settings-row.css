@@ -5,9 +5,9 @@
   width: 100%;
   padding: 10px 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: none;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font);
   text-align: left;
   transition: background-color 0.2s;
 }
@@ -71,7 +71,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: var(--primary-green);
+  background-color: var(--accent-color);
 }
 
 .settings-row-chevron {

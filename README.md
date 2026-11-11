@@ -1,6 +1,9 @@
 <div align="center">
   <h1>
-    <img src="branding/banner.svg" width="360" alt="No Ponto" />
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="branding/banner-dark.svg" />
+      <img src="branding/banner.svg" width="360" alt="No Ponto" />
+    </picture>
   </h1>
 
   <p>
@@ -66,11 +69,6 @@ O acesso à API do PontoMais é realizado utilizando exclusivamente as credencia
 > O uso deste aplicativo pode conflitar com os Termos de Uso da plataforma PontoMais. **A responsabilidade pelo uso é inteiramente do usuário**, incluindo eventuais medidas que o provedor possa adotar em relação à conta utilizada. Recomenda-se consultar os termos vigentes e, em caso de dúvida, a área de RH da empresa.
 
 O software é fornecido "como está", sem garantias de qualquer natureza, nos termos da licença MIT. O No Ponto não substitui o sistema oficial de registro de ponto: os dados e valores exibidos têm caráter exclusivamente informativo, e a fonte oficial dos registros de jornada continua sendo o PontoMais.
-
-
-## Créditos
-
-Este projeto utiliza ícones dos conjuntos [Solar Icons](https://icon-sets.iconify.design/solar/), [Coolicons](https://icon-sets.iconify.design/ci/) e [Font Awesome 4](https://fontawesome.com/v4/). Os respectivos créditos e informações de licenciamento estão em [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
 ## Licença
 

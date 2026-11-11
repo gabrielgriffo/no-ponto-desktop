@@ -34,6 +34,7 @@
 }
 
 .modal-header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -42,12 +43,15 @@
 }
 
 .modal-title {
-  flex: 1;
-  min-width: 0;
+  position: absolute;
+  left: 56px;
+  right: 56px;
+  text-align: center;
+  pointer-events: none;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-dark);
   margin: 0;
@@ -73,6 +77,10 @@
 
 .back-button {
   margin-left: -8px;
+}
+
+.close-button {
+  margin-left: auto;
 }
 
 .modal-body {

@@ -6,12 +6,13 @@
 .select-display {
   width: 100%;
   padding: 8px 12px;
-  border: none;
-  border-radius: 8px;
-  font-family: 'Inter', sans-serif;
+  border: 1px solid var(--border-gray);
+  border-bottom-color: var(--border-strong);
+  border-radius: var(--radius);
+  font-family: var(--font);
   font-size: 14px;
   color: var(--text-dark);
-  background-color: var(--bg-light);
+  background-color: var(--bg-white);
   box-sizing: border-box;
   cursor: default;
   display: flex;
@@ -22,11 +23,11 @@
 }
 
 .select-display:hover {
-  background-color: #e8e9e8;
+  background-color: var(--bg-light);
 }
 
 .select-display.open {
-  background-color: #e8e9e8;
+  background-color: var(--bg-light);
 }
 
 .select-value {
@@ -34,12 +35,14 @@
 }
 
 .select-arrow {
-  width: 12px;
-  height: 8px;
-  margin-left: 12px;
-  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 10px;
+  background-color: var(--gray-medium);
+  mask: url('/assets/icons/chevron-down.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/chevron-down.svg') no-repeat center;
+  -webkit-mask-size: contain;
   transition: transform 0.2s;
 }
 
@@ -52,9 +55,10 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background-color: var(--bg-light);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background-color: var(--bg-white);
+  border: 1px solid var(--border-gray);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
   z-index: 1000;
   overflow: hidden;
   animation: slideDown 0.15s ease;
@@ -73,7 +77,7 @@
 
 .select-option {
   padding: 8px 12px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font);
   font-size: 14px;
   color: var(--text-dark);
   cursor: default;
@@ -82,14 +86,14 @@
 }
 
 .select-option:hover {
-  background-color: #e8e9e8;
+  background-color: var(--bg-light);
 }
 
 .select-option.selected {
-  background-color: var(--primary-green);
-  color: white;
+  background-color: var(--accent-tint);
+  color: var(--accent-color);
 }
 
 .select-option.selected:hover {
-  background-color: var(--primary-green-light);
+  background-color: var(--accent-tint);
 }

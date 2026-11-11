@@ -14,6 +14,11 @@ app-flip-text .flip-container {
   align-items: center;
 }
 
+app-flip-text.align-start,
+app-flip-text.align-start .flip-container {
+  justify-content: flex-start;
+}
+
 /* Cada palavra (conjunto de letras) */
 app-flip-text .word {
   position: absolute;
@@ -46,6 +51,14 @@ app-flip-text .letter {
 /* Cor cinza para "00h" */
 app-flip-text .gray {
   color: var(--border-gray);
+}
+
+app-flip-text.on-dark .gray {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.is-idle app-flip-text.on-dark .gray {
+  color: inherit;
 }
 
 /* Animação de entrada das letras */

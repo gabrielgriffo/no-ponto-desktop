@@ -1,22 +1,21 @@
-
 .i {
   display: inline-block;
   vertical-align: middle;
 }
 
 .icon-settings {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   background-color: currentColor;
-  mask: url('/assets/icons/settings-bold.svg') no-repeat center;
+  mask: url('/assets/icons/settings.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/settings-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/settings.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
 .icon-app {
-  width: 18px;
-  height: 18px;
+  width: 21px;
+  height: 21px;
   background-color: currentColor;
   mask: url('/assets/icons/app-white.svg') no-repeat center;
   mask-size: contain;
@@ -28,9 +27,9 @@
   width: 20px;
   height: 20px;
   background-color: currentColor;
-  mask: url('/assets/icons/close-md.svg') no-repeat center;
+  mask: url('/assets/icons/close.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/close-md.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/close.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -38,9 +37,9 @@
   width: 20px;
   height: 20px;
   background-color: currentColor;
-  mask: url('/assets/icons/remove-minus.svg') no-repeat center;
+  mask: url('/assets/icons/minimize.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/remove-minus.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/minimize.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -58,9 +57,9 @@
   width: 14px;
   height: 14px;
   background-color: currentColor;
-  mask: url('/assets/icons/alarm-bold.svg') no-repeat center;
+  mask: url('/assets/icons/alarm.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/alarm-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/alarm.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -68,9 +67,19 @@
   width: 16px;
   height: 16px;
   background-color: currentColor;
-  mask: url('/assets/icons/play-bold.svg') no-repeat center;
+  mask: url('/assets/icons/play.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/play-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/play.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-stop {
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: url('/assets/icons/stop.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/stop.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -94,25 +103,33 @@
   -webkit-mask-size: contain;
 }
 
+.icon-chevron-down {
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: url('/assets/icons/chevron-down.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/chevron-down.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
 .icon-user {
   width: 18px;
   height: 18px;
   background-color: currentColor;
-  mask: url('/assets/icons/user-circle-bold.svg') no-repeat center;
+  mask: url('/assets/icons/user.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/user-circle-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/user.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
-/* Fora do Solar, como os do coolicons: "refresh" do Font Awesome 4, a pedido.
-   Vem numa grade de 1536, não de 24 — o mask-size: contain resolve a escala. */
 .icon-sync {
   width: 18px;
-  height: 15px;
+  height: 18px;
   background-color: currentColor;
-  mask: url('/assets/icons/refresh-fa4.svg') no-repeat center;
+  mask: url('/assets/icons/sync.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/refresh-fa4.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/sync.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -120,9 +137,9 @@
   width: 18px;
   height: 18px;
   background-color: currentColor;
-  mask: url('/assets/icons/clock-circle-bold.svg') no-repeat center;
+  mask: url('/assets/icons/clock.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/clock-circle-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/clock.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -130,21 +147,19 @@
   width: 18px;
   height: 18px;
   background-color: currentColor;
-  mask: url('/assets/icons/bell-bold.svg') no-repeat center;
+  mask: url('/assets/icons/bell.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/bell-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/bell.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
-/* Cartão com selo de não lida: é a notificação do sistema operacional, não o
-   sino de alarme do .icon-bell. */
 .icon-notification {
   width: 14px;
   height: 14px;
   background-color: currentColor;
-  mask: url('/assets/icons/notification-unread-bold.svg') no-repeat center;
+  mask: url('/assets/icons/notification.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/notification-unread-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/notification.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -152,9 +167,9 @@
   width: 18px;
   height: 18px;
   background-color: currentColor;
-  mask: url('/assets/icons/monitor-bold.svg') no-repeat center;
+  mask: url('/assets/icons/startup.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/monitor-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/startup.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -162,9 +177,9 @@
   width: 18px;
   height: 18px;
   background-color: currentColor;
-  mask: url('/assets/icons/link-square-bold.svg') no-repeat center;
+  mask: url('/assets/icons/external.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/link-square-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/external.svg') no-repeat center;
   -webkit-mask-size: contain;
 }
 
@@ -172,8 +187,38 @@
   width: 18px;
   height: 18px;
   background-color: currentColor;
-  mask: url('/assets/icons/info-circle-bold.svg') no-repeat center;
+  mask: url('/assets/icons/info.svg') no-repeat center;
   mask-size: contain;
-  -webkit-mask: url('/assets/icons/info-circle-bold.svg') no-repeat center;
+  -webkit-mask: url('/assets/icons/info.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-open {
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  mask: url('/assets/icons/open.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/open.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-eye {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/eye.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/eye.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
+.icon-eye-off {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/eye-off.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/eye-off.svg') no-repeat center;
   -webkit-mask-size: contain;
 }

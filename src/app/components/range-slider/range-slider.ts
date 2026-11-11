@@ -22,7 +22,7 @@ export class RangeSlider {
     const ratio = span > 0 ? (this.value - this.min) / span : 0;
     const percent = Math.min(100, Math.max(0, ratio * 100));
     return `linear-gradient(to right,
-      var(--primary-green) 0%, var(--primary-green) ${percent}%,
+      var(--accent-color) 0%, var(--accent-color) ${percent}%,
       var(--bg-light) ${percent}%, var(--bg-light) 100%)`;
   }
 

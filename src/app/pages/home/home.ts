@@ -27,7 +27,8 @@ interface AutoSyncPayload {
   selector: 'app-home',
   imports: [CommonModule, SettingsModal, FlipText, TooltipDirective, TimeFormatPipe, TimeInputDirective],
   templateUrl: './home.html',
-  styleUrl: './home.css'
+  styleUrl: './home.css',
+  host: { '[attr.data-state]': 'journeyState' }
 })
 export class Home implements OnInit, OnDestroy {
   showSettingsModal = false;
@@ -228,6 +229,7 @@ export class Home implements OnInit, OnDestroy {
     }
     if (count > 0) {
       this.onStartMonitoringClick();
+      if (!this.isMonitoring) return count;
       this.capturedCheckOut2 = cards[3] ? this.timeUtils.formatTimeInput(cards[3].time) : '';
       this.updateWorkTime();
     }
@@ -294,6 +296,14 @@ export class Home implements OnInit, OnDestroy {
 
   get isOnBreak(): boolean {
     return this.hasFirstPeriod && this.capturedCheckOut.length > 0 && !this.hasSecondPeriod;
+  }
+
+  get journeyState(): 'andamento' | 'pausado' | 'terminou' | 'extra' {
+    if (this.isWorkDayComplete) return 'terminou';
+    if (this.isOnBreak) return 'pausado';
+    const workedMinutes = (this.workedTime.hours * 60) + this.workedTime.minutes;
+    if (this.isMonitoring && workedMinutes >= this.journeyMinutes) return 'extra';
+    return 'andamento';
   }
 
   get autoSyncTooltip(): string {
@@ -476,8 +486,27 @@ export class Home implements OnInit, OnDestroy {
         this.updateWorkTime();
       }, 1000);
     } else {
-      this.isMonitoring = false;
+      this.stopMonitoring();
     }
+  }
+
+  private stopMonitoring(): void {
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = undefined;
+    }
+    this.isMonitoring = false;
+    this.capturedCheckIn = '';
+    this.capturedCheckOut = '';
+    this.capturedCheckIn2 = '';
+    this.capturedCheckOut2 = '';
+    const zero = (): TimeObject => ({ hours: 0, minutes: 0 });
+    this.workedTime = zero();
+    this.remainingTime = zero();
+    this.firstPeriodTime = zero();
+    this.secondPeriodTime = zero();
+    this.endTime = zero();
+    this.hasLunchHourAdded = false;
   }
 
   /**
