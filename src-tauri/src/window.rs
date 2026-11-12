@@ -1,7 +1,7 @@
 //! Trazer a janela para frente quando algo exige o usuário.
 //!
-//! Compartilhado de propósito: a desvinculação da conta precisa disso hoje, e o
-//! alarme vai precisar do mesmo caminho quando existir.
+//! Compartilhado de propósito: a desvinculação da conta e o alarme usam o mesmo
+//! caminho.
 
 use tauri::{AppHandle, Manager, UserAttentionType};
 
@@ -22,4 +22,9 @@ pub fn bring_to_front(app: &AppHandle) {
     window
         .request_user_attention(Some(UserAttentionType::Informational))
         .ok();
+}
+
+#[tauri::command]
+pub fn focus_main_window(app: AppHandle) {
+    bring_to_front(&app);
 }

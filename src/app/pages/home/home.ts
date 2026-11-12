@@ -16,6 +16,19 @@ import { PontoMaisService, WorkDaysResponse } from '../../services/pontomais.ser
 import { Subscription, timer } from 'rxjs';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import {
+  AlarmService,
+  JourneyState,
+  WORKDAY_END_TITLE,
+  shouldRingAlarm,
+  workdayEndMessage,
+} from '../../services/alarm.service';
+import { AlarmBanner } from '../../components/alarm-banner/alarm-banner';
+
+type AlertSettings = Pick<
+  AppSettings,
+  'alarmEnabled' | 'alarmSound' | 'alarmVolume' | 'alarmMode' | 'alarmDurationSeconds' | 'notificationEnabled'
+>;
 
 interface AutoSyncPayload {
   status: 'success' | 'error' | 'unauthenticated';
@@ -25,7 +38,7 @@ interface AutoSyncPayload {
 
 @Component({
   selector: 'app-home',
-  imports: [CommonModule, SettingsModal, FlipText, TooltipDirective, TimeFormatPipe, TimeInputDirective],
+  imports: [CommonModule, SettingsModal, FlipText, TooltipDirective, TimeFormatPipe, TimeInputDirective, AlarmBanner],
   templateUrl: './home.html',
   styleUrl: './home.css',
   host: { '[attr.data-state]': 'journeyState' }
@@ -33,11 +46,17 @@ interface AutoSyncPayload {
 export class Home implements OnInit, OnDestroy {
   showSettingsModal = false;
   isMonitoring = false;
+  private trayStatus = '';
   isPontomaisLoggedIn = false;
   isImporting = false;
   autoImportEnabled = false;
   autoImportInterval = 10;
   importOnStartupEnabled = false;
+  alarmEnabled = false;
+  notificationEnabled = false;
+  private alertSettings?: AlertSettings;
+  private previousJourneyState: JourneyState | null = null;
+  private workdayEndNotifiedOn = '';
   expectedWorkdayMinutes = DEFAULT_JOURNEY_MINUTES;
   defaultBreakMinutes = DEFAULT_BREAK_MINUTES;
 
@@ -75,10 +94,12 @@ export class Home implements OnInit, OnDestroy {
     private toastService: ToastService,
     private pontoMaisService: PontoMaisService,
     private updateService: UpdateService,
-    private zone: NgZone
+    private zone: NgZone,
+    private alarmService: AlarmService
   ) { }
 
   async ngOnInit() {
+    this.syncTrayStatus();
     // Habilitar botão rapidamente com o estado salvo em cache (JSON simples, < 50ms)
     try {
       const cached = await invoke<{
@@ -88,8 +109,9 @@ export class Home implements OnInit, OnDestroy {
         importOnStartupEnabled: boolean;
         expectedWorkdayMinutes: number;
         defaultBreakMinutes: number;
-      }>('load_settings');
+      } & AlertSettings>('load_settings');
       this.isPontomaisLoggedIn = cached.isPontomaisLoggedIn;
+      this.applyAlertSettings(cached);
       this.autoImportEnabled = cached.autoImportEnabled;
       this.autoImportInterval = cached.autoImportInterval;
       this.importOnStartupEnabled = cached.importOnStartupEnabled;
@@ -252,7 +274,49 @@ export class Home implements OnInit, OnDestroy {
     this.remainingTime = result.remainingTime;
     this.endTime = result.endTime;
     this.hasLunchHourAdded = result.lunchHourAdded;
+    this.syncTrayStatus();
+    this.checkAlarm();
   }
+
+  private applyAlertSettings(settings: AlertSettings): void {
+    this.alertSettings = settings;
+    this.alarmEnabled = settings.alarmEnabled;
+    this.notificationEnabled = settings.notificationEnabled;
+    if (!settings.alarmEnabled) this.alarmService.dismiss();
+  }
+
+  private checkAlarm(): void {
+    if (!this.isMonitoring) return;
+    const previous = this.previousJourneyState;
+    const current = this.journeyState;
+    this.previousJourneyState = current;
+    if (!shouldRingAlarm(previous, current)) return;
+
+    const settings = this.alertSettings;
+    if (!settings?.alarmEnabled && !settings?.notificationEnabled) return;
+
+    const today = new Date().toDateString();
+    if (this.workdayEndNotifiedOn === today) return;
+    this.workdayEndNotifiedOn = today;
+
+    if (settings.alarmEnabled) {
+      this.alarmService.ring({
+        sound: settings.alarmSound,
+        volume: settings.alarmVolume,
+        mode: settings.alarmMode,
+        durationSeconds: settings.alarmDurationSeconds,
+        journeyMinutes: this.journeyMinutes,
+      });
+    }
+
+    if (settings.notificationEnabled) {
+      invoke('notify_workday_end', {
+        title: WORKDAY_END_TITLE,
+        body: workdayEndMessage(this.journeyMinutes),
+      }).catch(() => {});
+    }
+  }
+
 
   get lunchHourTooltip(): string {
     return `O cálculo foi ajustado para incluir ${formatDurationLong(this.defaultBreakMinutes)} de intervalo`;
@@ -298,12 +362,32 @@ export class Home implements OnInit, OnDestroy {
     return this.hasFirstPeriod && this.capturedCheckOut.length > 0 && !this.hasSecondPeriod;
   }
 
-  get journeyState(): 'andamento' | 'pausado' | 'terminou' | 'extra' {
+  get journeyState(): JourneyState {
     if (this.isWorkDayComplete) return 'terminou';
     if (this.isOnBreak) return 'pausado';
     const workedMinutes = (this.workedTime.hours * 60) + this.workedTime.minutes;
     if (this.isMonitoring && workedMinutes >= this.journeyMinutes) return 'extra';
     return 'andamento';
+  }
+
+  get trayStatusLabel(): string {
+    if (!this.isMonitoring) return 'Monitoramento parado';
+    switch (this.journeyState) {
+      case 'terminou': return 'Saída final do dia registrada';
+      case 'pausado': return 'Saída registrada, aguardando o retorno';
+      case 'extra': return 'Jornada atingida, sem a saída final';
+      default: return 'Expediente em curso';
+    }
+  }
+
+  private syncTrayStatus(): void {
+    const status = this.trayStatusLabel;
+    if (status === this.trayStatus) return;
+    this.trayStatus = status;
+    const state = this.isMonitoring ? this.journeyState : null;
+    invoke('set_tray_status', { status, state }).catch(() => {
+      this.trayStatus = '';
+    });
   }
 
   get autoSyncTooltip(): string {
@@ -314,6 +398,18 @@ export class Home implements OnInit, OnDestroy {
       return 'Conecte-se a uma conta para ativar a sincronização';
     }
     return `Sincronização automática a cada ${formatDurationLong(this.autoImportInterval)}`;
+  }
+
+  get alarmTooltip(): string {
+    return this.alarmEnabled
+      ? 'Alarme ativado para o fim do expediente'
+      : 'Alarme desativado';
+  }
+
+  get notificationTooltip(): string {
+    return this.notificationEnabled
+      ? 'Notificações ativadas para o fim do expediente'
+      : 'Notificações desativadas';
   }
 
   get autoSyncIntervalLabel(): string {
@@ -478,6 +574,7 @@ export class Home implements OnInit, OnDestroy {
       this.updateWorkTime();
 
       this.isMonitoring = true;
+      this.syncTrayStatus();
 
       if (this.updateInterval) {
         clearInterval(this.updateInterval);
@@ -507,6 +604,9 @@ export class Home implements OnInit, OnDestroy {
     this.secondPeriodTime = zero();
     this.endTime = zero();
     this.hasLunchHourAdded = false;
+    this.previousJourneyState = null;
+    this.alarmService.dismiss();
+    this.syncTrayStatus();
   }
 
   /**
@@ -606,7 +706,8 @@ export class Home implements OnInit, OnDestroy {
         importOnStartupEnabled: boolean;
         expectedWorkdayMinutes: number;
         defaultBreakMinutes: number;
-      }>('load_settings');
+      } & AlertSettings>('load_settings');
+      this.applyAlertSettings(settings);
       this.autoImportEnabled = settings.autoImportEnabled;
       this.autoImportInterval = settings.autoImportInterval;
       this.importOnStartupEnabled = settings.importOnStartupEnabled;
@@ -623,6 +724,7 @@ export class Home implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.alarmService.dismiss();
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
     }

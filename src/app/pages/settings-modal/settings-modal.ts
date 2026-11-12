@@ -14,6 +14,7 @@ import { PontoMaisService } from '../../services/pontomais.service';
 import { AutostartService } from '../../services/autostart.service';
 import {
   AppSettings,
+  ALARM_SOUND_OPTIONS,
   DEFAULT_ALARM_DURATION_SECONDS,
   DEFAULT_ALARM_MODE,
   DEFAULT_ALARM_SOUND,
@@ -198,6 +199,9 @@ export class SettingsModal implements OnInit, OnChanges {
     try {
       const loadedSettings = await invoke<AppSettings>('load_settings');
       this.settings = loadedSettings;
+      if (!ALARM_SOUND_OPTIONS.some(option => option.value === this.settings.alarmSound)) {
+        this.settings.alarmSound = DEFAULT_ALARM_SOUND;
+      }
 
       const actualAutostartStatus = await this.autostartService.isEnabled();
 

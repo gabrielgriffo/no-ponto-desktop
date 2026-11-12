@@ -62,7 +62,7 @@ export function isNewerVersion(candidate: string, current: string): boolean {
 export const DEFAULT_EXPECTED_WORKDAY_MINUTES = 480;
 export const DEFAULT_BREAK_MINUTES = 60;
 
-export const DEFAULT_ALARM_SOUND = 'classico';
+export const DEFAULT_ALARM_SOUND = 'dois-toques';
 export const DEFAULT_ALARM_VOLUME = 70;
 export const DEFAULT_ALARM_MODE: AlarmMode = 'single';
 export const DEFAULT_ALARM_DURATION_SECONDS = 30;
@@ -70,10 +70,17 @@ export const DEFAULT_ALARM_DURATION_SECONDS = 30;
 export const DEFAULT_AUTO_CLOSE_TIME = 660;
 
 export const ALARM_SOUND_OPTIONS: SelectOption[] = [
-  { value: 'classico', label: 'Clássico' },
-  { value: 'suave', label: 'Suave' },
-  { value: 'digital', label: 'Digital' },
-  { value: 'sino', label: 'Sino' },
+  { value: 'dois-toques', label: 'Dois toques' },
+  { value: 'arcade', label: 'Arcade' },
+  { value: 'harpa', label: 'Harpa' },
+  { value: 'caixinha', label: 'Caixinha' },
+  { value: 'xilofone', label: 'Xilofone' },
+  { value: 'tres-toques', label: 'Três toques' },
+  { value: 'batida', label: 'Batida' },
+  { value: 'eco', label: 'Eco' },
+  { value: 'console', label: 'Console' },
+  { value: 'cristal', label: 'Cristal' },
+  { value: 'kalimba', label: 'Kalimba' },
 ];
 
 export const ALARM_MODE_OPTIONS: SelectOption[] = [
@@ -82,6 +89,7 @@ export const ALARM_MODE_OPTIONS: SelectOption[] = [
 ];
 
 export const ALARM_DURATION_OPTIONS: SelectOption[] = [
+  { value: 5, label: '5 segundos' },
   { value: 15, label: '15 segundos' },
   { value: 30, label: '30 segundos' },
   { value: 60, label: '1 minuto' },

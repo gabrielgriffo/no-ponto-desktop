@@ -13,7 +13,9 @@ mod credentials;
 mod device;
 mod external_app;
 mod pontomais;
+mod notification;
 mod settings;
+mod tray;
 mod window;
 mod workday;
 
@@ -77,14 +79,15 @@ pub fn run() {
             window.set_fullscreen(false)?;
             window.set_maximizable(false)?;
 
-            let open_i = MenuItem::with_id(app, "open", "Exibir Janela", true, None::<&str>)?;
+            let open_i = MenuItem::with_id(app, "open", "Abrir No Ponto", true, None::<&str>)?;
             let separator_i = PredefinedMenuItem::separator(app)?;
             let quit_i = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_i, &separator_i, &quit_i])?;
 
-            let tray_icon = app.default_window_icon().unwrap().clone();
-            let _tray = TrayIconBuilder::with_id("com.gabrielgriffo.noponto.tray")
+            let tray_icon = tray::icon(app.handle(), None)?;
+            let _tray = TrayIconBuilder::with_id(tray::TRAY_ID)
                 .icon(tray_icon)
+                .tooltip(tray::tooltip(""))
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, event| {
@@ -132,6 +135,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             settings::save_settings,
             settings::load_settings,
@@ -145,8 +149,14 @@ pub fn run() {
             auto_sync::configure_auto_sync,
             external_app::pick_external_app,
             external_app::external_app_maybe_launch,
-            external_app::external_app_test_launch
+            external_app::external_app_test_launch,
+            tray::set_tray_status,
+            window::focus_main_window,
+            notification::notify_workday_end,
+            notification::notification_status,
+            notification::open_notification_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

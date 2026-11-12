@@ -613,6 +613,10 @@ input:focus {
   color: var(--gray-medium);
 }
 
+.status-icon.success {
+  color: var(--state);
+}
+
 .status-value.error {
   color: var(--error);
 }

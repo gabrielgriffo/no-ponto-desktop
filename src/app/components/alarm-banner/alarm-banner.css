@@ -1,0 +1,125 @@
+.alarm-overlay {
+  position: fixed;
+  inset: 35px 0 0 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background-color: rgba(27, 29, 33, 0.35);
+  animation: alarm-fade-in 200ms ease;
+}
+
+.alarm-dialog {
+  width: 100%;
+  max-width: 369px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background-color: var(--bg-white);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+  animation: alarm-dialog-in 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.alarm-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.alarm-texts {
+  min-width: 0;
+}
+
+.alarm-icon-badge {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: var(--state-tint);
+}
+
+.alarm-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--state);
+  transform-origin: 50% 15%;
+  animation: alarm-ring 1s ease-in-out infinite;
+}
+
+.alarm-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.alarm-subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--gray-medium);
+}
+
+.alarm-actions {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+}
+
+.alarm-actions button {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 34px;
+  font-size: 13px;
+}
+
+.alarm-actions .app-picker-button {
+  border: 1px solid transparent;
+}
+
+@keyframes alarm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes alarm-dialog-in {
+  from {
+    transform: translateY(16px) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes alarm-ring {
+  0%, 50%, 100% {
+    transform: rotate(0);
+  }
+  10%, 30% {
+    transform: rotate(-14deg);
+  }
+  20%, 40% {
+    transform: rotate(14deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alarm-overlay,
+  .alarm-dialog,
+  .alarm-icon {
+    animation: none;
+  }
+}

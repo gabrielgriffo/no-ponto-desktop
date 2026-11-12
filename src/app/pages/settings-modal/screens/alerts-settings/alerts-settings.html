@@ -3,7 +3,6 @@
     <div class="setting-header">
       <div class="setting-label-group">
         <span class="setting-label">Alarme</span>
-        <span class="dev-badge">Em desenvolvimento</span>
       </div>
       <app-toggle-switch
         [checked]="settings.alarmEnabled"
@@ -76,7 +75,6 @@
     <div class="setting-header">
       <div class="setting-label-group">
         <span class="setting-label">Notificação</span>
-        <span class="dev-badge">Em desenvolvimento</span>
       </div>
       <app-toggle-switch
         [checked]="settings.notificationEnabled"
@@ -84,7 +82,19 @@
       ></app-toggle-switch>
     </div>
     <span class="setting-description">
-      Notificações do sistema para lembretes de ponto
+      Notificação do sistema quando o expediente chegar ao fim
     </span>
+
+    @if (settings.notificationEnabled && notificationWarning) {
+      <div class="setting-warning" role="status">
+        <span class="i icon-info setting-warning-icon"></span>
+        <span class="setting-warning-text">{{ notificationWarning }}</span>
+        @if (canOpenNotificationSettings) {
+          <button type="button" class="setting-warning-action" (click)="onOpenNotificationSettings()">
+            Abrir configurações
+          </button>
+        }
+      </div>
+    }
   </div>
 </div>

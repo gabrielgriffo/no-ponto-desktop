@@ -46,7 +46,8 @@
 
 .settings-row-icon {
   flex-shrink: 0;
-  color: var(--gray-placeholder);
+  color: #5c636cc7;
+  /* color: var(--gray-placeholder); */
 }
 
 .settings-row-text {

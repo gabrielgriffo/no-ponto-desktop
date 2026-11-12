@@ -169,6 +169,8 @@
     </div>
   </section>
 
+  <app-alarm-banner></app-alarm-banner>
+
   <!-- Rodapé com status do sistema -->
   <section class="status-footer">
     <!-- Status: Sincronização Automática -->
@@ -181,17 +183,21 @@
       <span *ngIf="autoImportEnabled && isPontomaisLoggedIn"
             class="status-value success">{{ autoSyncIntervalLabel }}</span>
     </div>
-    <!-- Status: Alarme (não implementado) -->
+    <!-- Status: Alarme -->
     <div class="status-item"
-         appTooltip="Alarme para sinalizar o fim do expediente"
+         [appTooltip]="alarmTooltip"
          tooltipPosition="top">
-      <span class="icon-alarm status-icon status-value disabled"></span>
+      <span class="icon-alarm status-icon status-value"
+            [class.success]="alarmEnabled"
+            [class.disabled]="!alarmEnabled"></span>
     </div>
-    <!-- Status: Notificação (não implementado) -->
+    <!-- Status: Notificação -->
     <div class="status-item"
-         appTooltip="Notificações do sistema para sinalizar o fim do expediente"
+         [appTooltip]="notificationTooltip"
          tooltipPosition="top">
-      <span class="icon-notification status-icon status-value disabled"></span>
+      <span class="icon-notification status-icon status-value"
+            [class.success]="notificationEnabled"
+            [class.disabled]="!notificationEnabled"></span>
     </div>
   </section>
 </main>

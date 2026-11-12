@@ -1,0 +1,19 @@
+@if (alarmService.isVisible) {
+  <div class="alarm-overlay">
+    <div class="alarm-dialog" role="alertdialog" aria-labelledby="alarm-title" aria-describedby="alarm-subtitle">
+      <div class="alarm-header">
+        <div class="alarm-icon-badge">
+          <span class="icon-alarm alarm-icon"></span>
+        </div>
+        <div class="alarm-texts">
+          <h2 id="alarm-title" class="alarm-title">{{ title }}</h2>
+          <p id="alarm-subtitle" class="alarm-subtitle">{{ message }}</p>
+        </div>
+      </div>
+      <div class="alarm-actions">
+        <button type="button" class="app-picker-button" (click)="alarmService.snooze()">Adiar {{ snoozeMinutes }} min</button>
+        <button type="button" class="btn-primary" (click)="alarmService.dismiss()">Entendi</button>
+      </div>
+    </div>
+  </div>
+}

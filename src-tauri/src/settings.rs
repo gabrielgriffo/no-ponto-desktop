@@ -40,7 +40,7 @@ pub const DEFAULT_EXPECTED_WORKDAY_MINUTES: u32 = 480;
 
 pub const DEFAULT_BREAK_MINUTES: u32 = 60;
 
-pub const DEFAULT_ALARM_SOUND: &str = "classico";
+pub const DEFAULT_ALARM_SOUND: &str = "dois-toques";
 pub const DEFAULT_ALARM_VOLUME: u32 = 70;
 pub const DEFAULT_ALARM_MODE: &str = "single";
 pub const DEFAULT_ALARM_DURATION_SECONDS: u32 = 30;
