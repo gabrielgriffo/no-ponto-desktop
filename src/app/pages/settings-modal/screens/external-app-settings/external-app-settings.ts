@@ -15,6 +15,7 @@ export class ExternalAppSettingsComponent {
   @Output() settingsChange = new EventEmitter<void>();
 
   isPickingApp = false;
+  isTestingApp = false;
 
   constructor(private toastService: ToastService) {}
 
@@ -44,6 +45,24 @@ export class ExternalAppSettingsComponent {
       );
     } finally {
       this.isPickingApp = false;
+    }
+  }
+
+  async onTestExternalApp(): Promise<void> {
+    const app = this.settings.externalApp;
+    if (!app || this.isTestingApp) return;
+    this.isTestingApp = true;
+
+    try {
+      await invoke('external_app_test_launch', { target: app });
+      this.toastService.success(`${app.name} foi iniciado`);
+    } catch (error) {
+      console.error('Erro ao testar aplicativo:', error);
+      this.toastService.error(
+        typeof error === 'string' ? error : 'Não foi possível iniciar o aplicativo'
+      );
+    } finally {
+      this.isTestingApp = false;
     }
   }
 }

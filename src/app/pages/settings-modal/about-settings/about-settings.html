@@ -35,42 +35,42 @@
     </div>
   </div>
 
-  <div class="line"></div>
+  <div class="settings-card update-card">
+    <h3 class="section-title">Atualização</h3>
 
-  <h3 class="section-title">Atualização</h3>
+    <div class="about-section">
+      <div class="about-column">
+        <div class="about-item">
+          <span class="about-label">Última verificação</span>
+          <span class="about-value">{{ lastCheckLabel }}</span>
+        </div>
+      </div>
 
-  <div class="about-section">
-    <div class="about-column">
-      <div class="about-item">
-        <span class="about-label">Última verificação</span>
-        <span class="about-value">{{ lastCheckLabel }}</span>
+      <div class="about-column">
+        <div class="about-item">
+          <span class="about-label">Situação</span>
+          <span class="about-value" [class.is-available]="isUpdateAvailable">{{ statusLabel }}</span>
+        </div>
       </div>
     </div>
 
-    <div class="about-column">
-      <div class="about-item">
-        <span class="about-label">Situação</span>
-        <span class="about-value" [class.is-available]="isUpdateAvailable">{{ statusLabel }}</span>
-      </div>
+    <div class="update-section">
+      <button class="app-picker-button update-button" (click)="onCheckForUpdate()">
+        {{ updateState === 'checking' ? 'Verificando...' : 'Verificar atualizações' }}
+      </button>
+
+      @if (canInstall) {
+        <button class="app-picker-button update-button" (click)="onInstallUpdate()">
+          Baixar e instalar
+        </button>
+      }
+
+      @if (updateState === 'ready') {
+        <button class="app-picker-button update-button" (click)="onRelaunch()">
+          Reiniciar agora
+        </button>
+      }
     </div>
-  </div>
-
-  <div class="update-section">
-    <button class="app-picker-button update-button" (click)="onCheckForUpdate()">
-      {{ updateState === 'checking' ? 'Verificando...' : 'Verificar atualizações' }}
-    </button>
-
-    @if (canInstall) {
-      <button class="app-picker-button update-button" (click)="onInstallUpdate()">
-        Baixar e instalar
-      </button>
-    }
-
-    @if (updateState === 'ready') {
-      <button class="app-picker-button update-button" (click)="onRelaunch()">
-        Reiniciar agora
-      </button>
-    }
   </div>
 
   @if (updateState === 'downloading') {

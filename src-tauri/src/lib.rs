@@ -144,7 +144,8 @@ pub fn run() {
             pontomais::pontomais_comp_time,
             auto_sync::configure_auto_sync,
             external_app::pick_external_app,
-            external_app::external_app_maybe_launch
+            external_app::external_app_maybe_launch,
+            external_app::external_app_test_launch
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -73,6 +73,16 @@
   -webkit-mask-size: contain;
 }
 
+.icon-launch {
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  mask: url('/assets/icons/launch.svg') no-repeat center;
+  mask-size: contain;
+  -webkit-mask: url('/assets/icons/launch.svg') no-repeat center;
+  -webkit-mask-size: contain;
+}
+
 .icon-stop {
   width: 16px;
   height: 16px;

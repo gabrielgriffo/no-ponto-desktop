@@ -12,22 +12,37 @@
       <!-- Sem citar cada gatilho: a Sincronização Inteligente já está prevista como
            terceiro, e uma lista nominal ficaria desatualizada a cada um novo. -->
       <span class="setting-description">
-        Inicia o aplicativo configurado quando o expediente começa, detectado pelas
-        importações automáticas em Sincronização
+        Inicia o aplicativo configurado no início do expediente e na volta de cada
+        intervalo, detectados pelas importações automáticas em Sincronização
       </span>
 
-      <button
-        type="button"
-        class="app-picker-button"
-        [disabled]="isPickingApp"
-        (click)="onPickExternalApp()">
-        <span class="app-picker-label"
-              [appTooltip]="settings.externalApp?.path || ''"
-              tooltipPosition="top">
-          {{ settings.externalApp?.name || 'Selecionar Aplicativo' }}
-        </span>
-        <span class="i icon-open"></span>
-      </button>
+      <div class="app-picker-row">
+        <button
+          type="button"
+          class="app-picker-button"
+          [disabled]="isPickingApp"
+          (click)="onPickExternalApp()">
+          <span class="app-picker-label"
+                [appTooltip]="settings.externalApp?.path || ''"
+                tooltipPosition="top">
+            {{ settings.externalApp?.name || 'Selecionar Aplicativo' }}
+          </span>
+          <span class="i icon-open"></span>
+        </button>
+
+        @if (settings.externalApp) {
+          <button
+            type="button"
+            class="sound-test-button"
+            aria-label="Testar agora"
+            appTooltip="Testar agora"
+            tooltipPosition="top"
+            [disabled]="isTestingApp"
+            (click)="onTestExternalApp()">
+            <span class="i icon-launch"></span>
+          </button>
+        }
+      </div>
     }
   </div>
 </div>

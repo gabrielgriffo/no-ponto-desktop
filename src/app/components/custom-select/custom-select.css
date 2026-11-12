@@ -4,15 +4,15 @@
 }
 
 .select-display {
+  max-height: 34px;
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid var(--border-gray);
-  border-bottom-color: var(--border-strong);
+  border: none;
   border-radius: var(--radius);
   font-family: var(--font);
   font-size: 14px;
   color: var(--text-dark);
-  background-color: var(--bg-white);
+  background-color: var(--bg-light);
   box-sizing: border-box;
   cursor: default;
   display: flex;
@@ -23,11 +23,11 @@
 }
 
 .select-display:hover {
-  background-color: var(--bg-light);
+  background-color: var(--border-gray-light);
 }
 
 .select-display.open {
-  background-color: var(--bg-light);
+  background-color: var(--border-gray-light);
 }
 
 .select-value {
@@ -56,7 +56,7 @@
   left: 0;
   right: 0;
   background-color: var(--bg-white);
-  border: 1px solid var(--border-gray);
+  border: none;
   border-radius: var(--radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
   z-index: 1000;
@@ -92,6 +92,7 @@
 .select-option.selected {
   background-color: var(--accent-tint);
   color: var(--accent-color);
+  font-weight: 600;
 }
 
 .select-option.selected:hover {

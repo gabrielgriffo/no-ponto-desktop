@@ -68,6 +68,10 @@ pub fn should_launch(work_day: &Value, expected_minutes: u32) -> bool {
     is_started(&cards) && !is_ended(&cards, expected_minutes)
 }
 
+pub fn work_period(work_day: &Value) -> usize {
+    valid_cards(work_day).len().div_ceil(2)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,6 +212,26 @@ mod tests {
         let cards = valid_cards(&day);
 
         assert_eq!(worked_minutes(&cards), Some(480));
+    }
+
+    #[test]
+    fn each_entry_starts_a_new_period() {
+        assert_eq!(work_period(&enabled(&[])), 0);
+        assert_eq!(work_period(&enabled(&["08:00"])), 1);
+        assert_eq!(work_period(&enabled(&["08:00", "12:00"])), 1);
+        assert_eq!(work_period(&enabled(&["08:00", "12:00", "13:00"])), 2);
+        assert_eq!(work_period(&enabled(&["08:00", "12:00", "13:00", "15:00"])), 2);
+        assert_eq!(
+            work_period(&enabled(&["08:00", "12:00", "13:00", "15:00", "15:15"])),
+            3
+        );
+    }
+
+    #[test]
+    fn disabled_cards_do_not_open_a_period() {
+        let day = work_day(&[("08:00", false), ("12:00", false), ("13:00", true)]);
+
+        assert_eq!(work_period(&day), 1);
     }
 
     #[test]

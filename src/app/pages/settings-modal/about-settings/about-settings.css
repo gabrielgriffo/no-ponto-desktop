@@ -8,11 +8,11 @@
   display: flex;
   flex-direction: column;
   flex: 1 0 auto;
-  gap: 12px;
+  gap: 8px;
 }
 
-.line {
-  border-bottom: 1px solid var(--bg-light);
+.update-card {
+  gap: 12px;
 }
 
 .about-section {
@@ -20,7 +20,11 @@
   grid-template-columns: 1fr 1fr;
   padding: 4px 0;
   border-radius: var(--radius);
-  background-color: var(--bg-light);
+  background-color: var(--bg-white);
+}
+
+.update-card .about-section {
+  margin: -4px -12px 0;
 }
 
 .about-column {
@@ -49,7 +53,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .about-label {

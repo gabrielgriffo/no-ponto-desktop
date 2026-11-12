@@ -15,6 +15,7 @@
   } @else if (value) {
     <span class="settings-row-value"
           [appTooltip]="showValueTooltip ? value : ''"
+          [tooltipWhenTruncated]="true"
           tooltipPosition="top">{{ value }}</span>
   }
 

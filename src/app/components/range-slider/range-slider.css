@@ -41,10 +41,6 @@
   outline-offset: 4px;
 }
 
-.range-slider-input:disabled {
-  opacity: 0.5;
-}
-
 .range-slider-input:disabled::-webkit-slider-thumb {
   transform: none;
 }

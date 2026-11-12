@@ -10,10 +10,8 @@
     <span class="setting-description">
       Busca os registros do dia em segundo plano
     </span>
-  </div>
 
-  @if (settings.autoImportEnabled) {
-    <div class="setting-item">
+    @if (settings.autoImportEnabled) {
       <div class="setting-content">
         <label class="input-label">Intervalo da Sincronização Automática</label>
         <app-custom-select
@@ -22,10 +20,8 @@
           (valueChange)="onChange()">
         </app-custom-select>
       </div>
-    </div>
-  }
-
-  <div class="line"></div>
+    }
+  </div>
 
   <div class="setting-item">
     <div class="setting-header">
@@ -39,8 +35,6 @@
       Importa uma vez a cada inicialização do aplicativo
     </span>
   </div>
-
-  <div class="line"></div>
 
   <div class="setting-item">
     <div class="setting-header">

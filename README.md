@@ -19,6 +19,17 @@
 
 </div>
 
+## Cores da jornada
+
+A cor da tela principal muda conforme o andamento do expediente:
+
+| Cor | Estado | Quando aparece |
+| --- | --- | --- |
+| ![Verde](branding/cores/verde.svg) | Em&nbsp;andamento | Expediente em curso, ainda sem atingir a jornada configurada. Também é a cor padrão com o monitoramento parado |
+| ![Cinza](branding/cores/cinza.svg) | Em&nbsp;intervalo | Saída registrada, aguardando o retorno |
+| ![Roxo](branding/cores/roxo.svg) | Hora&nbsp;extra | A jornada configurada foi atingida e o expediente continua sem a saída final |
+| ![Azul](branding/cores/azul.svg) | Encerrado | Saída final do dia registrada |
+
 ## Tecnologias
 
 - **Interface:** Angular 20 e TypeScript

@@ -28,6 +28,7 @@ export class TooltipDirective implements OnDestroy {
   appTooltip = input<string>('');
   tooltipPosition = input<'top' | 'bottom' | 'left' | 'right'>('top');
   tooltipDelay = input<number>(100);
+  tooltipWhenTruncated = input<boolean>(false);
 
   private elementRef = inject(ElementRef);
   private renderer = inject(Renderer2);
@@ -105,6 +106,9 @@ export class TooltipDirective implements OnDestroy {
 
   private scheduleShow(): void {
     if (!this.appTooltip()) return;
+
+    const element: HTMLElement = this.elementRef.nativeElement;
+    if (this.tooltipWhenTruncated() && element.scrollWidth <= element.clientWidth) return;
 
     this.cancelShow();
 

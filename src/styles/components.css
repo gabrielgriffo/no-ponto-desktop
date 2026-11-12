@@ -8,6 +8,7 @@ button{
 
 .btn-secondary,
 .btn-primary{
+  max-height: 34px;
   padding: 0 12px;
   border-radius: var(--radius);
   font-family: var(--font);
@@ -28,11 +29,11 @@ button{
   border-bottom-color: rgba(0, 0, 0, 0.2);
 }
 
-.btn-primary:hover {
+.btn-primary:not(:disabled):hover {
   filter: brightness(0.9);
 }
 
-.btn-primary:active {
+.btn-primary:not(:disabled):active {
   filter: brightness(0.85);
 }
 
@@ -43,11 +44,11 @@ button{
   border-bottom-color: var(--border-strong);
 }
 
-.btn-secondary:hover {
+.btn-secondary:not(:disabled):hover {
   background-color: var(--bg-light);
 }
 
-.btn-secondary:active {
+.btn-secondary:not(:disabled):active {
   background-color: var(--border-gray-light);
   border-color: var(--border-gray);
 }
@@ -57,28 +58,19 @@ button{
   border-top-color: var(--text-dark);
 }
 
-.btn-primary:disabled,
-.btn-secondary:disabled {
-  opacity: 0.2;
-  filter: grayscale(0.3);
-}
-
-.btn-primary:disabled:hover,
-.btn-secondary:disabled:hover {
-  filter: grayscale(0.3);
-}
-
-.btn-primary:disabled:active,
-.btn-secondary:disabled:active {
-  filter: grayscale(0.3);
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+button:is(.btn-primary, .btn-secondary, .btn-ghost, .app-picker-button, .sound-test-button):disabled {
+  background: var(--disabled-bg);
+  border-color: transparent;
+  color: var(--disabled-text);
+  opacity: 1;
+  filter: none;
 }
 
 /* Botão discreto: ação disponível que não deve competir com a ação principal.
    O modificador .btn-ghost-danger só revela a cor de alerta na interação,
    sinalizando a consequência no momento em que o usuário se aproxima dela. */
 .btn-ghost {
+  max-height: 34px;
   padding: 0 16px;
   border-radius: var(--radius);
   font-family: var(--font);
@@ -95,29 +87,28 @@ button{
   transition: color 0.2s, background-color 0.2s, border-color 0.2s;
 }
 
-.btn-ghost:hover {
+.btn-ghost:not(:disabled):hover {
   background-color: var(--bg-light);
   border-color: var(--gray-placeholder);
 }
 
-.btn-ghost:active {
+.btn-ghost:not(:disabled):active {
   background-color: var(--border-gray-light);
 }
 
-.btn-ghost-danger:hover {
+.btn-ghost-danger:not(:disabled):hover {
   color: var(--error);
   background-color: rgba(196, 43, 28, 0.06);
   border-color: rgba(196, 43, 28, 0.35);
 }
 
-.btn-ghost-danger:active {
+.btn-ghost-danger:not(:disabled):active {
   color: var(--error);
   background-color: rgba(196, 43, 28, 0.12);
   border-color: rgba(196, 43, 28, 0.5);
 }
 
 .btn-ghost:disabled {
-  opacity: 0.4;
   pointer-events: none;
 }
 
@@ -130,25 +121,25 @@ button{
 }
 
 .field-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--gray-medium);
 }
 
 .field-control {
+  max-height: 34px;
   position: relative;
   display: flex;
   align-items: center;
   overflow: hidden;
   border-radius: var(--radius);
-  background-color: var(--bg-white);
-  border: 1px solid var(--border-gray);
-  border-bottom-color: var(--border-strong);
+  background-color: var(--bg-light);
+  border: none;
   transition: background-color 0.2s ease, border-radius 0.3s ease;
 }
 
 .field-control:hover {
-  background-color: var(--bg-light);
+  background-color: var(--border-gray-light);
 }
 
 /* Ao focar, o campo "abre": perde o arredondamento e volta ao sair */
@@ -232,10 +223,6 @@ button{
   background-color: rgba(0, 0, 0, 0.04);
 }
 
-.field-affix:active {
-  color: var(--accent-color);
-}
-
 .spinner {
   width: 16px;
   height: 16px;
@@ -261,10 +248,21 @@ button{
   gap: 8px;
 }
 
-.setting-item {
+.setting-item,
+.settings-card {
   display: flex;
   flex-direction: column;
+  padding: 12px;
   border-radius: var(--radius);
+  background-color: var(--bg-white);
+}
+
+.setting-item > .setting-content:first-child {
+  margin-top: 0;
+}
+
+.setting-description + .setting-content {
+  margin-top: 10px;
 }
 
 .setting-header {
@@ -313,7 +311,7 @@ button{
 
 .setting-description {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--gray-medium);
 }
@@ -327,22 +325,26 @@ button{
   line-height: 1.4;
 }
 
-.settings-screen .line {
-  border-bottom: 1px solid var(--bg-light);
+.app-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .app-picker-button {
+  max-height: 34px;
   display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   justify-content: center;
   width: 100%;
-  margin-top: 10px;
   gap: 8px;
   padding: 8px 12px;
-  border: 1px solid var(--border-gray);
-  border-bottom-color: var(--border-strong);
+  border: none;
   border-radius: var(--radius);
-  background-color: var(--bg-white);
+  background-color: var(--bg-light);
   font-family: var(--font);
   font-size: 14px;
   font-weight: 500;
@@ -365,14 +367,13 @@ button{
   flex-shrink: 0;
 }
 
-.app-picker-button:hover {
-  background-color: var(--bg-light);
-}
-
-.app-picker-button:active {
+.app-picker-button:not(:disabled):hover {
   background-color: var(--border-gray-light);
 }
 
+.app-picker-button:not(:disabled):active {
+  background-color: var(--border-gray-light);
+}
 .sound-row {
   display: flex;
   align-items: center;
@@ -385,24 +386,23 @@ button{
 }
 
 .sound-test-button {
+  max-height: 34px;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
   border-radius: var(--radius);
-  background-color: var(--bg-white);
-  border: 1px solid var(--border-gray);
-  border-bottom-color: var(--border-strong);
-  color: var(--text-dark);
-  transition: background-color 0.2s, color 0.2s;
-}
-
-.sound-test-button:hover {
   background-color: var(--bg-light);
+  color: var(--text-dark);
+  transition: background-color 0.2s;
 }
 
-.sound-test-button:active {
+.sound-test-button:not(:disabled):hover,
+.sound-test-button:not(:disabled):active {
   background-color: var(--border-gray-light);
-  color: var(--accent-color);
 }
 
 .volume-row {
@@ -420,7 +420,7 @@ button{
   flex-shrink: 0;
   width: 34px;
   text-align: right;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--gray-medium);
   font-variant-numeric: tabular-nums;

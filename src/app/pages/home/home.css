@@ -73,6 +73,7 @@
   background: none;
   width: 40px;
   height: 100%;
+  max-height: 34px;
   padding: 0;
   -webkit-app-region: no-drag;
   color: rgba(255, 255, 255, 0.88);
@@ -189,7 +190,7 @@
   align-items: center;
   border-radius: var(--border-radius);
   overflow: hidden;
-  transition: border-radius 0.3s ease, outline var(--transition-default), color var(--transition-default);
+  transition: border-radius 0.3s ease, background-color 0.2s ease, outline var(--transition-default), color var(--transition-default);
   background: var(--bg-light);
   outline: 1px solid transparent;
   border: none;
@@ -255,6 +256,10 @@
   transition: transform var(--timing) ease;
 }
 
+.form:hover {
+  background-color: var(--border-gray-light);
+}
+
 .form:focus-within {
   border-radius: var(--after-border-radius);
 }
@@ -297,12 +302,12 @@ input:focus {
   border-top: 1px solid rgba(255, 255, 255, 0.3);
 }
 
-.btn-secondary:hover {
+.btn-secondary:not(:disabled):hover {
   background-color: var(--text-dark-light);
   filter: brightness(0.85);
 }
 
-.btn-secondary:active {
+.btn-secondary:not(:disabled):active {
   background-color: var(--text-dark-light);
   border-top-color: rgba(255, 255, 255, 0.3);
   border-bottom-color: rgba(0, 0, 0, 0.1);
@@ -456,6 +461,8 @@ input:focus {
   border-radius: 99px;
   overflow: hidden;
   background-color: rgba(255, 255, 255, 0.28);
+  -webkit-box-shadow: 0px -1px 0px 0px rgba(255, 255, 255, 0.3); 
+  box-shadow: 0px -1px 0px 0px rgba(255, 255, 255, 0.3);
 }
 
 .progress-fill {
@@ -681,4 +688,4 @@ input:focus {
   font-size: 12px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.75);
-}
+}

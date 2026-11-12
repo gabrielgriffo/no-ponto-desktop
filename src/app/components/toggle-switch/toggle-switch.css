@@ -2,7 +2,7 @@
   --track-off-border: var(--gray-medium);
   --track-off-border-hover: var(--text-dark);
   --thumb-off: var(--gray-medium);
-  --thumb-off-hover: var(--text-dark);
+  --thumb-off-hover: var(--text-dark-light);
   --accent: var(--accent-color);
   --accent-hover: var(--accent-color-light);
   --thumb-on: var(--bg-white);
@@ -51,7 +51,7 @@
     background-color 0.15s ease-out;
 }
 
-.toggle-switch:hover .toggle-slider::before {
+.toggle-switch:hover input:not(:disabled):not(:checked) + .toggle-slider::before {
   background-color: var(--thumb-off-hover);
 }
 
@@ -69,7 +69,7 @@
   background-color: var(--thumb-on);
 }
 
-.toggle-switch:hover input:checked + .toggle-slider {
+.toggle-switch:hover input:checked:not(:disabled) + .toggle-slider {
   background-color: var(--accent-hover);
   border-color: var(--accent-hover);
 }
@@ -88,7 +88,11 @@
   cursor: not-allowed;
 }
 .toggle-switch input:disabled + .toggle-slider {
-  opacity: 0.5;
+  box-shadow: none;
+  background-color: var(--disabled-bg);
+}
+.toggle-switch input:disabled + .toggle-slider::before {
+  background-color: var(--disabled-text);
 }
 
 .toggle-slider.no-transition,

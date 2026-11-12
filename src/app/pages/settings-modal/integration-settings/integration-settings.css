@@ -7,18 +7,24 @@
 }
 
 .tab-content {
+  gap: 8px;
+}
+
+.account-section {
   gap: 12px;
 }
 
 .integration-header {
   display: flex;
   align-items: end;
+  justify-content: space-between;
   gap: 8px;
 }
 
 .status-chip {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
+  margin-right: 2px;
   color: var(--gray-medium);
 }
 
@@ -86,7 +92,7 @@
 
 .connect-intro {
   margin: -2px 0 0;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.5;
   color: var(--gray-medium);
   text-wrap: balance;
@@ -99,7 +105,7 @@
 
 .connect-button {
   width: 100%;
-  height: 38px;
+  height: 34px;
 }
 
 .disconnect-button {

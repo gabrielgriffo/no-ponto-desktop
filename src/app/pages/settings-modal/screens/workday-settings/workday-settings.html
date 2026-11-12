@@ -8,13 +8,8 @@
         (valueChange)="onWorkdaySelect()">
       </app-custom-select>
     </div>
-    <span class="setting-description">
-      Base para o tempo restante, o progresso e a detecção de fim de expediente
-    </span>
-  </div>
 
-  @if (selectedWorkday === customDuration) {
-    <div class="setting-item">
+    @if (selectedWorkday === customDuration) {
       <div class="setting-content">
         <label class="input-label" for="workday-custom">Horas e minutos</label>
         <div class="field-control">
@@ -32,10 +27,12 @@
           />
         </div>
       </div>
-    </div>
-  }
+    }
 
-  <div class="line"></div>
+    <span class="setting-description">
+      Base para o tempo restante, o progresso e a detecção de fim de expediente
+    </span>
+  </div>
 
   <div class="setting-item">
     <div class="setting-content">
@@ -46,14 +43,8 @@
         (valueChange)="onBreakSelect()">
       </app-custom-select>
     </div>
-    <span class="setting-description">
-      Usado para estimar o horário de saída antes de você bater o ponto do intervalo.
-      Depois que a saída e o retorno são registrados, vale o intervalo real.
-    </span>
-  </div>
 
-  @if (selectedBreak === customDuration) {
-    <div class="setting-item">
+    @if (selectedBreak === customDuration) {
       <div class="setting-content">
         <label class="input-label" for="break-custom">Horas e minutos</label>
         <div class="field-control">
@@ -71,6 +62,11 @@
           />
         </div>
       </div>
-    </div>
-  }
+    }
+
+    <span class="setting-description">
+      Usado para estimar o horário de saída antes de você bater o ponto do intervalo.
+      Depois que a saída e o retorno são registrados, vale o intervalo real.
+    </span>
+  </div>
 </div>
