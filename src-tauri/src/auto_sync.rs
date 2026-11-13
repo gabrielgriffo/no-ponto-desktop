@@ -1,4 +1,5 @@
 use crate::pontomais::{fetch_workday_reconnecting, PontoMaisStateType};
+use crate::smart_sync::{phase_of, Schedule, SmartSyncSignal, JITTER_SECS, TICK_SECS};
 use chrono::Local;
 use rand::Rng;
 use std::sync::Mutex;
@@ -22,6 +23,7 @@ pub type AutoSyncStateType = Mutex<AutoSyncState>;
 pub async fn configure_auto_sync(
     enabled: bool,
     interval_mins: u32,
+    smart: Option<bool>,
     app: AppHandle,
     auto_sync_state: tauri::State<'_, AutoSyncStateType>,
 ) -> Result<(), String> {
@@ -32,11 +34,13 @@ pub async fn configure_auto_sync(
         }
     }
 
-    if !enabled || interval_mins == 0 {
+    let handle = if smart.unwrap_or(false) {
+        tauri::async_runtime::spawn(run_smart_loop(app))
+    } else if enabled && interval_mins > 0 {
+        tauri::async_runtime::spawn(run_sync_loop(app, interval_mins))
+    } else {
         return Ok(());
-    }
-
-    let handle = tauri::async_runtime::spawn(run_sync_loop(app, interval_mins));
+    };
     auto_sync_state.lock().unwrap().handle = Some(handle);
 
     Ok(())
@@ -44,7 +48,7 @@ pub async fn configure_auto_sync(
 
 async fn run_sync_loop(app: AppHandle, interval_mins: u32) {
     // Sincroniza imediatamente ao iniciar o loop
-    perform_sync(&app).await;
+    perform_sync(&app, true).await;
 
     let base_secs = (interval_mins as u64) * 60;
 
@@ -52,14 +56,52 @@ async fn run_sync_loop(app: AppHandle, interval_mins: u32) {
         let jitter: i64 = rand::thread_rng().gen_range(-30..=30);
         let wait_secs = ((base_secs as i64) + jitter).max(30) as u64;
         sleep(Duration::from_secs(wait_secs)).await;
-        perform_sync(&app).await;
+        perform_sync(&app, true).await;
     }
 }
 
-async fn perform_sync(app: &AppHandle) {
+async fn run_smart_loop(app: AppHandle) {
+    let mut schedule = Schedule::new();
+    let mut was_authenticated = true;
+
+    loop {
+        if app.state::<SmartSyncSignal>().take_reset() {
+            schedule.reset_backoff();
+        }
+
+        let now = Local::now().naive_local();
+        if schedule.is_due(now) {
+            let jitter = rand::thread_rng().gen_range(-JITTER_SECS..=JITTER_SECS);
+            match perform_sync(&app, was_authenticated).await {
+                SyncOutcome::Unauthenticated => was_authenticated = false,
+                SyncOutcome::Success(work_day) => {
+                    was_authenticated = true;
+                    let expected = crate::settings::read_settings(&app)
+                        .map(|settings| settings.expected_workday_minutes())
+                        .unwrap_or(crate::settings::DEFAULT_EXPECTED_WORKDAY_MINUTES);
+                    schedule.on_success(now, phase_of(&work_day, expected), jitter);
+                }
+                SyncOutcome::Failed => {
+                    was_authenticated = true;
+                    schedule.on_error(now, jitter);
+                }
+            }
+        }
+
+        sleep(Duration::from_secs(TICK_SECS)).await;
+    }
+}
+
+enum SyncOutcome {
+    Unauthenticated,
+    Success(serde_json::Value),
+    Failed,
+}
+
+async fn perform_sync(app: &AppHandle, report_unauthenticated: bool) -> SyncOutcome {
     let pm_state = match app.try_state::<PontoMaisStateType>() {
         Some(s) => s,
-        None => return,
+        None => return SyncOutcome::Unauthenticated,
     };
 
     let is_authenticated = {
@@ -67,8 +109,10 @@ async fn perform_sync(app: &AppHandle) {
     };
 
     if !is_authenticated {
-        let _ = app.emit("auto-sync-result", serde_json::json!({ "status": "unauthenticated" }));
-        return;
+        if report_unauthenticated {
+            let _ = app.emit("auto-sync-result", serde_json::json!({ "status": "unauthenticated" }));
+        }
+        return SyncOutcome::Unauthenticated;
     }
 
     let today = Local::now().format("%Y-%m-%d").to_string();
@@ -81,8 +125,9 @@ async fn perform_sync(app: &AppHandle) {
 
             let _ = app.emit("auto-sync-result", serde_json::json!({
                 "status": "success",
-                "data": data
+                "data": &data
             }));
+            SyncOutcome::Success(data)
         }
         Err(e) => {
             eprintln!("[auto_sync] Erro na sincronização: {}", e);
@@ -90,6 +135,7 @@ async fn perform_sync(app: &AppHandle) {
                 "status": "error",
                 "message": e
             }));
+            SyncOutcome::Failed
         }
     }
 }

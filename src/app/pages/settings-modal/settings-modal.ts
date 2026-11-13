@@ -257,7 +257,8 @@ export class SettingsModal implements OnInit, OnChanges {
 
       await invoke('configure_auto_sync', {
         enabled: this.settings.autoImportEnabled && this.settings.isPontomaisLoggedIn,
-        intervalMins: this.settings.autoImportInterval
+        intervalMins: this.settings.autoImportInterval,
+        smart: this.settings.smartSyncEnabled && this.settings.isPontomaisLoggedIn
       });
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);

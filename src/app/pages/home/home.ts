@@ -50,6 +50,7 @@ export class Home implements OnInit, OnDestroy {
   isPontomaisLoggedIn = false;
   isImporting = false;
   autoImportEnabled = false;
+  smartSyncEnabled = false;
   autoImportInterval = 10;
   importOnStartupEnabled = false;
   alarmEnabled = false;
@@ -105,6 +106,7 @@ export class Home implements OnInit, OnDestroy {
       const cached = await invoke<{
         isPontomaisLoggedIn: boolean;
         autoImportEnabled: boolean;
+        smartSyncEnabled: boolean;
         autoImportInterval: number;
         importOnStartupEnabled: boolean;
         expectedWorkdayMinutes: number;
@@ -113,6 +115,10 @@ export class Home implements OnInit, OnDestroy {
       this.isPontomaisLoggedIn = cached.isPontomaisLoggedIn;
       this.applyAlertSettings(cached);
       this.autoImportEnabled = cached.autoImportEnabled;
+      this.smartSyncEnabled = cached.smartSyncEnabled;
+      if (this.autoImportEnabled && this.smartSyncEnabled) {
+        await this.turnOffAutoSyncInFavorOfSmart();
+      }
       this.autoImportInterval = cached.autoImportInterval;
       this.importOnStartupEnabled = cached.importOnStartupEnabled;
       this.expectedWorkdayMinutes = cached.expectedWorkdayMinutes;
@@ -175,10 +181,11 @@ export class Home implements OnInit, OnDestroy {
       this.isPontomaisLoggedIn = true;
 
       // Iniciar sincronização automática agora que a sessão está no estado Rust
-      if (this.autoImportEnabled) {
+      if (this.autoImportEnabled || this.smartSyncEnabled) {
         await invoke('configure_auto_sync', {
-          enabled: true,
-          intervalMins: this.autoImportInterval
+          enabled: this.autoImportEnabled,
+          intervalMins: this.autoImportInterval,
+          smart: this.smartSyncEnabled
         });
       }
 
@@ -227,7 +234,7 @@ export class Home implements OnInit, OnDestroy {
   private async handleSessionExpired(): Promise<void> {
     this.isPontomaisLoggedIn = false;
 
-    await invoke('configure_auto_sync', { enabled: false, intervalMins: this.autoImportInterval });
+    await invoke('configure_auto_sync', { enabled: false, intervalMins: this.autoImportInterval, smart: false });
 
     this.toastService.error('Sessão expirada. Faça login novamente nas configurações.', 5000);
   }
@@ -390,14 +397,31 @@ export class Home implements OnInit, OnDestroy {
     });
   }
 
+  get isSyncEnabled(): boolean {
+    return this.autoImportEnabled || this.smartSyncEnabled;
+  }
+
   get autoSyncTooltip(): string {
-    if (!this.autoImportEnabled) {
+    if (!this.isSyncEnabled) {
       return 'Sincronização automática desativada';
     }
     if (!this.isPontomaisLoggedIn) {
       return 'Conecte-se a uma conta para ativar a sincronização';
     }
+    if (this.smartSyncEnabled) {
+      return 'Sincronização inteligente ativada';
+    }
     return `Sincronização automática a cada ${formatDurationLong(this.autoImportInterval)}`;
+  }
+
+  private async turnOffAutoSyncInFavorOfSmart(): Promise<void> {
+    this.autoImportEnabled = false;
+    try {
+      const settings = await invoke<AppSettings>('load_settings');
+      settings.autoImportEnabled = false;
+      await invoke('save_settings', { settings });
+    } catch {}
+    this.toastService.info('A Sincronização Automática foi desligada: ela não funciona junto com a Inteligente', 5000);
   }
 
   get alarmTooltip(): string {
@@ -702,6 +726,7 @@ export class Home implements OnInit, OnDestroy {
     try {
       const settings = await invoke<{
         autoImportEnabled: boolean;
+        smartSyncEnabled: boolean;
         autoImportInterval: number;
         importOnStartupEnabled: boolean;
         expectedWorkdayMinutes: number;
@@ -709,6 +734,7 @@ export class Home implements OnInit, OnDestroy {
       } & AlertSettings>('load_settings');
       this.applyAlertSettings(settings);
       this.autoImportEnabled = settings.autoImportEnabled;
+      this.smartSyncEnabled = settings.smartSyncEnabled;
       this.autoImportInterval = settings.autoImportInterval;
       this.importOnStartupEnabled = settings.importOnStartupEnabled;
 

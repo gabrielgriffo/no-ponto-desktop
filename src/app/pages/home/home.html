@@ -178,8 +178,8 @@
          [appTooltip]="autoSyncTooltip"
          tooltipPosition="top">
       <span class="icon-sync status-icon status-value"
-            [class.success]="autoImportEnabled && isPontomaisLoggedIn"
-            [class.disabled]="!autoImportEnabled || !isPontomaisLoggedIn"></span>
+            [class.success]="isSyncEnabled && isPontomaisLoggedIn"
+            [class.disabled]="!isSyncEnabled || !isPontomaisLoggedIn"></span>
       <span *ngIf="autoImportEnabled && isPontomaisLoggedIn"
             class="status-value success">{{ autoSyncIntervalLabel }}</span>
     </div>

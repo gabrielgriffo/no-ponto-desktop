@@ -4,7 +4,7 @@
       <span class="setting-label">Sincronização Automática</span>
       <app-toggle-switch
         [checked]="settings.autoImportEnabled"
-        (checkedChange)="settings.autoImportEnabled = $event; onChange()"
+        (checkedChange)="onAutoSyncToggle($event)"
       ></app-toggle-switch>
     </div>
     <span class="setting-description">
@@ -43,8 +43,12 @@
       </div>
       <app-toggle-switch
         [checked]="settings.smartSyncEnabled"
-        (checkedChange)="settings.smartSyncEnabled = $event; onChange()"
+        (checkedChange)="onSmartSyncToggle($event)"
       ></app-toggle-switch>
     </div>
+    <span class="setting-description">
+      Busca com mais frequência até a primeira batida do dia e espaça as buscas depois dela.
+      Substitui a Sincronização Automática
+    </span>
   </div>
 </div>

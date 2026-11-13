@@ -7,6 +7,7 @@ use tauri::{
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 mod app_info;
+mod auto_close;
 mod auth_state;
 mod auto_sync;
 mod credentials;
@@ -15,6 +16,8 @@ mod external_app;
 mod pontomais;
 mod notification;
 mod settings;
+mod smart_sync;
+mod startup;
 mod tray;
 mod window;
 mod workday;
@@ -24,11 +27,12 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_autostart::Builder::new()
-                .args(["--min"])
+                .args([startup::AUTOSTART_ARG])
                 .app_name("NoPonto")
                 .build()
         )
         .manage(Mutex::new(auto_sync::AutoSyncState::new()))
+        .manage(smart_sync::SmartSyncSignal::default())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // Quando uma segunda instância é detectada, foca a janela existente
             if let Some(window) = app.get_webview_window("main") {
@@ -57,12 +61,14 @@ pub fn run() {
             // Restaura a última posição
             window.restore_state(StateFlags::POSITION).ok();
 
-            // Verifica se foi iniciado com argumento --min (autostart)
-            let args: Vec<String> = std::env::args().collect();
-            let is_minimized_start = args.contains(&"--min".to_string());
+            let launch = startup::LaunchInfo::from_args(std::env::args());
+            app.manage(launch);
+            auto_close::spawn(app.handle().clone(), launch);
+            let start_minimized_enabled = settings::read_settings(app.handle())
+                .map(|s| s.start_minimized_enabled)
+                .unwrap_or(false);
 
-            // Se não foi iniciado minimizado, mostra a janela normalmente
-            if !is_minimized_start {
+            if !startup::start_hidden(launch, start_minimized_enabled) {
                 window.unminimize().ok();
                 window.show().ok();
                 window.set_focus().ok();
@@ -130,6 +136,9 @@ pub fn run() {
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 window.hide().unwrap();
+            }
+            tauri::WindowEvent::Focused(true) => {
+                window.state::<smart_sync::SmartSyncSignal>().request_reset();
             }
             _ => {}
         })

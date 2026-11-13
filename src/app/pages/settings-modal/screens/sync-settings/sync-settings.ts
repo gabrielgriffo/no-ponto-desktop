@@ -17,4 +17,16 @@ export class SyncSettingsComponent {
   onChange(): void {
     this.settingsChange.emit();
   }
+
+  onAutoSyncToggle(enabled: boolean): void {
+    this.settings.autoImportEnabled = enabled;
+    if (enabled) this.settings.smartSyncEnabled = false;
+    this.onChange();
+  }
+
+  onSmartSyncToggle(enabled: boolean): void {
+    this.settings.smartSyncEnabled = enabled;
+    if (enabled) this.settings.autoImportEnabled = false;
+    this.onChange();
+  }
 }
