@@ -24,6 +24,7 @@ import {
   workdayEndMessage,
 } from '../../services/alarm.service';
 import { AlarmBanner } from '../../components/alarm-banner/alarm-banner';
+import { UpdateButton } from '../../components/update-button/update-button';
 
 type AlertSettings = Pick<
   AppSettings,
@@ -45,7 +46,7 @@ interface AutoSyncPayload {
 
 @Component({
   selector: 'app-home',
-  imports: [CommonModule, SettingsModal, FlipText, TooltipDirective, TimeFormatPipe, TimeInputDirective, AlarmBanner],
+  imports: [CommonModule, SettingsModal, FlipText, TooltipDirective, TimeFormatPipe, TimeInputDirective, AlarmBanner, UpdateButton],
   templateUrl: './home.html',
   styleUrl: './home.css',
   host: { '[attr.data-state]': 'journeyState' }
@@ -756,6 +757,7 @@ export class Home implements OnInit, OnDestroy {
   private async checkForUpdateSilently(): Promise<void> {
     try {
       const update = await this.updateService.checkForUpdate();
+      this.updateService.available.set(update);
 
       const settings = await invoke<AppSettings>('load_settings');
       settings.lastUpdateCheck = new Date().toISOString();

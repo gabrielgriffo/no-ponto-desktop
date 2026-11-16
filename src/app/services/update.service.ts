@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 
@@ -11,6 +11,8 @@ export interface UpdateProgress {
   providedIn: 'root'
 })
 export class UpdateService {
+  readonly available = signal<Update | null>(null);
+
   /** Verifica se há uma atualização disponível. Retorna null se já está na última versão. */
   async checkForUpdate(): Promise<Update | null> {
     return await check();

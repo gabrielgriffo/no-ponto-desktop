@@ -122,6 +122,7 @@ export class AboutSettingsComponent {
 
     try {
       const update = await this.updateService.checkForUpdate();
+      this.updateService.available.set(update);
 
       this.settings.lastUpdateCheck = new Date().toISOString();
       this.settings.lastUpdateResult = update ? 'available' : 'up-to-date';
