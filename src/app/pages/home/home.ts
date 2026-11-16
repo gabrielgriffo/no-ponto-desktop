@@ -30,6 +30,13 @@ type AlertSettings = Pick<
   'alarmEnabled' | 'alarmSound' | 'alarmVolume' | 'alarmMode' | 'alarmDurationSeconds' | 'notificationEnabled'
 >;
 
+const STARTUP_IMPORT_RETRY_MS = 5 * 60_000;
+const STARTUP_IMPORT_MAX_RETRIES = 3;
+
+function hasTimeCards(workDay: WorkDaysResponse | null): boolean {
+  return (workDay?.work_days?.[0]?.time_cards?.length ?? 0) > 0;
+}
+
 interface AutoSyncPayload {
   status: 'success' | 'error' | 'unauthenticated';
   data?: WorkDaysResponse;
@@ -87,6 +94,7 @@ export class Home implements OnInit, OnDestroy {
   private mouseMoveHandler?: () => void;
   private sessionRestorePromise?: Promise<void>;
   private autoSyncUnlisten?: UnlistenFn;
+  private startupImportRetryTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     private timeCalc: TimeCalculationService,
@@ -203,6 +211,10 @@ export class Home implements OnInit, OnDestroy {
             date: this.todayLocalDate()
           });
         }
+
+        if (!hasTimeCards(workDay)) {
+          this.scheduleStartupImportRetry(STARTUP_IMPORT_MAX_RETRIES);
+        }
       }
     } catch (error) {
       console.error('Erro ao restaurar sessão:', error);
@@ -211,6 +223,52 @@ export class Home implements OnInit, OnDestroy {
       // de descobrir sozinho quando a importação não trouxer nada.
       this.toastService.error('Não foi possível restaurar a sessão. Tente importar novamente.', 5000);
     }
+  }
+
+  /**
+   * O Ponto Mais leva alguns minutos para disponibilizar uma batida recém-feita. Sem
+   * sincronização ligada, a importação ao iniciar é a única chance do dia: se ela não
+   * encontrou registro (ou falhou porque a rede ainda não subiu), tenta de novo.
+   */
+  private scheduleStartupImportRetry(retriesLeft: number): void {
+    this.cancelStartupImportRetry();
+    if (retriesLeft <= 0 || this.isSyncEnabled) return;
+
+    this.startupImportRetryTimer = setTimeout(
+      () => this.retryStartupImport(retriesLeft - 1),
+      STARTUP_IMPORT_RETRY_MS
+    );
+  }
+
+  private cancelStartupImportRetry(): void {
+    if (this.startupImportRetryTimer) {
+      clearTimeout(this.startupImportRetryTimer);
+      this.startupImportRetryTimer = undefined;
+    }
+  }
+
+  private async retryStartupImport(retriesLeft: number): Promise<void> {
+    this.startupImportRetryTimer = undefined;
+    if (this.isSyncEnabled || !this.isPontomaisLoggedIn) return;
+
+    try {
+      const date = this.todayLocalDate();
+      const workDay = await this.pontoMaisService.getCurrentWorkDay(date);
+
+      if (hasTimeCards(workDay)) {
+        this.applyImportedCards(workDay);
+        await invoke('external_app_maybe_launch', { workDay, date });
+        return;
+      }
+    } catch (error) {
+      if (error === 'SESSION_EXPIRED') {
+        await this.handleSessionExpired();
+        return;
+      }
+      console.warn('[startup-import] Erro na nova tentativa:', error);
+    }
+
+    this.scheduleStartupImportRetry(retriesLeft);
   }
 
   private onAutoSyncResult(payload: AutoSyncPayload): void {
@@ -421,7 +479,7 @@ export class Home implements OnInit, OnDestroy {
       settings.autoImportEnabled = false;
       await invoke('save_settings', { settings });
     } catch {}
-    this.toastService.info('A Sincronização Automática foi desligada: ela não funciona junto com a Inteligente', 5000);
+    this.toastService.info('A sincronização automática foi desligada: ela não funciona junto com a inteligente', 5000);
   }
 
   get alarmTooltip(): string {
@@ -662,6 +720,8 @@ export class Home implements OnInit, OnDestroy {
       // campos e nas métricas — um toast repetiria o que a tela já mostrou.
       if (imported === 0) {
         this.toastService.error('Nenhum registro encontrado para hoje', 3000);
+      } else {
+        this.cancelStartupImportRetry();
       }
 
       return workDay;
@@ -737,6 +797,9 @@ export class Home implements OnInit, OnDestroy {
       this.smartSyncEnabled = settings.smartSyncEnabled;
       this.autoImportInterval = settings.autoImportInterval;
       this.importOnStartupEnabled = settings.importOnStartupEnabled;
+      if (this.isSyncEnabled || !this.isPontomaisLoggedIn) {
+        this.cancelStartupImportRetry();
+      }
 
       // Jornada e intervalo mudam o tempo restante e o fim do expediente: sem
       // recalcular aqui, as métricas ficariam nos valores antigos até a próxima
@@ -751,6 +814,7 @@ export class Home implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.alarmService.dismiss();
+    this.cancelStartupImportRetry();
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
     }

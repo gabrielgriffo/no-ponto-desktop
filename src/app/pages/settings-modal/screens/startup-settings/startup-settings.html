@@ -1,36 +1,36 @@
 <div class="settings-screen">
   <div class="setting-item">
     <div class="setting-header">
-      <span class="setting-label">Iniciar com o Sistema</span>
+      <span class="setting-label">Iniciar com o sistema</span>
       <app-toggle-switch
         [checked]="settings.autostartEnabled"
         (checkedChange)="settings.autostartEnabled = $event; onChange()"
       ></app-toggle-switch>
     </div>
     <span class="setting-description">
-      Inicia junto com o sistema, já minimizado na bandeja
+      Abre o aplicativo automaticamente ao iniciar o sistema
     </span>
-  </div>
 
-  <div class="setting-item">
-    <div class="setting-header">
-      <div class="setting-label-group">
-        <span class="setting-label">Iniciar Minimizado</span>
+    @if (settings.autostartEnabled) {
+      <div class="setting-content setting-subitem">
+        <div class="setting-header">
+          <span class="setting-label">Iniciar minimizado</span>
+          <app-toggle-switch
+            [checked]="settings.startMinimizedEnabled"
+            (checkedChange)="settings.startMinimizedEnabled = $event; onChange()"
+          ></app-toggle-switch>
+        </div>
+        <span class="setting-description">
+          Mantém o aplicativo apenas na bandeja do sistema ao iniciar com o sistema
+        </span>
       </div>
-      <app-toggle-switch
-        [checked]="settings.startMinimizedEnabled"
-        (checkedChange)="settings.startMinimizedEnabled = $event; onChange()"
-      ></app-toggle-switch>
-    </div>
-    <span class="setting-description">
-      Abre direto na bandeja também quando você inicia o aplicativo manualmente
-    </span>
+    }
   </div>
 
   <div class="setting-item">
     <div class="setting-header">
       <div class="setting-label-group">
-        <span class="setting-label">Fechar sem Expediente</span>
+        <span class="setting-label">Fechar sem expediente</span>
       </div>
       <app-toggle-switch
         [checked]="settings.autoCloseWithoutWorkdayEnabled"
@@ -38,8 +38,7 @@
       ></app-toggle-switch>
     </div>
     <span class="setting-description">
-      Encerra o aplicativo quando nenhum registro de ponto aparecer até o horário
-      limite — fim de semana, feriado ou folga
+      Encerra o aplicativo se não houver registro de ponto até o horário limite
     </span>
 
     @if (settings.autoCloseWithoutWorkdayEnabled) {

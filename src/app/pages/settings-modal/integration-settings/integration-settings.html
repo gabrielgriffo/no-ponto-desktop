@@ -78,14 +78,14 @@
   @if (!settings.isLoggedIn) {
     <div class="setting-item">
       <div class="setting-header">
-        <span class="setting-label">Reconexão Automática</span>
+        <span class="setting-label">Reconexão automática</span>
         <app-toggle-switch
           [checked]="autoReconnect"
           (checkedChange)="onAutoReconnectChange($event)"
         ></app-toggle-switch>
       </div>
       <span class="setting-description">
-        Reconecta a conta quando a sessão expirar
+        Reconecta a conta automaticamente quando a sessão expira
       </span>
     </div>
 

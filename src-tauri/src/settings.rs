@@ -71,7 +71,7 @@ impl Default for Settings {
             alarm_duration_seconds: DEFAULT_ALARM_DURATION_SECONDS,
             notification_enabled: false,
             autostart_enabled: false,
-            start_minimized_enabled: false,
+            start_minimized_enabled: true,
             auto_close_without_workday_enabled: false,
             auto_close_without_workday_time: DEFAULT_AUTO_CLOSE_TIME,
             external_app_autostart_enabled: false,

@@ -82,8 +82,8 @@ ficam nas configurações.
   notificações, a tela de configurações avisa e leva direto ao ajuste do sistema.
 - **Sempre à mão na bandeja.** O ícone mostra a cor da fase atual e, ao passar o mouse, o status:
   "No Ponto: Expediente em curso", por exemplo. Fechar a janela só a esconde.
-- **Inicia com o sistema.** Opcionalmente, o No Ponto abre junto com o sistema, já minimizado na
-  bandeja. Também dá para fazê-lo abrir sempre minimizado.
+- **Inicia com o sistema.** Opcionalmente, o No Ponto abre junto com o sistema, com a janela à
+  vista ou só na bandeja.
 - **Fecha sozinho em dia sem expediente.** Se ele subiu com o sistema e nenhum registro de ponto
   apareceu até o horário limite, ele se encerra: fim de semana, feriado ou folga.
 - **Abre o seu aplicativo de trabalho.** Pode abrir um aplicativo escolhido por você, como o
@@ -131,7 +131,7 @@ As configurações abrem pela engrenagem no topo da janela e são divididas em c
   aplicativo encerrado, não. Com o computador suspenso no horário, o aviso vem quando ele acorda.
 - **A notificação depende do sistema.** Com as notificações do Windows desligadas ou o modo Não
   incomodar ativo, ela não aparece na tela. O alarme não depende disso.
-- **Fechar sem Expediente só vale quando o aplicativo subiu com o sistema.** Aberto à mão, ele
+- **Fechar sem expediente só vale quando o aplicativo subiu com o sistema.** Aberto à mão, ele
   nunca se fecha sozinho. Sem sessão conectada, ele também não fecha, porque não consegue saber se
   houve registro.
 - **O instalador do Windows não é assinado** com certificado de código, então o SmartScreen pode

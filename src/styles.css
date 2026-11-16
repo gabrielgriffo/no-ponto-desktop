@@ -72,3 +72,9 @@ button {
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+.hover-reset-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+}

@@ -1,5 +1,5 @@
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
@@ -136,6 +136,7 @@ pub fn run() {
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 window.hide().unwrap();
+                let _ = window.emit("main-window-hidden", ());
             }
             tauri::WindowEvent::Focused(true) => {
                 window.state::<smart_sync::SmartSyncSignal>().request_reset();

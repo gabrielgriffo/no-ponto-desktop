@@ -10,7 +10,7 @@
       ></app-toggle-switch>
     </div>
     <span class="setting-description">
-      Aviso sonoro quando o expediente chegar ao fim
+      Reproduz um alerta sonoro no fim do expediente
     </span>
 
     @if (settings.alarmEnabled) {
@@ -82,7 +82,7 @@
       ></app-toggle-switch>
     </div>
     <span class="setting-description">
-      Notificação do sistema quando o expediente chegar ao fim
+      Exibe uma notificação do sistema no fim do expediente
     </span>
 
     @if (settings.notificationEnabled && notificationWarning) {
@@ -91,7 +91,7 @@
         <span class="setting-warning-text">{{ notificationWarning }}</span>
         @if (canOpenNotificationSettings) {
           <button type="button" class="setting-warning-action" (click)="onOpenNotificationSettings()">
-            Abrir configurações
+            Abrir configurações do sistema
           </button>
         }
       </div>

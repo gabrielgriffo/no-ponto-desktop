@@ -90,7 +90,7 @@ export class SettingsModal implements OnInit, OnChanges {
     alarmDurationSeconds: DEFAULT_ALARM_DURATION_SECONDS,
     notificationEnabled: false,
     autostartEnabled: false,
-    startMinimizedEnabled: false,
+    startMinimizedEnabled: true,
     autoCloseWithoutWorkdayEnabled: false,
     autoCloseWithoutWorkdayTime: DEFAULT_AUTO_CLOSE_TIME,
     externalAppAutostartEnabled: false,

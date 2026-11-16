@@ -14,7 +14,7 @@ impl LaunchInfo {
 }
 
 pub fn start_hidden(launch: LaunchInfo, start_minimized_enabled: bool) -> bool {
-    launch.autostarted || start_minimized_enabled
+    launch.autostarted && start_minimized_enabled
 }
 
 #[cfg(test)]
@@ -32,12 +32,12 @@ mod tests {
     }
 
     #[test]
-    fn starts_hidden_when_autostarted_or_when_the_option_is_on() {
+    fn starts_hidden_only_when_autostarted_with_the_option_on() {
         let autostarted = LaunchInfo { autostarted: true };
         let manual = LaunchInfo { autostarted: false };
-        assert!(start_hidden(autostarted, false));
         assert!(start_hidden(autostarted, true));
-        assert!(start_hidden(manual, true));
+        assert!(!start_hidden(autostarted, false));
+        assert!(!start_hidden(manual, true));
         assert!(!start_hidden(manual, false));
     }
 }

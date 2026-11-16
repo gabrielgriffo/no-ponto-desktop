@@ -476,3 +476,9 @@ button:is(.btn-primary, .btn-secondary, .btn-ghost, .app-picker-button, .sound-t
 .setting-warning-action:hover {
   color: #422006;
 }
+
+.setting-subitem {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-gray-light);
+}

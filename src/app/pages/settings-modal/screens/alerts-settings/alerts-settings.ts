@@ -44,11 +44,11 @@ export class AlertsSettingsComponent implements OnInit, OnDestroy {
   get notificationWarning(): string | null {
     switch (this.notificationStatus) {
       case 'disabledForUser':
-        return 'As notificações estão desativadas no Windows.';
+        return 'As notificações estão desativadas no sistema';
       case 'disabledForApplication':
-        return 'As notificações do No Ponto estão desativadas no Windows.';
+        return 'As notificações do No Ponto estão desativadas no sistema';
       case 'disabledByPolicy':
-        return 'As notificações foram bloqueadas pela política da sua organização.';
+        return 'As notificações estão bloqueadas pela política da sua organização';
       default:
         return null;
     }

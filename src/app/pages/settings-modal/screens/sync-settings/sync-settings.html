@@ -1,19 +1,19 @@
 <div class="settings-screen">
   <div class="setting-item">
     <div class="setting-header">
-      <span class="setting-label">Sincronização Automática</span>
+      <span class="setting-label">Sincronização automática</span>
       <app-toggle-switch
         [checked]="settings.autoImportEnabled"
         (checkedChange)="onAutoSyncToggle($event)"
       ></app-toggle-switch>
     </div>
     <span class="setting-description">
-      Busca os registros do dia em segundo plano
+      Importa os registros de ponto do dia em segundo plano
     </span>
 
     @if (settings.autoImportEnabled) {
       <div class="setting-content">
-        <label class="input-label">Intervalo da Sincronização Automática</label>
+        <label class="input-label">Intervalo da sincronização automática</label>
         <app-custom-select
           [options]="intervalOptions"
           [(value)]="settings.autoImportInterval"
@@ -25,21 +25,21 @@
 
   <div class="setting-item">
     <div class="setting-header">
-      <span class="setting-label">Importar ao Iniciar</span>
+      <span class="setting-label">Importar ao iniciar</span>
       <app-toggle-switch
         [checked]="settings.importOnStartupEnabled"
         (checkedChange)="settings.importOnStartupEnabled = $event; onChange()"
       ></app-toggle-switch>
     </div>
     <span class="setting-description">
-      Importa uma vez a cada inicialização do aplicativo
+      Importa os registros de ponto sempre que o aplicativo é aberto
     </span>
   </div>
 
   <div class="setting-item">
     <div class="setting-header">
       <div class="setting-label-group">
-        <span class="setting-label">Sincronização Inteligente</span>
+        <span class="setting-label">Sincronização inteligente</span>
       </div>
       <app-toggle-switch
         [checked]="settings.smartSyncEnabled"
@@ -47,8 +47,7 @@
       ></app-toggle-switch>
     </div>
     <span class="setting-description">
-      Busca com mais frequência até a primeira batida do dia e espaça as buscas depois dela.
-      Substitui a Sincronização Automática
+      Ajusta a frequência das importações conforme o andamento do expediente
     </span>
   </div>
 </div>
