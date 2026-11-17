@@ -20,6 +20,7 @@ import {
   AlarmService,
   JourneyState,
   WORKDAY_END_TITLE,
+  isWorkdayReopened,
   shouldRingAlarm,
   workdayEndMessage,
 } from '../../services/alarm.service';
@@ -356,6 +357,13 @@ export class Home implements OnInit, OnDestroy {
     const previous = this.previousJourneyState;
     const current = this.journeyState;
     this.previousJourneyState = current;
+
+    if (isWorkdayReopened(previous, current)) {
+      this.workdayEndNotifiedOn = '';
+      this.alarmService.dismiss();
+      return;
+    }
+
     if (!shouldRingAlarm(previous, current)) return;
 
     const settings = this.alertSettings;
@@ -394,9 +402,19 @@ export class Home implements OnInit, OnDestroy {
       : DEFAULT_JOURNEY_MINUTES;
   }
 
+  private get isBreakPending(): boolean {
+    return this.hasFirstPeriod && this.capturedCheckOut.length === 0;
+  }
+
+  private get journeyTargetMinutes(): number {
+    return this.isBreakPending
+      ? this.journeyMinutes + Math.max(0, this.defaultBreakMinutes)
+      : this.journeyMinutes;
+  }
+
   get progressPercentageValue(): number {
     const totalWorkMinutes = (this.workedTime.hours * 60) + this.workedTime.minutes;
-    const percentage = (totalWorkMinutes / this.journeyMinutes) * 100;
+    const percentage = (totalWorkMinutes / this.journeyTargetMinutes) * 100;
     return Math.min(percentage, 100);
   }
 
@@ -432,7 +450,7 @@ export class Home implements OnInit, OnDestroy {
     if (this.isWorkDayComplete) return 'terminou';
     if (this.isOnBreak) return 'pausado';
     const workedMinutes = (this.workedTime.hours * 60) + this.workedTime.minutes;
-    if (this.isMonitoring && workedMinutes >= this.journeyMinutes) return 'extra';
+    if (this.isMonitoring && workedMinutes >= this.journeyTargetMinutes) return 'extra';
     return 'andamento';
   }
 
@@ -487,6 +505,19 @@ export class Home implements OnInit, OnDestroy {
     return this.alarmEnabled
       ? 'Alarme ativado para o fim do expediente'
       : 'Alarme desativado';
+  }
+
+  get nextAlarmTime(): TimeObject | null {
+    if (!this.alarmEnabled || !this.isMonitoring) return null;
+
+    const snoozedUntil = this.alarmService.snoozedUntil;
+    if (snoozedUntil) {
+      return { hours: snoozedUntil.getHours(), minutes: snoozedUntil.getMinutes() };
+    }
+
+    const state = this.journeyState;
+    if (state === 'extra' || state === 'terminou') return null;
+    return this.endTime;
   }
 
   get notificationTooltip(): string {

@@ -477,6 +477,10 @@ button:is(.btn-primary, .btn-secondary, .btn-ghost, .app-picker-button, .sound-t
   color: #422006;
 }
 
+.status-note {
+  margin-right: auto;
+}
+
 .setting-subitem {
   margin-top: 12px;
   padding-top: 12px;

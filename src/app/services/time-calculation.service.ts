@@ -123,21 +123,17 @@ export class TimeCalculationService {
     if (checkInMinutes && !checkOutMinutes && !checkIn2Minutes) {
       lunchHourAdded = true;
 
+      // O intervalo ainda não foi registrado, então ele conta como parte do que
+      // falta: o tempo restante termina no mesmo horário mostrado como fim.
+      const targetWithBreak = targetJourneyMinutes + breakMinutes;
+      endTimeMinutes = checkInMinutes + targetWithBreak;
+
       if (currentMinutes >= checkInMinutes) {
         firstPeriod = this.calculateTimeDifference(checkInMinutes, currentMinutes);
         totalWorkedMinutes = firstPeriod;
-        remainingMinutes = Math.max(0, targetJourneyMinutes - totalWorkedMinutes);
-
-        if (totalWorkedMinutes >= targetJourneyMinutes) {
-          endTimeMinutes = checkInMinutes + targetJourneyMinutes + breakMinutes;
-        } else {
-          endTimeMinutes = currentMinutes + remainingMinutes + breakMinutes;
-        }
+        remainingMinutes = Math.max(0, targetWithBreak - totalWorkedMinutes);
       } else {
-        firstPeriod = 0;
-        totalWorkedMinutes = 0;
-        remainingMinutes = targetJourneyMinutes;
-        endTimeMinutes = checkInMinutes + targetJourneyMinutes + breakMinutes;
+        remainingMinutes = targetWithBreak;
       }
     }
     // Cenário B: Entrada e saída preenchidos, sem retorno

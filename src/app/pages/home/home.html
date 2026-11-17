@@ -200,6 +200,9 @@
             [class.success]="notificationEnabled"
             [class.disabled]="!notificationEnabled"></span>
     </div>
+    <div *ngIf="nextAlarmTime as alarmTime" class="status-item status-note">
+      <span class="status-value success">Próximo alarme às {{ alarmTime | timeFormat:'clock' }}</span>
+    </div>
   </section>
 </main>
 

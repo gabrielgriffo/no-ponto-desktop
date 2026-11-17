@@ -18,6 +18,10 @@ export function shouldRingAlarm(previous: JourneyState | null, current: JourneyS
   return previous === 'andamento' && current === 'extra';
 }
 
+export function isWorkdayReopened(previous: JourneyState | null, current: JourneyState): boolean {
+  return previous === 'extra' && (current === 'andamento' || current === 'pausado');
+}
+
 export function formatJourney(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
@@ -36,6 +40,7 @@ export function workdayEndMessage(journeyMinutes: number): string {
 export class AlarmService {
   isVisible = false;
   journeyMinutes = 0;
+  snoozedUntil: Date | null = null;
 
   private audio: HTMLAudioElement | null = null;
   private stopTimer?: ReturnType<typeof setTimeout>;
@@ -66,12 +71,14 @@ export class AlarmService {
     const options = this.lastOptions;
     this.dismiss();
     if (!options) return;
+    this.snoozedUntil = new Date(Date.now() + SNOOZE_MINUTES * 60_000);
     this.snoozeTimer = setTimeout(() => this.ring(options), SNOOZE_MINUTES * 60_000);
   }
 
   dismiss(): void {
     clearTimeout(this.snoozeTimer);
     this.snoozeTimer = undefined;
+    this.snoozedUntil = null;
     this.silence();
     this.isVisible = false;
   }
