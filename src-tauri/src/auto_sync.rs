@@ -27,21 +27,20 @@ pub async fn configure_auto_sync(
     app: AppHandle,
     auto_sync_state: tauri::State<'_, AutoSyncStateType>,
 ) -> Result<(), String> {
-    {
-        let mut state = auto_sync_state.lock().unwrap();
-        if let Some(handle) = state.handle.take() {
-            handle.abort();
-        }
+    // Uma única trava do abort ao novo handle: soltá-la no meio deixaria duas chamadas
+    // simultâneas criarem dois laços, com um deles órfão e impossível de abortar.
+    let mut state = auto_sync_state.lock().unwrap();
+    if let Some(handle) = state.handle.take() {
+        handle.abort();
     }
 
-    let handle = if smart.unwrap_or(false) {
-        tauri::async_runtime::spawn(run_smart_loop(app))
+    state.handle = if smart.unwrap_or(false) {
+        Some(tauri::async_runtime::spawn(run_smart_loop(app)))
     } else if enabled && interval_mins > 0 {
-        tauri::async_runtime::spawn(run_sync_loop(app, interval_mins))
+        Some(tauri::async_runtime::spawn(run_sync_loop(app, interval_mins)))
     } else {
-        return Ok(());
+        None
     };
-    auto_sync_state.lock().unwrap().handle = Some(handle);
 
     Ok(())
 }

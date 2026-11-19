@@ -27,6 +27,18 @@ import {
   isNewerVersion,
 } from './settings.model';
 
+const EXTERNAL_FIELDS = ['isPontomaisLoggedIn', 'lastUpdateCheck', 'lastUpdateResult', 'lastUpdateVersion'] as const;
+type ExternalField = typeof EXTERNAL_FIELDS[number];
+
+function pickExternal(settings: AppSettings): Pick<AppSettings, ExternalField> {
+  return {
+    isPontomaisLoggedIn: settings.isPontomaisLoggedIn,
+    lastUpdateCheck: settings.lastUpdateCheck,
+    lastUpdateResult: settings.lastUpdateResult,
+    lastUpdateVersion: settings.lastUpdateVersion,
+  };
+}
+
 type ScreenId =
   | 'conta'
   | 'sincronizacao'
@@ -114,6 +126,9 @@ export class SettingsModal implements OnInit, OnChanges {
   isLoggingIn = false;
   settingsLoaded = false;
 
+  private lastAutoSyncConfig = '';
+  private externalSnapshot: Pick<AppSettings, ExternalField> | null = null;
+
   constructor(
     private toastService: ToastService,
     private pontoMaisService: PontoMaisService,
@@ -135,6 +150,7 @@ export class SettingsModal implements OnInit, OnChanges {
   }
 
   get syncValue(): string {
+    if (this.settings.smartSyncEnabled) return 'Inteligente';
     if (!this.settings.autoImportEnabled) return '';
     const option = INTERVAL_OPTIONS.find(opt => opt.value === this.settings.autoImportInterval);
     return option?.label ?? `${this.settings.autoImportInterval} minutos`;
@@ -199,15 +215,21 @@ export class SettingsModal implements OnInit, OnChanges {
     try {
       const loadedSettings = await invoke<AppSettings>('load_settings');
       this.settings = loadedSettings;
+      this.externalSnapshot = pickExternal(loadedSettings);
+      this.lastAutoSyncConfig = this.autoSyncConfig();
       if (!ALARM_SOUND_OPTIONS.some(option => option.value === this.settings.alarmSound)) {
         this.settings.alarmSound = DEFAULT_ALARM_SOUND;
       }
 
-      const actualAutostartStatus = await this.autostartService.isEnabled();
+      try {
+        const actualAutostartStatus = await this.autostartService.isEnabled();
 
-      if (actualAutostartStatus !== this.settings.autostartEnabled) {
-        this.settings.autostartEnabled = actualAutostartStatus;
-        await this.saveSettings();
+        if (actualAutostartStatus !== this.settings.autostartEnabled) {
+          this.settings.autostartEnabled = actualAutostartStatus;
+          await this.saveSettings();
+        }
+      } catch (error) {
+        console.error('Erro ao consultar a inicialização com o sistema:', error);
       }
 
       // O Rust diz se há conta vinculada; nem token nem senha passam por aqui.
@@ -243,26 +265,91 @@ export class SettingsModal implements OnInit, OnChanges {
     }
   }
 
-  async saveSettings() {
+  async saveSettings(): Promise<boolean> {
+    await this.syncAutostart();
+
     try {
-      const currentAutostartStatus = await this.autostartService.isEnabled();
-
-      if (this.settings.autostartEnabled && !currentAutostartStatus) {
-        await this.autostartService.enable();
-      } else if (!this.settings.autostartEnabled && currentAutostartStatus) {
-        await this.autostartService.disable();
-      }
-
+      await this.mergeExternalChanges();
       await invoke('save_settings', { settings: this.settings });
-
-      await invoke('configure_auto_sync', {
-        enabled: this.settings.autoImportEnabled && this.settings.isPontomaisLoggedIn,
-        intervalMins: this.settings.autoImportInterval,
-        smart: this.settings.smartSyncEnabled && this.settings.isPontomaisLoggedIn
-      });
+      this.externalSnapshot = pickExternal(this.settings);
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
+      this.toastService.error('Não foi possível salvar as configurações');
+      return false;
     }
+
+    await this.configureAutoSyncIfChanged();
+    return true;
+  }
+
+  // O Rust (desvincular a conta) e a home (verificar atualização) gravam no mesmo arquivo
+  // enquanto o modal está aberto. Campo que o modal não mexeu desde que abriu fica com o
+  // valor do disco, senão a cópia do modal desfaria o que eles gravaram.
+  private async mergeExternalChanges(): Promise<void> {
+    const snapshot = this.externalSnapshot;
+    if (!snapshot) return;
+
+    let onDisk: AppSettings | null;
+    try {
+      onDisk = await invoke<AppSettings>('load_settings');
+    } catch {
+      return;
+    }
+    if (!onDisk) return;
+
+    const settings = this.settings as Record<ExternalField, unknown>;
+    for (const field of EXTERNAL_FIELDS) {
+      if (settings[field] === snapshot[field]) {
+        settings[field] = onDisk[field];
+      }
+    }
+  }
+
+  // Uma falha do autostart não pode impedir que o resto das configurações seja salvo.
+  private async syncAutostart(): Promise<void> {
+    let current: boolean;
+    try {
+      current = await this.autostartService.isEnabled();
+    } catch (error) {
+      console.error('Erro ao consultar a inicialização com o sistema:', error);
+      return;
+    }
+
+    if (this.settings.autostartEnabled === current) return;
+
+    try {
+      if (this.settings.autostartEnabled) {
+        await this.autostartService.enable();
+      } else {
+        await this.autostartService.disable();
+      }
+    } catch (error) {
+      console.error('Erro ao alterar a inicialização com o sistema:', error);
+      this.settings.autostartEnabled = current;
+      this.toastService.error('Não foi possível alterar a inicialização com o sistema');
+    }
+  }
+
+  // Reconfigurar reinicia o laço, que busca na hora: só vale quando algo da sincronização mudou.
+  private async configureAutoSyncIfChanged(): Promise<void> {
+    const config = this.autoSyncConfig();
+    if (config === this.lastAutoSyncConfig) return;
+
+    try {
+      await invoke('configure_auto_sync', JSON.parse(config));
+      this.lastAutoSyncConfig = config;
+    } catch (error) {
+      console.error('Erro ao configurar a sincronização:', error);
+    }
+  }
+
+  private autoSyncConfig(): string {
+    const loggedIn = this.settings.isPontomaisLoggedIn;
+    return JSON.stringify({
+      enabled: this.settings.autoImportEnabled && loggedIn,
+      intervalMins: this.settings.autoImportInterval,
+      smart: this.settings.smartSyncEnabled && loggedIn
+    });
   }
 
   async onSaveCredentials() {
@@ -276,12 +363,14 @@ export class SettingsModal implements OnInit, OnChanges {
     try {
       // O Rust autentica, grava o token e — se a Reconexão Automática estiver ligada —
       // a senha. Aqui não sobra credencial nenhuma.
+      const login = this.integrationSettings.pontomaisLogin.trim();
       await this.pontoMaisService.authenticate({
-        username: this.integrationSettings.pontomaisLogin,
+        username: login,
         password: this.integrationSettings.pontomaisPassword
       });
 
-      this.settings.pontomaisLogin = this.integrationSettings.pontomaisLogin;
+      this.integrationSettings.pontomaisLogin = login;
+      this.settings.pontomaisLogin = login;
       this.settings.isPontomaisLoggedIn = true;
 
       this.integrationSettings.pontomaisPassword = '';
@@ -316,9 +405,9 @@ export class SettingsModal implements OnInit, OnChanges {
       this.integrationSettings.isLoggedIn = false;
       this.integrationSettings.pontomaisPassword = '';
 
-      await this.saveSettings();
-
-      this.toastService.success('Conta desconectada');
+      if (await this.saveSettings()) {
+        this.toastService.success('Conta desconectada');
+      }
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
       this.toastService.error('Erro ao desconectar a conta');
@@ -326,6 +415,7 @@ export class SettingsModal implements OnInit, OnChanges {
   }
 
   onClose() {
+    this.integrationSettings.pontomaisPassword = '';
     this.close.emit();
   }
 

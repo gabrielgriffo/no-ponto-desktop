@@ -14,7 +14,7 @@ pub struct AppInfo {
 pub fn get_app_info() -> AppInfo {
     let version = env!("CARGO_PKG_VERSION").to_string();
     let product_name = "No Ponto".to_string();
-    let tauri_version = "2.0".to_string();
+    let tauri_version = tauri::VERSION.to_string();
 
     // Detecta arquitetura
     let architecture = if cfg!(target_arch = "x86_64") {

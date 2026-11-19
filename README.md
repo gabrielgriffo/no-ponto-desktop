@@ -144,22 +144,29 @@ As configurações abrem pela engrenagem no topo da janela e são divididas em c
 <details>
 <summary><strong>Como o tempo é calculado</strong></summary>
 
-O expediente tem até quatro registros: entrada, saída para o intervalo, retorno e saída final. O
-tempo trabalhado é a soma dos dois períodos, e o tempo restante é a jornada de referência menos
-esse total.
+O expediente tem entrada, saída para o intervalo, retorno e saída final. O tempo trabalhado é a
+soma dos períodos, e o tempo restante é a jornada de referência menos esse total.
+
+Os registros importados entram em ordem de horário, e os que o próprio PontoMais revogou são
+ignorados. Com mais de quatro registros, como num segundo intervalo, os períodos seguintes também
+são somados, e uma quantidade ímpar de registros significa que você está trabalhando agora.
 
 Enquanto a saída para o intervalo não foi registrada, o horário de saída previsto soma o intervalo
 padrão configurado. A tela principal mostra um ícone de ajuda ao lado do horário quando isso
 acontece. Depois que a saída e o retorno são registrados, o cálculo passa a usar o intervalo real.
+
+Na virada do dia, o monitoramento para e os horários são limpos, para que os registros de ontem
+não sejam usados no dia seguinte.
 
 </details>
 
 <details>
 <summary><strong>Alarme</strong></summary>
 
-O alarme toca no momento em que o expediente passa de Em andamento para Hora extra, ou seja, quando
-o tempo restante chega a zero. Ele toca no máximo uma vez por dia e não toca se o monitoramento
-começar depois que a jornada já foi completada.
+O alarme toca no momento em que o expediente passa de Em andamento (ou Em intervalo) para Hora
+extra, ou seja, quando o tempo restante chega a zero. Ele toca no máximo uma vez por dia e não toca
+se o monitoramento começar depois que a jornada já foi completada. Com o alarme ligado, o rodapé da
+tela principal mostra o horário do próximo alarme.
 
 | Opção | Valores |
 |---|---|
@@ -168,7 +175,8 @@ começar depois que a jornada já foi completada.
 | Modo | Tocar uma vez ou tocar continuamente |
 | Duração | 5, 15 ou 30 segundos, 1 ou 2 minutos (no modo contínuo) |
 
-Adiar 10 min para o som e toca de novo dez minutos depois. Entendi encerra o aviso do dia.
+Adiar 10 min para o som e toca de novo dez minutos depois. Entendi encerra o aviso do dia. Se a
+saída final for registrada durante o adiamento, o alarme adiado é cancelado.
 
 </details>
 
@@ -196,7 +204,10 @@ desliga a outra.
 Quando o No Ponto subiu com o sistema e a opção está ligada, ao chegar o horário limite (09:00,
 10:00, 11:00, 12:00 ou 14:00) ele consulta o dia na hora. Se não houver nenhum registro, o
 aplicativo se encerra. Se houver, ele não verifica mais até o dia seguinte. Sem sessão conectada
-ou com falha na consulta, ele tenta de novo no minuto seguinte, sem fechar.
+ou com falha na consulta, ele tenta de novo no minuto seguinte, sem fechar. Se a sessão expirou e a
+reconexão automática falhou, a próxima tentativa espera 5 minutos.
+
+A opção só aparece com Iniciar com o sistema ligado.
 
 </details>
 
@@ -217,8 +228,9 @@ não é iniciado de novo.
 <summary><strong>Atualizações</strong></summary>
 
 Ao abrir, o aplicativo consulta em silêncio as releases públicas deste repositório no GitHub e
-guarda o resultado. A tela Sobre mostra a última verificação, permite verificar de novo e oferece a
-instalação quando há uma versão nova; o aplicativo fecha e reabre para concluir. Os pacotes de atualização são assinados, e o aplicativo recusa qualquer pacote cuja
+guarda o resultado. Quando há uma versão nova, o botão Atualizar aparece no cabeçalho, ao lado das
+configurações, e instala com um clique. A tela Sobre mostra a última verificação, permite verificar
+de novo e também oferece a instalação; o aplicativo fecha e reabre para concluir. Os pacotes de atualização são assinados, e o aplicativo recusa qualquer pacote cuja
 assinatura não confira com a chave pública embutida nele.
 
 A consulta é uma requisição HTTPS comum, então o GitHub vê o endereço de onde ela partiu, como
@@ -264,7 +276,7 @@ Tecnologias:
 - **Interface:** Angular 20 e TypeScript
 - **Aplicativo desktop:** Rust e Tauri 2
 - **Integração com a API:** [`reqwest`](https://crates.io/crates/reqwest)
-- **Armazenamento de credenciais:** [`keyring`](https://crates.io/crates/keyring), utilizando o armazenamento seguro nativo do sistema operacional
+- **Armazenamento de credenciais:** [`keyring-core`](https://crates.io/crates/keyring-core), com o Gerenciador de Credenciais no Windows e o Secret Service no Linux
 
 </details>
 

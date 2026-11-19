@@ -81,12 +81,4 @@ export class PontoMaisService {
   async getCurrentWorkDay(date: string): Promise<WorkDaysResponse> {
     return await invoke<WorkDaysResponse>('pontomais_current_workday', { date });
   }
-
-  async getSession(): Promise<any> {
-    return await invoke('pontomais_session');
-  }
-
-  async getCompTime(): Promise<any> {
-    return await invoke('pontomais_comp_time');
-  }
 }

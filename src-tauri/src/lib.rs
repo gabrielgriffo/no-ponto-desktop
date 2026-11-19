@@ -76,9 +76,9 @@ pub fn run() {
 
             // Configura propriedades da janela
             window.set_title("No Ponto")?;
-            window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-                width: 393,
-                height: 506,
+            window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                width: 393.0,
+                height: 506.0,
             }))?;
             window.set_decorations(false)?;
             window.set_resizable(false)?;
@@ -135,7 +135,7 @@ pub fn run() {
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
-                window.hide().unwrap();
+                window.hide().ok();
                 let _ = window.emit("main-window-hidden", ());
             }
             tauri::WindowEvent::Focused(true) => {
@@ -154,8 +154,6 @@ pub fn run() {
             pontomais::pontomais_ensure_session,
             pontomais::pontomais_clear_session,
             pontomais::pontomais_current_workday,
-            pontomais::pontomais_session,
-            pontomais::pontomais_comp_time,
             auto_sync::configure_auto_sync,
             external_app::pick_external_app,
             external_app::external_app_maybe_launch,

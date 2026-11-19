@@ -15,7 +15,7 @@ export interface AlarmOptions {
 export const SNOOZE_MINUTES = 10;
 
 export function shouldRingAlarm(previous: JourneyState | null, current: JourneyState): boolean {
-  return previous === 'andamento' && current === 'extra';
+  return (previous === 'andamento' || previous === 'pausado') && current === 'extra';
 }
 
 export function isWorkdayReopened(previous: JourneyState | null, current: JourneyState): boolean {

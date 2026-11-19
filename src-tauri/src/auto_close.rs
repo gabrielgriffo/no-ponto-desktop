@@ -1,10 +1,14 @@
-use crate::pontomais::{fetch_workday_reconnecting, PontoMaisStateType};
+use crate::pontomais::{fetch_workday_reconnecting, PontoMaisStateType, RECONNECT_PENDING};
 use crate::startup::LaunchInfo;
-use chrono::{Local, NaiveDate, Timelike};
+use chrono::{DateTime, Local, NaiveDate, Timelike};
 use tauri::{AppHandle, Manager};
 use tokio::time::{sleep, Duration};
 
 const TICK: Duration = Duration::from_secs(60);
+
+// A consulta repete a cada minuto, mas uma reconexão que falhou não: cada tentativa é
+// um login no PontoMais, e a segunda chance da senha não pode durar só um minuto.
+const RECONNECT_RETRY: chrono::Duration = chrono::Duration::minutes(5);
 
 pub fn is_due(now_minutes: u32, limit_minutes: u32, decided_today: bool) -> bool {
     !decided_today && now_minutes >= limit_minutes
@@ -18,6 +22,7 @@ pub fn spawn(app: AppHandle, launch: LaunchInfo) {
 
 async fn run(app: AppHandle) {
     let mut decided_on: Option<NaiveDate> = None;
+    let mut reconnect_after: Option<DateTime<Local>> = None;
 
     loop {
         sleep(TICK).await;
@@ -30,6 +35,9 @@ async fn run(app: AppHandle) {
         }
 
         let now = Local::now();
+        if reconnect_after.is_some_and(|after| now < after) {
+            continue;
+        }
         let today = now.date_naive();
         let now_minutes = now.hour() * 60 + now.minute();
         if !is_due(
@@ -57,7 +65,12 @@ async fn run(app: AppHandle) {
                     return;
                 }
             }
-            Err(e) => eprintln!("[auto_close] Consulta adiada: {}", e),
+            Err(e) => {
+                eprintln!("[auto_close] Consulta adiada: {}", e);
+                if e == RECONNECT_PENDING {
+                    reconnect_after = Some(now + RECONNECT_RETRY);
+                }
+            }
         }
     }
 }

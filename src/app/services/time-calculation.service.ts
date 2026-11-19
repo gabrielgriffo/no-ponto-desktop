@@ -10,8 +10,9 @@ export const DEFAULT_BREAK_MINUTES = 60;
 })
 export class TimeCalculationService {
 
+  /** -1 indica horário ausente; 0 é meia-noite, um horário válido. */
   timeStringToMinutes(timeString: string): number {
-    if (!timeString || !timeString.includes(':')) return 0;
+    if (!timeString || !timeString.includes(':')) return -1;
     const [hours, minutes] = timeString.split(':').map(Number);
     return hours * 60 + minutes;
   }
@@ -36,41 +37,6 @@ export class TimeCalculationService {
     return now.getHours() * 60 + now.getMinutes();
   }
 
-  incrementTime(time: TimeObject): void {
-    time.minutes += 1;
-    if (time.minutes >= 60) {
-      time.hours++;
-      time.minutes -= 60;
-    }
-  }
-
-  decrementTime(time: TimeObject): void {
-    time.minutes -= 1;
-    if (time.minutes < 0) {
-      time.hours--;
-      time.minutes += 60;
-    }
-  }
-
-  incrementTimeWithLimit(time: TimeObject, maxHours: number = 24): void {
-    this.incrementTime(time);
-    if (time.hours >= maxHours) {
-      time.hours -= maxHours;
-    }
-  }
-
-  decrementRemainingTime(time: TimeObject): void {
-    time.minutes -= 1;
-    if (time.minutes < 0) {
-      if (time.hours > 0) {
-        time.hours--;
-        time.minutes = 59;
-      } else {
-        time.minutes = 0;
-      }
-    }
-  }
-
   /**
    * @param targetJourneyMinutes Jornada de referência, em minutos. Vem do
    * `expectedWorkdayMinutes` das configurações — o mesmo valor que o Rust usa
@@ -79,6 +45,7 @@ export class TimeCalculationService {
    * somado nos cenários A e B, quando a pausa ainda não foi registrada; a
    * partir do cenário C o intervalo real é a diferença entre saída e retorno.
    * Zero é válido e significa jornada sem pausa.
+   * @param extraTimes Batidas além da quarta, em ordem (segundo intervalo e retorno).
    */
   calculateWorkTime(
     checkIn: string,
@@ -86,7 +53,8 @@ export class TimeCalculationService {
     checkIn2: string,
     checkOut2: string = '',
     targetJourneyMinutes: number = DEFAULT_JOURNEY_MINUTES,
-    breakMinutes: number = DEFAULT_BREAK_MINUTES
+    breakMinutes: number = DEFAULT_BREAK_MINUTES,
+    extraTimes: string[] = []
   ): {
     firstPeriod: TimeObject;
     secondPeriod: TimeObject;
@@ -100,6 +68,10 @@ export class TimeCalculationService {
     const checkIn2Minutes = this.timeStringToMinutes(checkIn2);
     const checkOut2Minutes = this.timeStringToMinutes(checkOut2);
     const currentMinutes = this.getCurrentTimeInMinutes();
+    const hasCheckIn = checkInMinutes >= 0;
+    const hasCheckOut = checkOutMinutes >= 0;
+    const hasCheckIn2 = checkIn2Minutes >= 0;
+    const hasCheckOut2 = checkOut2Minutes >= 0;
 
     // Jornada zerada ou negativa deixaria o tempo restante sem sentido; o padrão
     // é a mesma salvaguarda que o Rust aplica em `expected_workday_minutes()`.
@@ -120,24 +92,23 @@ export class TimeCalculationService {
     let lunchHourAdded = false;
 
     // Cenário A: Apenas entrada preenchida
-    if (checkInMinutes && !checkOutMinutes && !checkIn2Minutes) {
+    if (hasCheckIn && !hasCheckOut && !hasCheckIn2) {
       lunchHourAdded = true;
 
-      // O intervalo ainda não foi registrado, então ele conta como parte do que
-      // falta: o tempo restante termina no mesmo horário mostrado como fim.
-      const targetWithBreak = targetJourneyMinutes + breakMinutes;
-      endTimeMinutes = checkInMinutes + targetWithBreak;
+      // O tempo restante é só o trabalho que falta; o intervalo ainda não
+      // registrado entra apenas no horário de fim.
+      endTimeMinutes = checkInMinutes + targetJourneyMinutes + breakMinutes;
 
       if (currentMinutes >= checkInMinutes) {
         firstPeriod = this.calculateTimeDifference(checkInMinutes, currentMinutes);
         totalWorkedMinutes = firstPeriod;
-        remainingMinutes = Math.max(0, targetWithBreak - totalWorkedMinutes);
+        remainingMinutes = Math.max(0, targetJourneyMinutes - totalWorkedMinutes);
       } else {
-        remainingMinutes = targetWithBreak;
+        remainingMinutes = targetJourneyMinutes;
       }
     }
     // Cenário B: Entrada e saída preenchidos, sem retorno
-    else if (checkInMinutes && checkOutMinutes && !checkIn2Minutes) {
+    else if (hasCheckIn && hasCheckOut && !hasCheckIn2) {
       lunchHourAdded = true;
 
       firstPeriod = this.calculateTimeDifference(checkInMinutes, checkOutMinutes);
@@ -145,29 +116,68 @@ export class TimeCalculationService {
       remainingMinutes = Math.max(0, targetJourneyMinutes - totalWorkedMinutes);
 
       if (totalWorkedMinutes >= targetJourneyMinutes) {
-        endTimeMinutes = checkInMinutes + targetJourneyMinutes + breakMinutes;
+        // A jornada fechou antes de qualquer intervalo: não há pausa a somar.
+        lunchHourAdded = false;
+        endTimeMinutes = checkInMinutes + targetJourneyMinutes;
       } else {
         const breakEndMinutes = checkOutMinutes + breakMinutes;
         lunchHourAdded = breakEndMinutes > currentMinutes;
         endTimeMinutes = Math.max(breakEndMinutes, currentMinutes) + remainingMinutes;
       }
     }
+    // Cenário E: mais de quatro batidas (novo intervalo). Soma os pares como o Rust faz;
+    // quantidade ímpar significa um período aberto até agora.
+    else if (hasCheckIn && hasCheckOut && hasCheckIn2 && hasCheckOut2 && extraTimes.length > 0) {
+      const times = [checkInMinutes, checkOutMinutes, checkIn2Minutes, checkOut2Minutes,
+        ...extraTimes.map(time => this.timeStringToMinutes(time)).filter(minutes => minutes >= 0)];
+      const periods: { start: number; length: number; open: boolean }[] = [];
+
+      for (let i = 0; i < times.length; i += 2) {
+        const start = times[i];
+        const end = times[i + 1];
+        if (end !== undefined) {
+          periods.push({ start, length: this.calculateTimeDifference(start, end), open: false });
+        } else if (currentMinutes >= start) {
+          periods.push({ start, length: this.calculateTimeDifference(start, currentMinutes), open: true });
+        } else {
+          periods.push({ start, length: 0, open: true });
+        }
+      }
+
+      firstPeriod = periods[0].length;
+      totalWorkedMinutes = periods.reduce((sum, period) => sum + period.length, 0);
+      secondPeriod = totalWorkedMinutes - firstPeriod;
+      remainingMinutes = Math.max(0, targetJourneyMinutes - totalWorkedMinutes);
+
+      const last = periods[periods.length - 1];
+      let accumulated = 0;
+      endTimeMinutes = last.open
+        ? Math.max(last.start, currentMinutes) + remainingMinutes
+        : times[times.length - 1] + remainingMinutes;
+
+      for (const period of periods) {
+        if (accumulated + period.length >= targetJourneyMinutes) {
+          endTimeMinutes = period.start + (targetJourneyMinutes - accumulated);
+          break;
+        }
+        accumulated += period.length;
+      }
+    }
     // Cenário D: Ponto de saída final já batido (2º período fechado, não conta mais o "agora")
-    else if (checkInMinutes && checkOutMinutes && checkIn2Minutes && checkOut2Minutes) {
+    else if (hasCheckIn && hasCheckOut && hasCheckIn2 && hasCheckOut2) {
       firstPeriod = this.calculateTimeDifference(checkInMinutes, checkOutMinutes);
       secondPeriod = this.calculateTimeDifference(checkIn2Minutes, checkOut2Minutes);
       totalWorkedMinutes = firstPeriod + secondPeriod;
       remainingMinutes = Math.max(0, targetJourneyMinutes - totalWorkedMinutes);
 
       if (totalWorkedMinutes >= targetJourneyMinutes) {
-        const secondPeriodNeeded = targetJourneyMinutes - firstPeriod;
-        endTimeMinutes = checkIn2Minutes + secondPeriodNeeded;
+        endTimeMinutes = this.completedJourneyEnd(checkInMinutes, checkIn2Minutes, firstPeriod, targetJourneyMinutes);
       } else {
         endTimeMinutes = checkOut2Minutes + remainingMinutes;
       }
     }
     // Cenário C: Todos os 3 horários preenchidos (entrada, saída e retorno)
-    else if (checkInMinutes && checkOutMinutes && checkIn2Minutes) {
+    else if (hasCheckIn && hasCheckOut && hasCheckIn2) {
       firstPeriod = this.calculateTimeDifference(checkInMinutes, checkOutMinutes);
 
       // Segundo período: SÓ conta se hora atual >= checkIn2
@@ -182,8 +192,7 @@ export class TimeCalculationService {
       remainingMinutes = Math.max(0, targetJourneyMinutes - totalWorkedMinutes);
 
       if (totalWorkedMinutes >= targetJourneyMinutes) {
-        const secondPeriodNeeded = targetJourneyMinutes - firstPeriod;
-        endTimeMinutes = checkIn2Minutes + secondPeriodNeeded;
+        endTimeMinutes = this.completedJourneyEnd(checkInMinutes, checkIn2Minutes, firstPeriod, targetJourneyMinutes);
       } else if (currentMinutes >= checkIn2Minutes) {
         endTimeMinutes = currentMinutes + remainingMinutes;
       } else {
@@ -200,5 +209,10 @@ export class TimeCalculationService {
       // Com intervalo zerado nada foi somado: o ícone de ajuda não tem o que explicar
       lunchHourAdded: lunchHourAdded && breakMinutes > 0
     };
+  }
+
+  // Se o primeiro período sozinho já cobre a jornada, ela fechou antes do intervalo.
+  private completedJourneyEnd(checkIn: number, checkIn2: number, firstPeriod: number, target: number): number {
+    return firstPeriod >= target ? checkIn + target : checkIn2 + (target - firstPeriod);
   }
 }

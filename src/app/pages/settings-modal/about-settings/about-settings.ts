@@ -161,7 +161,7 @@ export class AboutSettingsComponent {
   }
 
   async onInstallUpdate() {
-    if (this.updateState === 'downloading' || this.updateState === 'ready') {
+    if (this.updateState === 'downloading' || this.updateState === 'ready' || this.updateService.installing()) {
       return;
     }
 

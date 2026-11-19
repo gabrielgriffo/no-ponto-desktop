@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 export interface SelectOption {
@@ -20,6 +20,8 @@ export class CustomSelect {
 
   isOpen: boolean = false;
 
+  private readonly host = inject(ElementRef<HTMLElement>);
+
   get selectedOption(): SelectOption | undefined {
     return this.options.find(opt => opt.value === this.value);
   }
@@ -40,8 +42,7 @@ export class CustomSelect {
 
   @HostListener('document:click', ['$event'])
   onClickOutside(event: MouseEvent): void {
-    const target = event.target as HTMLElement;
-    const clickedInside = target.closest('.custom-select-container');
+    const clickedInside = this.host.nativeElement.contains(event.target as Node);
     if (!clickedInside && this.isOpen) {
       this.isOpen = false;
     }

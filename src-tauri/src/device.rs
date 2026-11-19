@@ -1,8 +1,8 @@
-use crate::pontomais::{build_headers, PontoMaisState, BASE_URL};
-use reqwest::Client;
+use crate::pontomais::{build_headers, http_client, PontoMaisState, BASE_URL};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
@@ -95,12 +95,12 @@ pub fn load_or_create(app: &AppHandle) -> DeviceState {
 ///
 /// Best-effort: a API aceita requisições de um dispositivo não registrado, então
 /// falhar aqui não pode derrubar um login que deu certo.
-pub async fn register(app: &AppHandle, state: &crate::pontomais::PontoMaisStateType) {
+pub async fn register(app: &AppHandle, state: &crate::pontomais::PontoMaisStateType) -> bool {
     let (headers, uuid, login) = {
         let pm_state = state.lock().unwrap();
 
         if pm_state.token.is_none() {
-            return;
+            return true;
         }
 
         (
@@ -111,7 +111,7 @@ pub async fn register(app: &AppHandle, state: &crate::pontomais::PontoMaisStateT
     };
 
     let Some(login) = login else {
-        return;
+        return true;
     };
 
     // Já registrado para esta conta: repetir só geraria um cadastro duplicado
@@ -119,7 +119,7 @@ pub async fn register(app: &AppHandle, state: &crate::pontomais::PontoMaisStateT
     let device_state = read_state(app);
     if let Some(existing) = &device_state {
         if existing.registered_for.as_deref() == Some(login.as_str()) && existing.uuid == uuid {
-            return;
+            return true;
         }
     }
 
@@ -132,7 +132,7 @@ pub async fn register(app: &AppHandle, state: &crate::pontomais::PontoMaisStateT
         }
     });
 
-    let response = Client::new()
+    let response = http_client()
         .post(&url)
         .headers(headers)
         .json(&payload)
@@ -151,14 +151,36 @@ pub async fn register(app: &AppHandle, state: &crate::pontomais::PontoMaisStateT
                 // requisição repetida no próximo login.
                 eprintln!("[device] Falha ao marcar o dispositivo como registrado: {}", e);
             }
+            true
         }
         Ok(response) => {
             eprintln!("[device] Registro do dispositivo retornou {}", response.status());
+            false
         }
         Err(e) => {
             eprintln!("[device] Erro de rede ao registrar o dispositivo: {}", e);
+            false
         }
     }
+}
+
+static REGISTER_FAILED: AtomicBool = AtomicBool::new(false);
+
+/// `register` para a restauração da sessão, que roda no boot e a cada abertura e
+/// fechamento do modal: depois de uma falha, só um login novo tenta de novo nesta
+/// execução, em vez de repetir o POST em cada uma dessas chamadas.
+pub async fn register_once(app: &AppHandle, state: &crate::pontomais::PontoMaisStateType) {
+    if REGISTER_FAILED.load(Ordering::Relaxed) {
+        return;
+    }
+
+    if !register(app, state).await {
+        REGISTER_FAILED.store(true, Ordering::Relaxed);
+    }
+}
+
+pub fn reset_register_failure() {
+    REGISTER_FAILED.store(false, Ordering::Relaxed);
 }
 
 /// Inicializa o estado da sessão com a identidade persistida desta instalação.

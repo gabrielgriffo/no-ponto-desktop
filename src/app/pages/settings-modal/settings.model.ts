@@ -176,14 +176,14 @@ export function durationToTimeString(minutes: number): string {
  * `"08:30"` → `510`. Devolve `null` para entrada incompleta ou fora de faixa —
  * quem chama decide se mantém o valor anterior.
  *
- * Aceita também a forma sem separador (`"0830"`): a diretiva `appTimeInput` e o
- * handler do campo escutam o mesmo evento `input`, e a ordem entre os dois não é
- * garantida. Tolerar o valor ainda não mascarado sai mais barato que depender
- * dessa ordem.
+ * Exige o formato completo, com dois dígitos de hora: com três dígitos, `"10:3"`
+ * (meio caminho de `"10:30"`) seria lido como 1h03. Quem chama passa o valor pela
+ * máscara antes, porque a diretiva `appTimeInput` e o handler do campo escutam o
+ * mesmo evento `input` e a ordem entre os dois não é garantida.
  */
 export function timeStringToDuration(value: string): number | null {
   const digits = value.replace(/\D/g, '');
-  if (digits.length < 3 || digits.length > 4) return null;
+  if (digits.length !== 4) return null;
 
   const hours = Number(digits.slice(0, -2));
   const minutes = Number(digits.slice(-2));

@@ -54,7 +54,7 @@ export class ExternalAppSettingsComponent {
     this.isTestingApp = true;
 
     try {
-      await invoke('external_app_test_launch', { target: app });
+      await invoke('external_app_test_launch');
       this.toastService.success(`${app.name} foi iniciado`);
     } catch (error) {
       console.error('Erro ao testar aplicativo:', error);

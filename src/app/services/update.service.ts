@@ -12,6 +12,7 @@ export interface UpdateProgress {
 })
 export class UpdateService {
   readonly available = signal<Update | null>(null);
+  readonly installing = signal(false);
 
   /** Verifica se há uma atualização disponível. Retorna null se já está na última versão. */
   async checkForUpdate(): Promise<Update | null> {
@@ -20,6 +21,20 @@ export class UpdateService {
 
   /** Baixa e instala a atualização, reportando progresso via callback. */
   async downloadAndInstall(update: Update, onProgress?: (progress: UpdateProgress) => void): Promise<void> {
+    // O cabeçalho e a tela Sobre instalam pela mesma atualização; quem chega com outra
+    // instalação em andamento não começa uma segunda.
+    if (this.installing()) throw new Error('Atualização já em andamento');
+    this.installing.set(true);
+
+    try {
+      await this.runDownloadAndInstall(update, (progress) => onProgress?.(progress));
+      this.available.set(null);
+    } finally {
+      this.installing.set(false);
+    }
+  }
+
+  private async runDownloadAndInstall(update: Update, onProgress: (progress: UpdateProgress) => void): Promise<void> {
     let downloaded = 0;
     let contentLength: number | undefined;
 
@@ -27,14 +42,14 @@ export class UpdateService {
       switch (event.event) {
         case 'Started':
           contentLength = event.data.contentLength;
-          onProgress?.({ downloaded, contentLength });
+          onProgress({ downloaded, contentLength });
           break;
         case 'Progress':
           downloaded += event.data.chunkLength;
-          onProgress?.({ downloaded, contentLength });
+          onProgress({ downloaded, contentLength });
           break;
         case 'Finished':
-          onProgress?.({ downloaded, contentLength });
+          onProgress({ downloaded, contentLength });
           break;
       }
     });

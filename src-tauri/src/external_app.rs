@@ -417,6 +417,16 @@ fn process_name(program: &str, args: &[String]) -> Option<String> {
     let lower = name.to_lowercase();
     let stem = lower.strip_suffix(".exe").unwrap_or(&lower);
 
+    // Apps instalados pelo Squirrel (Discord, Slack) têm atalho para o atualizador,
+    // que repassa a execução ao executável real indicado em `--processStart`.
+    if stem == "update" {
+        let target = args
+            .iter()
+            .skip_while(|arg| !arg.eq_ignore_ascii_case("--processStart"))
+            .nth(1)?;
+        return file_name(target).map(str::to_string);
+    }
+
     let is_script = [".bat", ".cmd", ".lnk", ".sh"]
         .iter()
         .any(|ext| lower.ends_with(ext));
@@ -437,11 +447,11 @@ fn is_already_running(target: &ExternalApp) -> bool {
         return false;
     };
 
-    let Some(program) = executable_behind(&spec.program) else {
+    let Some((program, args)) = executable_behind(&spec.program, &spec.args) else {
         return false;
     };
 
-    let Some(name) = process_name(&program, &spec.args) else {
+    let Some(name) = process_name(&program, &args) else {
         return false;
     };
 
@@ -469,9 +479,10 @@ pub fn maybe_launch(app: &AppHandle, work_day: &Value, today: &str) -> Result<bo
         return Ok(false);
     }
 
-    let Some(target) = settings.external_app.as_ref() else {
+    let Some(saved) = settings.external_app.as_ref() else {
         return Ok(false);
     };
+    let target = &trusted_target(saved)?;
 
     if !crate::workday::should_launch(work_day, settings.expected_workday_minutes()) {
         return Ok(false);
@@ -510,10 +521,24 @@ pub fn external_app_maybe_launch(
     Ok(())
 }
 
-/// Abre o aplicativo na hora, sem as condições de expediente nem a trava diária.
+/// O `exec` e os `args` salvos vêm da webview; o que roda é sempre recalculado aqui a
+/// partir do arquivo escolhido, para que as configurações não virem execução arbitrária.
+fn trusted_target(saved: &ExternalApp) -> Result<ExternalApp, String> {
+    let mut target = resolve_external_app(Path::new(&saved.path))
+        .map_err(|e| format!("{}: {}", saved.name, e))?;
+    target.name = saved.name.clone();
+    Ok(target)
+}
+
+/// Abre o aplicativo configurado na hora, sem as condições de expediente nem a trava diária.
 #[tauri::command]
-pub async fn external_app_test_launch(target: ExternalApp) -> Result<(), String> {
-    launch(&target)
+pub async fn external_app_test_launch(app: AppHandle) -> Result<(), String> {
+    let settings = crate::settings::read_settings(&app)?;
+    let saved = settings
+        .external_app
+        .ok_or("Nenhum aplicativo foi escolhido.")?;
+
+    launch(&trusted_target(&saved)?)
 }
 
 pub fn launch(target: &ExternalApp) -> Result<(), String> {
@@ -595,23 +620,29 @@ fn spawn_detached(spec: &LaunchSpec) -> Result<(), String> {
 }
 
 #[cfg(target_os = "windows")]
-fn executable_behind(program: &str) -> Option<String> {
+fn executable_behind(program: &str, args: &[String]) -> Option<(String, Vec<String>)> {
     if has_extension(program, "lnk") {
-        resolve_shortcut(program)
+        read_shortcut(program)
     } else {
-        Some(program.to_string())
+        Some((program.to_string(), args.to_vec()))
     }
 }
 
 #[cfg(not(target_os = "windows"))]
-fn executable_behind(program: &str) -> Option<String> {
-    Some(program.to_string())
+fn executable_behind(program: &str, args: &[String]) -> Option<(String, Vec<String>)> {
+    Some((program.to_string(), args.to_vec()))
 }
 
 /// Destino de um `.lnk`. `None` para atalhos sem arquivo de destino, como os de
 /// apps da Microsoft Store.
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", test))]
 fn resolve_shortcut(path: &str) -> Option<String> {
+    read_shortcut(path).map(|(target, _)| target)
+}
+
+/// Destino e argumentos de um `.lnk`.
+#[cfg(target_os = "windows")]
+fn read_shortcut(path: &str) -> Option<(String, Vec<String>)> {
     use windows::core::{Interface, HSTRING};
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
@@ -628,24 +659,36 @@ fn resolve_shortcut(path: &str) -> Option<String> {
             return None;
         }
 
-        let target = (|| -> windows::core::Result<String> {
+        let target = (|| -> windows::core::Result<(String, String)> {
             let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
             link.cast::<IPersistFile>()?.Load(&path, STGM_READ)?;
 
             let mut buffer = [0u16; 1024];
             link.GetPath(&mut buffer, std::ptr::null_mut(), 0)?;
+            let target = utf16_until_nul(&buffer);
 
-            let len = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
-            Ok(String::from_utf16_lossy(&buffer[..len]))
+            let mut buffer = [0u16; 1024];
+            link.GetArguments(&mut buffer)?;
+
+            Ok((target, utf16_until_nul(&buffer)))
         })();
 
         CoUninitialize();
 
-        target.ok().filter(|target| !target.is_empty())
+        target
+            .ok()
+            .filter(|(target, _)| !target.is_empty())
+            .map(|(target, args)| (target, parse_exec(&args)))
     })
     .join()
     .ok()
     .flatten()
+}
+
+#[cfg(target_os = "windows")]
+fn utf16_until_nul(buffer: &[u16]) -> String {
+    let len = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
+    String::from_utf16_lossy(&buffer[..len])
 }
 
 #[cfg(target_os = "windows")]
@@ -1039,6 +1082,17 @@ mod tests {
         assert_eq!(process_name("/usr/bin/flatpak", &flatpak_args), None);
         assert_eq!(process_name("/home/user/start.sh", &[]), None);
         assert_eq!(process_name("/usr/bin/python3", &[]), None);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn squirrel_updater_resolves_to_the_started_executable() {
+        let args = vec!["--processStart".to_string(), "Discord.exe".to_string()];
+        assert_eq!(
+            process_name(r"C:\Users\u\AppData\Local\Discord\Update.exe", &args).as_deref(),
+            Some("Discord.exe")
+        );
+        assert_eq!(process_name(r"C:\Apps\Update.exe", &[]), None);
     }
 
     #[test]

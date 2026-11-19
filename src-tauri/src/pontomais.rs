@@ -1,7 +1,8 @@
 use reqwest::{header, Client};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
-use tauri::AppHandle;
+use std::sync::{LazyLock, Mutex};
+use std::time::Duration;
+use tauri::{AppHandle, Manager};
 
 pub struct PontoMaisState {
     pub token: Option<String>,
@@ -35,6 +36,22 @@ pub(crate) const SESSION_EXPIRED: &str = "SESSION_EXPIRED";
 /// A sessão morreu, mas a reconexão ainda pode dar certo. Nada foi apagado.
 pub(crate) const RECONNECT_PENDING: &str = "RECONNECT_PENDING";
 const APP_ORIGIN: &str = "https://app2.pontomais.com.br";
+
+const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
+
+// Sem timeout, um servidor que aceita a conexão e não responde prenderia o laço de
+// sincronização e o fechamento automático até reiniciar o app.
+static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
+    Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .unwrap_or_default()
+});
+
+pub(crate) fn http_client() -> &'static Client {
+    &HTTP_CLIENT
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct Credentials {
@@ -97,7 +114,7 @@ async fn authenticate(
     username: &str,
     password: &str,
 ) -> Result<AuthResponse, AuthFailure> {
-    let client = Client::new();
+    let client = http_client();
     let url = format!("{}/api/auth/sign_in", BASE_URL);
 
     let mut headers = header::HeaderMap::new();
@@ -109,6 +126,7 @@ async fn authenticate(
     headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
     headers.insert("origin", APP_ORIGIN.parse().unwrap());
     headers.insert(header::REFERER, format!("{}/", APP_ORIGIN).parse().unwrap());
+    headers.insert(header::USER_AGENT, USER_AGENT.parse().unwrap());
 
     let payload = serde_json::json!({
         "login": username,
@@ -146,18 +164,31 @@ async fn authenticate(
     let expiry = header_value(headers, "expiry");
     let uid = header_value(headers, "uid");
 
+    // Um 201 sem os headers de sessão não é um login: gravar token vazio deixaria a
+    // conta "conectada" sem nenhuma busca funcionar.
+    if token.is_empty() || client_id.is_empty() {
+        eprintln!("[pontomais] Login sem headers de sessão");
+        return Err(AuthFailure::Server(status));
+    }
+
+    // O `uid` devolvido pela API é o mesmo que a restauração da sessão usa; o texto
+    // digitado só vale como reserva.
+    let uid = if uid.is_empty() { username.to_string() } else { uid };
+
     // Salvar no estado; mutex liberado antes do .await seguinte
     {
         let mut pm_state = state.lock().unwrap();
         pm_state.token = Some(token.clone());
         pm_state.client_id = Some(client_id.clone());
         pm_state.expiry = Some(expiry.clone());
-        pm_state.username = Some(username.to_string());
+        pm_state.username = Some(uid.clone());
     }
 
     // O app web registra o dispositivo logo depois do login; é o que vincula
     // este uuid à conta.
-    crate::device::register(app, state).await;
+    if crate::device::register(app, state).await {
+        crate::device::reset_register_failure();
+    }
 
     Ok(AuthResponse {
         token,
@@ -187,8 +218,12 @@ pub async fn pontomais_authenticate(
         .await
         .map_err(|failure| failure.user_message())?;
 
-    // Uma falha aqui deixaria a sessão viva só até fechar o app; o usuário precisa saber.
-    crate::credentials::save_token(&to_stored(&auth))?;
+    // Uma falha aqui deixaria a sessão viva só até fechar o app; o usuário precisa saber,
+    // e a sessão em memória não pode seguir sincronizando como se o login tivesse valido.
+    if let Err(e) = crate::credentials::save_token(&to_stored(&auth)) {
+        clear_memory_session(&state);
+        return Err(e);
+    }
 
     // Com a Reconexão Automática desligada a entrada é apagada, não ignorada: quem
     // desliga a chave e conecta de novo não pode ficar com a senha da vez anterior.
@@ -211,6 +246,14 @@ pub async fn pontomais_authenticate(
     crate::auth_state::reset(&app);
 
     Ok(())
+}
+
+fn clear_memory_session(state: &PontoMaisStateType) {
+    let mut pm_state = state.lock().unwrap();
+    pm_state.token = None;
+    pm_state.client_id = None;
+    pm_state.expiry = None;
+    pm_state.username = None;
 }
 
 fn to_stored(auth: &AuthResponse) -> crate::credentials::StoredToken {
@@ -247,8 +290,12 @@ pub async fn pontomais_ensure_session(
 
     // Uma sessão anterior à persistência do uuid carrega um token válido com um
     // dispositivo que nunca foi registrado; `register` é idempotente por conta e
-    // não faz nada quando o registro já existe.
-    crate::device::register(&app, &state).await;
+    // não faz nada quando o registro já existe. Roda em segundo plano para que um
+    // registro que falha não atrase a abertura do app nem do modal.
+    tauri::async_runtime::spawn(async move {
+        let state = app.state::<PontoMaisStateType>();
+        crate::device::register_once(&app, &state).await;
+    });
 
     Ok(SessionStatus::Connected)
 }
@@ -273,7 +320,7 @@ pub async fn pontomais_clear_session(
     };
 
     if let Some(headers) = headers {
-        let client = Client::new();
+        let client = http_client();
         let url = format!("{}/api/auth/sign_out", BASE_URL);
 
         match client.delete(&url).headers(headers).send().await {
@@ -285,13 +332,7 @@ pub async fn pontomais_clear_session(
         }
     }
 
-    {
-        let mut pm_state = state.lock().unwrap();
-        pm_state.token = None;
-        pm_state.client_id = None;
-        pm_state.expiry = None;
-        pm_state.username = None;
-    }
+    clear_memory_session(&state);
 
     // Desconectar é desconectar: token e senha saem juntos. Deixar a senha para trás
     // faria a próxima abertura reconectar sozinha uma conta que o usuário desligou.
@@ -312,40 +353,38 @@ pub(crate) fn build_headers(state: &PontoMaisState) -> header::HeaderMap {
     headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
     headers.insert("origin", APP_ORIGIN.parse().unwrap());
     headers.insert(header::REFERER, format!("{}/", APP_ORIGIN).parse().unwrap());
-    headers.insert(
-        header::USER_AGENT,
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            .parse()
-            .unwrap(),
-    );
+    headers.insert(header::USER_AGENT, USER_AGENT.parse().unwrap());
 
-    if let Some(username) = &state.username {
-        headers.insert("uid", username.parse().unwrap());
-    }
-
-    headers.insert("uuid", state.uuid.parse().unwrap());
-
-    if let Some(token) = &state.token {
-        headers.insert("access-token", token.parse().unwrap());
-        headers.insert("token", token.parse().unwrap());
-    }
-
-    if let Some(expiry) = &state.expiry {
-        headers.insert("expiry", expiry.parse().unwrap());
-    }
-
-    if let Some(client_id) = &state.client_id {
-        headers.insert("client", client_id.parse().unwrap());
-    }
+    insert_dynamic(&mut headers, "uid", state.username.as_deref());
+    insert_dynamic(&mut headers, "uuid", Some(&state.uuid));
+    insert_dynamic(&mut headers, "access-token", state.token.as_deref());
+    insert_dynamic(&mut headers, "token", state.token.as_deref());
+    insert_dynamic(&mut headers, "expiry", state.expiry.as_deref());
+    insert_dynamic(&mut headers, "client", state.client_id.as_deref());
 
     headers
+}
+
+// Esta função roda com o mutex da sessão travado: um panic aqui o envenenaria e
+// derrubaria a integração até reiniciar o app.
+fn insert_dynamic(headers: &mut header::HeaderMap, name: &'static str, value: Option<&str>) {
+    let Some(value) = value else {
+        return;
+    };
+
+    match header::HeaderValue::from_str(value) {
+        Ok(value) => {
+            headers.insert(name, value);
+        }
+        Err(_) => eprintln!("[pontomais] Valor inválido para o header {}", name),
+    }
 }
 
 pub async fn fetch_workday(
     state: &PontoMaisStateType,
     date: &str,
 ) -> Result<serde_json::Value, String> {
-    let client = Client::new();
+    let client = http_client();
     let url = format!(
         "{}/api/time_cards/work_days/current?start_date={}&end_date={}&attributes=time_cards",
         BASE_URL, date, date
@@ -362,19 +401,36 @@ pub async fn fetch_workday(
         .await
         .map_err(|e| e.to_string())?;
 
-    let body: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+    let status = response.status();
+    let body: Option<serde_json::Value> = response.json().await.ok();
+    interpret_workday_response(status, body)
+}
 
+// Um erro com corpo JSON não pode virar "dia sem batidas": o fechamento
+// automático encerraria o app num dia de trabalho.
+fn interpret_workday_response(
+    status: reqwest::StatusCode,
+    body: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
     let session_expired = body
-        .get("redirect_to_login")
+        .as_ref()
+        .and_then(|b| b.get("redirect_to_login"))
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    if session_expired {
+    if session_expired || status == reqwest::StatusCode::UNAUTHORIZED {
         return Err(SESSION_EXPIRED.to_string());
     }
 
-    Ok(body)
+    if !status.is_success() {
+        return Err(format!("HTTP {}", status.as_u16()));
+    }
+
+    body.ok_or_else(|| "Resposta inválida do PontoMais".to_string())
 }
+
+static RECONNECT_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 /// Resultado de uma tentativa de reconexão.
 enum ReconnectOutcome {
@@ -392,14 +448,17 @@ enum ReconnectOutcome {
 /// Só é chamada quando a API já disse que a sessão morreu, então não existe caminho
 /// em que ela reautentique por cima de uma sessão válida.
 async fn reconnect(app: &AppHandle, state: &PontoMaisStateType) -> ReconnectOutcome {
-    let settings = crate::settings::read_settings(app).ok();
-    let enabled = settings
-        .as_ref()
-        .map(|s| s.auto_reconnect_enabled)
-        .unwrap_or(false);
-    let login = settings
-        .map(|s| s.pontomais_login)
-        .unwrap_or_default();
+    // Configuração ilegível (ex.: lida no meio de uma gravação) não é o mesmo que
+    // reconexão desligada: apagar o cofre aqui puniria quem não errou nada.
+    let settings = match crate::settings::read_settings(app) {
+        Ok(settings) => settings,
+        Err(e) => {
+            eprintln!("[pontomais] Reconexão adiada: configurações ilegíveis: {}", e);
+            return ReconnectOutcome::Failed;
+        }
+    };
+    let enabled = settings.auto_reconnect_enabled;
+    let login = settings.pontomais_login;
 
     let password = if enabled {
         crate::credentials::get_password().unwrap_or_else(|e| {
@@ -450,13 +509,7 @@ async fn reconnect(app: &AppHandle, state: &PontoMaisStateType) -> ReconnectOutc
 /// Desvincula a conta: zera a sessão em memória, apaga o cofre e traz a janela para
 /// frente, porque isto exige uma ação do usuário e o app costuma estar na bandeja.
 fn sign_out(app: &AppHandle, state: &PontoMaisStateType) {
-    {
-        let mut pm_state = state.lock().unwrap();
-        pm_state.token = None;
-        pm_state.client_id = None;
-        pm_state.expiry = None;
-        pm_state.username = None;
-    }
+    clear_memory_session(state);
 
     crate::credentials::delete_all();
     crate::auth_state::reset(app);
@@ -490,8 +543,21 @@ pub async fn fetch_workday_reconnecting(
         return Err(error);
     }
 
+    // No boot a sincronização e a importação ao iniciar chegam juntas; sem a trava,
+    // as duas reconectam e uma única senha recusada conta como duas falhas.
+    let _guard = RECONNECT_LOCK.lock().await;
+
+    let retry = fetch_workday(state, date).await;
+    if !matches!(&retry, Err(e) if e == SESSION_EXPIRED) {
+        return retry;
+    }
+
     match reconnect(app, state).await {
-        ReconnectOutcome::Reconnected => fetch_workday(state, date).await,
+        // Um token recém-emitido recusado não desvinculou nada: a conta segue salva.
+        ReconnectOutcome::Reconnected => match fetch_workday(state, date).await {
+            Err(e) if e == SESSION_EXPIRED => Err(RECONNECT_PENDING.to_string()),
+            other => other,
+        },
         // A conta caiu: o frontend precisa refletir isso na tela.
         ReconnectOutcome::Wiped => Err(SESSION_EXPIRED.to_string()),
         // Nada foi apagado — avisar "sessão expirada" faria a tela desconectar uma
@@ -509,65 +575,57 @@ pub async fn pontomais_current_workday(
     fetch_workday_reconnecting(&app, &state, &date).await
 }
 
-#[tauri::command]
-pub async fn pontomais_session(
-    state: tauri::State<'_, PontoMaisStateType>,
-) -> Result<serde_json::Value, String> {
-    let client = Client::new();
-    let url = format!("{}/api/session", BASE_URL);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reqwest::StatusCode;
+    use serde_json::json;
 
-    // Construir headers em um escopo separado para liberar o mutex antes do await
-    let headers = {
-        let pm_state = state.lock().unwrap();
-        build_headers(&pm_state)
-    };
+    #[test]
+    fn success_returns_body() {
+        let body = json!({ "work_days": [] });
+        assert_eq!(interpret_workday_response(StatusCode::OK, Some(body.clone())), Ok(body));
+    }
 
-    let response = client
-        .get(&url)
-        .headers(headers)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    #[test]
+    fn server_error_with_json_body_is_an_error() {
+        let result = interpret_workday_response(StatusCode::INTERNAL_SERVER_ERROR, Some(json!({ "error": "x" })));
+        assert_eq!(result, Err("HTTP 500".to_string()));
+    }
 
-    let result: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
-    Ok(result)
-}
+    #[test]
+    fn too_many_requests_is_an_error() {
+        let result = interpret_workday_response(StatusCode::TOO_MANY_REQUESTS, Some(json!({})));
+        assert_eq!(result, Err("HTTP 429".to_string()));
+    }
 
-#[tauri::command]
-pub async fn pontomais_comp_time(
-    state: tauri::State<'_, PontoMaisStateType>,
-) -> Result<serde_json::Value, String> {
-    let client = Client::new();
+    #[test]
+    fn unauthorized_without_redirect_flag_expires_session() {
+        let result = interpret_workday_response(StatusCode::UNAUTHORIZED, Some(json!({ "errors": [] })));
+        assert_eq!(result, Err(SESSION_EXPIRED.to_string()));
+    }
 
-    // Construir headers em um escopo separado para liberar o mutex antes do await
-    let headers = {
-        let pm_state = state.lock().unwrap();
-        build_headers(&pm_state)
-    };
+    #[test]
+    fn redirect_to_login_expires_session() {
+        let result = interpret_workday_response(StatusCode::OK, Some(json!({ "redirect_to_login": true })));
+        assert_eq!(result, Err(SESSION_EXPIRED.to_string()));
+    }
 
-    // Primeiro obter employee_id via my_time_break
-    let url_employee = format!("{}/api/employees/my_time_break", BASE_URL);
-    let response = client
-        .get(&url_employee)
-        .headers(headers.clone())
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    #[test]
+    fn invalid_header_value_is_skipped_instead_of_panicking() {
+        let mut state = PontoMaisState::new("uuid-1".to_string());
+        state.username = Some("conta\ninvalida".to_string());
+        state.token = Some("abc".to_string());
 
-    let employee_data: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
-    let employee_id = employee_data["employee"]["id"]
-        .as_str()
-        .ok_or("Employee ID not found")?;
+        let headers = build_headers(&state);
 
-    // Agora buscar statuses
-    let url_status = format!("{}/api/employees/statuses/{}", BASE_URL, employee_id);
-    let response = client
-        .get(&url_status)
-        .headers(headers)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        assert!(headers.get("uid").is_none());
+        assert_eq!(headers.get("access-token").unwrap(), "abc");
+        assert_eq!(headers.get("uuid").unwrap(), "uuid-1");
+    }
 
-    let result: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
-    Ok(result)
+    #[test]
+    fn success_without_json_body_is_an_error() {
+        assert!(interpret_workday_response(StatusCode::OK, None).is_err());
+    }
 }

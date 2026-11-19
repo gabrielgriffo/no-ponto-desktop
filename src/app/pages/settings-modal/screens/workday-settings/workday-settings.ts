@@ -1,6 +1,7 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, inject } from '@angular/core';
 import { CustomSelect } from '../../../../components/custom-select/custom-select';
 import { TimeInputDirective } from '../../../../directives/time-input.directive';
+import { TimeUtilsService } from '../../../../services/time-utils.service';
 import {
   AppSettings,
   BREAK_OPTIONS,
@@ -22,6 +23,8 @@ export class WorkdaySettingsComponent implements OnInit {
   readonly workdayOptions = WORKDAY_OPTIONS;
   readonly breakOptions = BREAK_OPTIONS;
   readonly customDuration = CUSTOM_DURATION;
+
+  private readonly timeUtils = inject(TimeUtilsService);
 
   selectedWorkday = CUSTOM_DURATION;
   customWorkday = '';
@@ -58,7 +61,7 @@ export class WorkdaySettingsComponent implements OnInit {
 
     // Entrada pela metade ("08:") não vale como jornada — nada é salvo até o
     // valor fazer sentido, e o anterior continua valendo enquanto isso.
-    const minutes = timeStringToDuration(value);
+    const minutes = timeStringToDuration(this.timeUtils.formatTimeInput(value));
     if (minutes === null) return;
 
     this.settings.expectedWorkdayMinutes = minutes;
@@ -76,7 +79,7 @@ export class WorkdaySettingsComponent implements OnInit {
   onCustomBreak(value: string): void {
     this.customBreak = value;
 
-    const minutes = timeStringToDuration(value);
+    const minutes = timeStringToDuration(this.timeUtils.formatTimeInput(value));
     if (minutes === null) return;
 
     this.settings.defaultBreakMinutes = minutes;

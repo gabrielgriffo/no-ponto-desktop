@@ -12,7 +12,7 @@ import { WindowService } from '../../services/window.service';
 import { TimeObject } from '../../models/time-object';
 import { TimeUtilsService } from '../../services/time-utils.service';
 import { ToastService } from '../../services/toast.service';
-import { PontoMaisService, WorkDaysResponse } from '../../services/pontomais.service';
+import { PontoMaisService, TimeCard, WorkDaysResponse } from '../../services/pontomais.service';
 import { Subscription, timer } from 'rxjs';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
@@ -35,8 +35,19 @@ type AlertSettings = Pick<
 const STARTUP_IMPORT_RETRY_MS = 5 * 60_000;
 const STARTUP_IMPORT_MAX_RETRIES = 3;
 
+function cardMinutes(card: TimeCard): number {
+  const [hours, minutes] = card.time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function validTimeCards(workDay: WorkDaysResponse | null): TimeCard[] {
+  return (workDay?.work_days?.[0]?.time_cards ?? [])
+    .filter(card => !card.disabled)
+    .sort((a, b) => cardMinutes(a) - cardMinutes(b));
+}
+
 function hasTimeCards(workDay: WorkDaysResponse | null): boolean {
-  return (workDay?.work_days?.[0]?.time_cards?.length ?? 0) > 0;
+  return validTimeCards(workDay).length > 0;
 }
 
 interface AutoSyncPayload {
@@ -91,6 +102,11 @@ export class Home implements OnInit, OnDestroy {
   private capturedCheckOut: string = '';
   private capturedCheckIn2: string = '';
   private capturedCheckOut2: string = '';
+  private monitoringDate = '';
+  private importedInputs = '';
+  private importedCheckOut2 = '';
+  private capturedExtras: string[] = [];
+  private importedExtras: string[] = [];
   private errorTimerSub?: Subscription;
   private windowFocusHandler?: () => void;
   private mouseMoveHandler?: () => void;
@@ -300,39 +316,38 @@ export class Home implements OnInit, OnDestroy {
   }
 
   private applyImportedCards(workDay: WorkDaysResponse): number {
-    const cards = workDay?.work_days?.[0]?.time_cards;
-    if (!cards?.length) return 0;
+    const cards = validTimeCards(workDay);
+    if (!cards.length) return 0;
 
-    let count = 0;
-    if (cards[0]) {
-      this.checkInInput.nativeElement.value = this.timeUtils.formatTimeInput(cards[0].time);
-      count++;
-    }
-    if (cards[1]) {
-      this.checkOutInput.nativeElement.value = this.timeUtils.formatTimeInput(cards[1].time);
-      count++;
-    }
-    if (cards[2]) {
-      this.checkIn2Input.nativeElement.value = this.timeUtils.formatTimeInput(cards[2].time);
-      count++;
-    }
-    if (count > 0) {
-      this.onStartMonitoringClick();
-      if (!this.isMonitoring) return count;
-      this.capturedCheckOut2 = cards[3] ? this.timeUtils.formatTimeInput(cards[3].time) : '';
-      this.updateWorkTime();
-    }
-    return count;
+    const format = (card?: TimeCard) => (card ? this.timeUtils.formatTimeInput(card.time) : '');
+    this.checkInInput.nativeElement.value = format(cards[0]);
+    this.checkOutInput.nativeElement.value = format(cards[1]);
+    this.checkIn2Input.nativeElement.value = format(cards[2]);
+
+    this.importedInputs = this.currentInputs();
+    this.importedCheckOut2 = format(cards[3]);
+    this.importedExtras = cards.slice(4).map(card => format(card));
+    this.onStartMonitoringClick();
+    return Math.min(cards.length, 3);
   }
 
   updateWorkTime(): void {
+    if (this.isMonitoring && this.monitoringDate !== this.todayLocalDate()) {
+      this.checkInInput.nativeElement.value = '';
+      this.checkOutInput.nativeElement.value = '';
+      this.checkIn2Input.nativeElement.value = '';
+      this.stopMonitoring();
+      return;
+    }
+
     const result = this.timeCalc.calculateWorkTime(
       this.capturedCheckIn,
       this.capturedCheckOut,
       this.capturedCheckIn2,
       this.capturedCheckOut2,
       this.expectedWorkdayMinutes,
-      this.defaultBreakMinutes
+      this.defaultBreakMinutes,
+      this.capturedExtras
     );
 
     this.firstPeriodTime = result.firstPeriod;
@@ -360,6 +375,11 @@ export class Home implements OnInit, OnDestroy {
 
     if (isWorkdayReopened(previous, current)) {
       this.workdayEndNotifiedOn = '';
+      this.alarmService.dismiss();
+      return;
+    }
+
+    if (current === 'terminou' && previous !== 'terminou') {
       this.alarmService.dismiss();
       return;
     }
@@ -414,7 +434,7 @@ export class Home implements OnInit, OnDestroy {
 
   get progressPercentageValue(): number {
     const totalWorkMinutes = (this.workedTime.hours * 60) + this.workedTime.minutes;
-    const percentage = (totalWorkMinutes / this.journeyTargetMinutes) * 100;
+    const percentage = (totalWorkMinutes / this.journeyMinutes) * 100;
     return Math.min(percentage, 100);
   }
 
@@ -439,7 +459,8 @@ export class Home implements OnInit, OnDestroy {
   }
 
   get isWorkDayComplete(): boolean {
-    return this.capturedCheckOut2.length > 0;
+    // Com um novo intervalo, a quinta batida reabre o dia: só a quantidade par encerra.
+    return this.capturedCheckOut2.length > 0 && this.capturedExtras.length % 2 === 0;
   }
 
   get isOnBreak(): boolean {
@@ -515,6 +536,8 @@ export class Home implements OnInit, OnDestroy {
       return { hours: snoozedUntil.getHours(), minutes: snoozedUntil.getMinutes() };
     }
 
+    if (this.workdayEndNotifiedOn === new Date().toDateString()) return null;
+
     const state = this.journeyState;
     if (state === 'extra' || state === 'terminou') return null;
     return this.endTime;
@@ -549,16 +572,6 @@ export class Home implements OnInit, OnDestroy {
     return hours * 60 + minutes;
   }
 
-  showError() {
-    this.checkInError = true;
-
-    this.errorTimerSub?.unsubscribe();
-
-    this.errorTimerSub = timer(3000).subscribe(() => {
-      this.clearTimeErrors();
-    });
-  }
-
   clearTimeErrors(): void {
     this.checkInError = false;
     this.checkOutError = false;
@@ -568,10 +581,6 @@ export class Home implements OnInit, OnDestroy {
       this.errorTimerSub.unsubscribe();
       this.errorTimerSub = undefined;
     }
-  }
-
-  onInputFocus() {
-    this.clearTimeErrors();
   }
 
   validateTimeInputs(): void {
@@ -683,7 +692,11 @@ export class Home implements OnInit, OnDestroy {
       this.capturedCheckIn = this.checkInInput.nativeElement.value;
       this.capturedCheckOut = this.checkOutInput.nativeElement.value;
       this.capturedCheckIn2 = this.checkIn2Input.nativeElement.value;
-      this.capturedCheckOut2 = '';
+      // A saída final não tem campo na tela: só vale se os horários ainda forem os importados.
+      const keepImported = this.currentInputs() === this.importedInputs;
+      this.capturedCheckOut2 = keepImported ? this.importedCheckOut2 : '';
+      this.capturedExtras = keepImported ? this.importedExtras : [];
+      this.monitoringDate = this.todayLocalDate();
 
       this.updateWorkTime();
 
@@ -701,6 +714,12 @@ export class Home implements OnInit, OnDestroy {
     }
   }
 
+  private currentInputs(): string {
+    return [this.checkInInput, this.checkOutInput, this.checkIn2Input]
+      .map(input => input.nativeElement.value)
+      .join('|');
+  }
+
   private stopMonitoring(): void {
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
@@ -711,6 +730,7 @@ export class Home implements OnInit, OnDestroy {
     this.capturedCheckOut = '';
     this.capturedCheckIn2 = '';
     this.capturedCheckOut2 = '';
+    this.capturedExtras = [];
     const zero = (): TimeObject => ({ hours: 0, minutes: 0 });
     this.workedTime = zero();
     this.remainingTime = zero();
@@ -815,7 +835,12 @@ export class Home implements OnInit, OnDestroy {
   async onCloseSettingsModal(): Promise<void> {
     this.showSettingsModal = false;
     // Recarregar estado após fechar configurações (usuário pode ter alterado auto-sync ou feito logout)
-    this.isPontomaisLoggedIn = (await this.pontoMaisService.ensureSession()) === 'connected';
+    try {
+      this.isPontomaisLoggedIn = (await this.pontoMaisService.ensureSession()) === 'connected';
+    } catch (error) {
+      console.error('Erro ao restaurar sessão:', error);
+      this.isPontomaisLoggedIn = false;
+    }
     try {
       const settings = await invoke<{
         autoImportEnabled: boolean;

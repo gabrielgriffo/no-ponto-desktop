@@ -11,8 +11,6 @@ import { TooltipDirective } from '../../directives/tooltip.directive';
   styleUrl: './update-button.css',
 })
 export class UpdateButton {
-  isInstalling = false;
-
   constructor(
     private updateService: UpdateService,
     private toastService: ToastService
@@ -22,11 +20,13 @@ export class UpdateButton {
     return this.updateService.available();
   }
 
+  get isInstalling(): boolean {
+    return this.updateService.installing();
+  }
+
   async onClick(): Promise<void> {
     const update = this.update;
     if (!update || this.isInstalling) return;
-
-    this.isInstalling = true;
 
     try {
       await this.updateService.downloadAndInstall(update);
@@ -34,7 +34,6 @@ export class UpdateButton {
     } catch (error) {
       console.error('Erro ao baixar/instalar atualização:', error);
       this.toastService.error('Não foi possível baixar a atualização');
-      this.isInstalling = false;
     }
   }
 }

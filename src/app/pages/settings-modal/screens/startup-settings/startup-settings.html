@@ -27,29 +27,31 @@
     }
   </div>
 
-  <div class="setting-item">
-    <div class="setting-header">
-      <div class="setting-label-group">
-        <span class="setting-label">Fechar sem expediente</span>
+  @if (settings.autostartEnabled) {
+    <div class="setting-item">
+      <div class="setting-header">
+        <div class="setting-label-group">
+          <span class="setting-label">Fechar sem expediente</span>
+        </div>
+        <app-toggle-switch
+          [checked]="settings.autoCloseWithoutWorkdayEnabled"
+          (checkedChange)="settings.autoCloseWithoutWorkdayEnabled = $event; onChange()"
+        ></app-toggle-switch>
       </div>
-      <app-toggle-switch
-        [checked]="settings.autoCloseWithoutWorkdayEnabled"
-        (checkedChange)="settings.autoCloseWithoutWorkdayEnabled = $event; onChange()"
-      ></app-toggle-switch>
-    </div>
-    <span class="setting-description">
-      Encerra o aplicativo se não houver registro de ponto até o horário limite
-    </span>
+      <span class="setting-description">
+        Encerra o aplicativo se não houver registro de ponto até o horário limite
+      </span>
 
-    @if (settings.autoCloseWithoutWorkdayEnabled) {
-      <div class="setting-content">
-        <label class="input-label">Horário limite</label>
-        <app-custom-select
-          [options]="autoCloseTimeOptions"
-          [(value)]="settings.autoCloseWithoutWorkdayTime"
-          (valueChange)="onChange()">
-        </app-custom-select>
-      </div>
-    }
-  </div>
+      @if (settings.autoCloseWithoutWorkdayEnabled) {
+        <div class="setting-content">
+          <label class="input-label">Horário limite</label>
+          <app-custom-select
+            [options]="autoCloseTimeOptions"
+            [(value)]="settings.autoCloseWithoutWorkdayTime"
+            (valueChange)="onChange()">
+          </app-custom-select>
+        </div>
+      }
+    </div>
+  }
 </div>

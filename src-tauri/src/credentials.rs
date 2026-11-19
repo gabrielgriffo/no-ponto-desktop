@@ -5,8 +5,9 @@
 //! São duas entradas separadas no keyring porque têm ciclo de vida próprio: o token
 //! é reescrito a cada reautenticação, a senha só muda quando o usuário conecta a conta.
 
-use keyring::Entry;
+use keyring_core::{Entry, Error};
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 
 const SERVICE: &str = "NoPonto";
 const TOKEN_ACCOUNT: &str = "pontomais-token";
@@ -20,28 +21,57 @@ pub struct StoredToken {
     pub uid: String,
 }
 
+// A inicialização do cofre é refeita enquanto não der certo. No Linux, o app iniciado
+// com o sistema pode subir antes do serviço de segredos, e guardar essa primeira falha
+// deixaria a sessão perdida até reiniciar o app.
+static STORE_READY: Mutex<bool> = Mutex::new(false);
+
+fn ensure_store() -> keyring_core::Result<()> {
+    let mut ready = STORE_READY.lock().unwrap_or_else(|e| e.into_inner());
+    if *ready {
+        return Ok(());
+    }
+
+    #[cfg(target_os = "windows")]
+    let store = windows_native_keyring_store::Store::new()?;
+    #[cfg(target_os = "linux")]
+    let store = zbus_secret_service_keyring_store::Store::new()?;
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    return Err(Error::NoDefaultStore);
+
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    {
+        keyring_core::set_default_store(store);
+        *ready = true;
+        Ok(())
+    }
+}
+
 fn entry(account: &str) -> Result<Entry, String> {
-    Entry::new(SERVICE, account).map_err(|e| match e {
-        keyring::Error::NoDefaultStore => {
-            "Nenhum gerenciador de chaves do sistema foi encontrado. No Linux, instale e ative um \
-             (ex: 'sudo apt install gnome-keyring' ou 'sudo dnf install gnome-keyring') e tente novamente."
-                .to_string()
-        }
-        other => other.to_string(),
-    })
+    ensure_store()
+        .map_err(|_| Error::NoDefaultStore)
+        .and_then(|()| Entry::new(SERVICE, account))
+        .map_err(|e| match e {
+            Error::NoDefaultStore => {
+                "Nenhum gerenciador de chaves do sistema foi encontrado. No Linux, instale e ative um \
+                 (ex: 'sudo apt install gnome-keyring' ou 'sudo dnf install gnome-keyring') e tente novamente."
+                    .to_string()
+            }
+            other => other.to_string(),
+        })
 }
 
 fn read(account: &str) -> Result<Option<String>, String> {
     match entry(account)?.get_password() {
         Ok(value) => Ok(Some(value)),
-        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(Error::NoEntry) => Ok(None),
         Err(e) => Err(e.to_string()),
     }
 }
 
 fn delete(account: &str) -> Result<(), String> {
     match entry(account)?.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Ok(()) | Err(Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
     }
 }
