@@ -6,11 +6,69 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
 
+# Só o job que publica escreve na release. O build roda o código de todas as
+# dependências (npm e build.rs), então não recebe a chave de assinatura nem
+# permissão de escrita.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  publish-tauri:
+  # ─────────────────────────────────────────────
+  # Testes: nenhuma versão chega ao updater sem passar por eles
+  # ─────────────────────────────────────────────
+
+  test:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            pkg-config \
+            patchelf
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Frontend tests
+        run: npm test
+
+      # O `generate_context!` do Tauri exige o frontend compilado
+      - name: Build frontend
+        run: npm run build
+
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+  build:
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -260,32 +318,144 @@ jobs:
           echo "All versions match."
 
       # ─────────────────────────────────────────────
-      # Build & publish
+      # Build (sem assinar)
+      #
+      # Os artefatos do updater são os próprios instaladores; a assinatura
+      # (.sig) é feita no job seguinte, longe do código das dependências.
       # ─────────────────────────────────────────────
 
-      - name: Build and release
-        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Build
+        shell: bash
+        run: npx tauri build --ci --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Collect bundles
+        shell: bash
+        run: |
+          mkdir -p dist-bundles
+          shopt -s nullglob
+          for file in \
+            src-tauri/target/release/bundle/nsis/*-setup.exe \
+            src-tauri/target/release/bundle/msi/*.msi \
+            src-tauri/target/release/bundle/appimage/*.AppImage \
+            src-tauri/target/release/bundle/deb/*.deb \
+            src-tauri/target/release/bundle/rpm/*.rpm; do
+            # O GitHub troca espaço por ponto no nome do asset ("No Ponto" → "No.Ponto");
+            # renomear aqui mantém iguais o arquivo, o .sig e a URL do latest.json.
+            cp "$file" "dist-bundles/$(basename "$file" | tr ' ' '.')"
+          done
+          ls -la dist-bundles
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          tagName: v__VERSION__
-          releaseName: 'v__VERSION__'
-          releaseDraft: true
-          prerelease: false
+          name: bundles-${{ matrix.platform }}
+          path: dist-bundles/
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────
+  # Assinar e publicar
+  #
+  # Não instala as dependências do projeto: só a CLI do Tauri, em versão fixa,
+  # vê a chave privada.
+  # ─────────────────────────────────────────────
 
   publish-release:
-    needs: publish-tauri
+    needs: build
     if: startsWith(github.ref, 'refs/tags/')
 
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: lts/*
+
+      - name: Download bundles
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: bundles-*
+          path: bundles
+          merge-multiple: true
+
+      - name: Sign bundles
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          for file in bundles/*; do
+            # `signer sign` não lê TAURI_SIGNING_PRIVATE_KEY (só TAURI_PRIVATE_KEY), então
+            # a chave vai pelos flags. A senha vai sempre, mesmo vazia: sem ela a CLI pede
+            # a senha no terminal; vazia é o mesmo que o `tauri build` usa no CI.
+            npx --yes @tauri-apps/cli@2.9.6 signer sign               --private-key "$TAURI_SIGNING_PRIVATE_KEY"               --password="$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"               "$file"
+          done
+          ls -la bundles
+
+      - name: Build latest.json
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          node <<'EOF'
+          const fs = require("fs");
+          const path = require("path");
+
+          const tag = process.env.GITHUB_REF_NAME;
+          const version = tag.replace(/^v/, "");
+          const base = `https://github.com/${process.env.REPO}/releases/download/${tag}`;
+          const files = fs.readdirSync("bundles");
+
+          const entry = (suffix) => {
+            const file = files.find((name) => name.endsWith(suffix));
+            if (!file) throw new Error(`Bundle não encontrado: *${suffix}`);
+            return {
+              signature: fs.readFileSync(path.join("bundles", `${file}.sig`), "utf8").trim(),
+              url: `${base}/${encodeURIComponent(file)}`,
+            };
+          };
+
+          const msi = entry(".msi");
+          const appimage = entry(".AppImage");
+
+          // Mesmas chaves que o tauri-action gerava: a genérica de cada sistema
+          // aponta para o MSI e para o AppImage.
+          const latest = {
+            version,
+            notes: "",
+            pub_date: new Date().toISOString(),
+            platforms: {
+              "windows-x86_64": msi,
+              "windows-x86_64-msi": msi,
+              "windows-x86_64-nsis": entry("-setup.exe"),
+              "linux-x86_64": appimage,
+              "linux-x86_64-appimage": appimage,
+              "linux-x86_64-deb": entry(".deb"),
+              "linux-x86_64-rpm": entry(".rpm"),
+            },
+          };
+
+          fs.writeFileSync("bundles/latest.json", JSON.stringify(latest, null, 2) + "\n");
+          console.log(JSON.stringify(Object.keys(latest.platforms)));
+          EOF
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" bundles/* \
+            --draft \
+            --title "$GITHUB_REF_NAME" \
+            --notes ""
 
       - name: Build downloads table
         env:
