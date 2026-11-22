@@ -40,6 +40,16 @@ export interface AppSettings {
   autoReconnectEnabled: boolean;
 }
 
+/// Espelha a struct `AppInfo` do Rust (`src-tauri/src/app_info.rs`).
+export interface AppInfo {
+  version: string;
+  product_name: string;
+  tauri_version: string;
+  architecture: string;
+  os_platform: string;
+  build_type: string;
+}
+
 export function isNewerVersion(candidate: string, current: string): boolean {
   if (!candidate || !current) return false;
 
@@ -68,6 +78,36 @@ export const DEFAULT_ALARM_MODE: AlarmMode = 'single';
 export const DEFAULT_ALARM_DURATION_SECONDS = 30;
 
 export const DEFAULT_AUTO_CLOSE_TIME = 660;
+
+/// Mesmos valores do `impl Default for Settings` do Rust, usados até a primeira leitura.
+export const DEFAULT_SETTINGS: AppSettings = {
+  smartSyncEnabled: false,
+  autoImportEnabled: false,
+  autoImportInterval: 10,
+  importOnStartupEnabled: false,
+  alarmEnabled: false,
+  alarmSound: DEFAULT_ALARM_SOUND,
+  alarmVolume: DEFAULT_ALARM_VOLUME,
+  alarmMode: DEFAULT_ALARM_MODE,
+  alarmDurationSeconds: DEFAULT_ALARM_DURATION_SECONDS,
+  notificationEnabled: false,
+  autostartEnabled: false,
+  startMinimizedEnabled: true,
+  autoCloseWithoutWorkdayEnabled: false,
+  autoCloseWithoutWorkdayTime: DEFAULT_AUTO_CLOSE_TIME,
+  externalAppAutostartEnabled: false,
+  externalApp: null,
+  expectedWorkdayMinutes: DEFAULT_EXPECTED_WORKDAY_MINUTES,
+  defaultBreakMinutes: DEFAULT_BREAK_MINUTES,
+  lastUpdateCheck: '',
+  lastUpdateResult: '',
+  lastUpdateVersion: '',
+  pontomaisLogin: '',
+  isPontomaisLoggedIn: false,
+  autoReconnectEnabled: false,
+};
+
+export type SettingsPatch = Partial<AppSettings>;
 
 export const ALARM_SOUND_OPTIONS: SelectOption[] = [
   { value: 'dois-toques', label: 'Dois toques' },

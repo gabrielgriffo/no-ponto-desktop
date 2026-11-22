@@ -1,9 +1,9 @@
-<label class="toggle-switch" [class.disabled]="disabled">
+<label class="toggle-switch" [class.disabled]="disabled()">
   <input
     type="checkbox"
-    [checked]="checked"
-    [disabled]="disabled"
+    [checked]="checked()"
+    [disabled]="disabled()"
     (change)="onToggle($event)"
   />
-  <span class="toggle-slider" [class.no-transition]="!isReady"></span>
+  <span class="toggle-slider" [class.no-transition]="!isReady()"></span>
 </label>

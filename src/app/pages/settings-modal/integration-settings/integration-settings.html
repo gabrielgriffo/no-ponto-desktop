@@ -4,24 +4,22 @@
     <header class="integration-header">
       <h3 class="section-title">Ponto Mais</h3>
 
-      <!-- <span class="status-chip" [class.is-online]="settings.isLoggedIn">
-        <span class="status-dot"></span> -->
-      <span class="status-chip" [class.is-online]="settings.isLoggedIn">
-        {{ settings.isLoggedIn ? 'Conectado' : 'Desconectado' }}
+      <span class="status-chip" [class.is-online]="isLoggedIn()">
+        {{ isLoggedIn() ? 'Conectado' : 'Desconectado' }}
       </span>
     </header>
 
-    @if (settings.isLoggedIn) {
+    @if (isLoggedIn()) {
       <!-- Estado conectado: a conta vinculada é o conteúdo, não há formulário -->
       <div class="account-row">
         <section class="account-card">
           <p class="account-email"
           tooltipPosition="top"
-          appTooltip="{{ settings.pontomaisLogin || 'Conta vinculada' }}"
-          >{{ settings.pontomaisLogin || 'Conta vinculada' }}</p>
+          [appTooltip]="account() || 'Conta vinculada'"
+          >{{ account() || 'Conta vinculada' }}</p>
         </section>
 
-        <button class="btn-ghost btn-ghost-danger disconnect-button" (click)="onLogout()">
+        <button class="btn-ghost btn-ghost-danger disconnect-button" [disabled]="isLoggingOut()" (click)="logout.emit()">
           Desconectar
         </button>
       </div>
@@ -39,7 +37,8 @@
             autocorrect="off"
             autocapitalize="off"
             autocomplete="off"
-            [(ngModel)]="settings.pontomaisLogin"
+            [value]="login()"
+            (input)="login.set($any($event.target).value)"
             (keyup.enter)="onSaveCredentials()"
           />
         </div>
@@ -50,21 +49,22 @@
         <div class="field-control">
           <input
             id="pm-password"
-            [type]="showPassword ? 'text' : 'password'"
+            [type]="showPassword() ? 'text' : 'password'"
             class="field-input has-affix"
             autocomplete="new-password"
-            [(ngModel)]="settings.pontomaisPassword"
+            [value]="password()"
+            (input)="password.set($any($event.target).value)"
             (keyup.enter)="onSaveCredentials()"
           />
           <button
             type="button"
             class="field-affix"
-            [attr.aria-label]="showPassword ? 'Ocultar senha' : 'Mostrar senha'"
+            [attr.aria-label]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'"
             (mousedown)="$event.preventDefault()"
             (click)="togglePasswordVisibility()"
             tabindex="-1"
           >
-            @if (showPassword) {
+            @if (showPassword()) {
               <span class="i icon-eye"></span>
             } @else {
               <span class="i icon-eye-off"></span>
@@ -75,14 +75,14 @@
     }
   </div>
 
-  @if (!settings.isLoggedIn) {
+  @if (!isLoggedIn()) {
     <div class="setting-item">
       <div class="setting-header">
         <span class="setting-label">Reconexão automática</span>
         <app-toggle-switch
-          [checked]="autoReconnect"
-          (checkedChange)="onAutoReconnectChange($event)"
-        ></app-toggle-switch>
+          [checked]="autoReconnect()"
+          (checkedChange)="autoReconnectChange.emit($event)"
+        />
       </div>
       <span class="setting-description">
         Reconecta a conta automaticamente quando a sessão expira
@@ -90,8 +90,8 @@
     </div>
 
     <div class="action-row">
-      <button class="btn-primary connect-button" (click)="onSaveCredentials()" [disabled]="!canSubmit">
-        @if (isLoggingIn) {
+      <button class="btn-primary connect-button" (click)="onSaveCredentials()" [disabled]="!canSubmit()">
+        @if (isLoggingIn()) {
           <span class="spinner"></span>
           Conectando...
         } @else {

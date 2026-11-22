@@ -5,29 +5,28 @@
         <span class="setting-label">Alarme</span>
       </div>
       <app-toggle-switch
-        [checked]="settings.alarmEnabled"
+        [checked]="settings().alarmEnabled"
         (checkedChange)="onAlarmToggle($event)"
-      ></app-toggle-switch>
+      />
     </div>
     <span class="setting-description">
       Reproduz um alerta sonoro no fim do expediente
     </span>
 
-    @if (settings.alarmEnabled) {
+    @if (settings().alarmEnabled) {
       <div class="setting-content">
         <label class="input-label">Som</label>
         <div class="sound-row">
           <app-custom-select
             [options]="soundOptions"
-            [(value)]="settings.alarmSound"
-            (valueChange)="onSoundChange()">
-          </app-custom-select>
+            [value]="settings().alarmSound"
+            (valueChange)="onSoundChange($event)" />
           <button
             type="button"
             class="sound-test-button"
-            [attr.aria-label]="isPreviewing ? 'Parar som' : 'Testar som'"
+            [attr.aria-label]="isPreviewing() ? 'Parar som' : 'Testar som'"
             (click)="onTogglePreview()">
-            @if (isPreviewing) {
+            @if (isPreviewing()) {
               <span class="i icon-stop"></span>
             } @else {
               <span class="i icon-play"></span>
@@ -41,11 +40,10 @@
         <div class="volume-row">
           <app-range-slider
             ariaLabel="Volume do alarme"
-            [value]="settings.alarmVolume"
+            [value]="volume()"
             (valueChange)="onVolumeInput($event)"
-            (commit)="onVolumeCommit()">
-          </app-range-slider>
-          <span class="volume-value">{{ settings.alarmVolume }}%</span>
+            (commit)="onVolumeCommit($event)" />
+          <span class="volume-value">{{ volume() }}%</span>
         </div>
       </div>
 
@@ -53,19 +51,17 @@
         <label class="input-label">Modo do alarme</label>
         <app-custom-select
           [options]="modeOptions"
-          [(value)]="settings.alarmMode"
-          (valueChange)="onChange()">
-        </app-custom-select>
+          [value]="settings().alarmMode"
+          (valueChange)="patch.emit({ alarmMode: $event })" />
       </div>
 
-      @if (settings.alarmMode === 'continuous') {
+      @if (settings().alarmMode === 'continuous') {
         <div class="setting-content">
           <label class="input-label">Duração</label>
           <app-custom-select
             [options]="durationOptions"
-            [(value)]="settings.alarmDurationSeconds"
-            (valueChange)="onChange()">
-          </app-custom-select>
+            [value]="settings().alarmDurationSeconds"
+            (valueChange)="patch.emit({ alarmDurationSeconds: $event })" />
         </div>
       }
     }
@@ -77,19 +73,19 @@
         <span class="setting-label">Notificação</span>
       </div>
       <app-toggle-switch
-        [checked]="settings.notificationEnabled"
-        (checkedChange)="settings.notificationEnabled = $event; onChange()"
-      ></app-toggle-switch>
+        [checked]="settings().notificationEnabled"
+        (checkedChange)="patch.emit({ notificationEnabled: $event })"
+      />
     </div>
     <span class="setting-description">
       Exibe uma notificação do sistema no fim do expediente
     </span>
 
-    @if (settings.notificationEnabled && notificationWarning) {
+    @if (settings().notificationEnabled && notificationWarning(); as warning) {
       <div class="setting-warning" role="status">
         <span class="i icon-info setting-warning-icon"></span>
-        <span class="setting-warning-text">{{ notificationWarning }}</span>
-        @if (canOpenNotificationSettings) {
+        <span class="setting-warning-text">{{ warning }}</span>
+        @if (canOpenNotificationSettings()) {
           <button type="button" class="setting-warning-action" (click)="onOpenNotificationSettings()">
             Abrir configurações do sistema
           </button>

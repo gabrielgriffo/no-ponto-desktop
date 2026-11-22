@@ -1,16 +1,17 @@
-import { Component } from "@angular/core";
-import { HoverResetService } from "./services/hover-reset.service";
-import { RouterOutlet } from "@angular/router";
-import { Toast } from "./components/toast/toast";
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+import { HoverResetService } from './services/hover-reset.service';
+import { Toast } from './components/toast/toast';
 
 @Component({
-  selector: "app-root",
+  selector: 'app-root',
   imports: [RouterOutlet, Toast],
-  templateUrl: "./app.html",
-  styleUrl: "./app.css",
+  templateUrl: './app.html',
+  styleUrl: './app.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
-  constructor(hoverReset: HoverResetService) {
-    hoverReset.init().catch(() => {});
+  constructor() {
+    inject(HoverResetService).init().catch(() => {});
   }
 }

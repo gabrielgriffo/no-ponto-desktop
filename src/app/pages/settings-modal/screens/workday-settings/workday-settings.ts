@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 import { CustomSelect } from '../../../../components/custom-select/custom-select';
 import { TimeInputDirective } from '../../../../directives/time-input.directive';
 import { TimeUtilsService } from '../../../../services/time-utils.service';
@@ -6,83 +6,79 @@ import {
   AppSettings,
   BREAK_OPTIONS,
   CUSTOM_DURATION,
+  SettingsPatch,
   WORKDAY_OPTIONS,
   durationToTimeString,
   timeStringToDuration,
 } from '../../settings.model';
 
+const optionFor = (options: { value: unknown }[], minutes: number) =>
+  options.some(option => option.value === minutes) ? minutes : CUSTOM_DURATION;
+
 @Component({
   selector: 'app-workday-settings',
   imports: [CustomSelect, TimeInputDirective],
   templateUrl: './workday-settings.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class WorkdaySettingsComponent implements OnInit {
-  @Input() settings!: AppSettings;
-  @Output() settingsChange = new EventEmitter<void>();
+  readonly settings = input.required<AppSettings>();
+  readonly patch = output<SettingsPatch>();
 
-  readonly workdayOptions = WORKDAY_OPTIONS;
-  readonly breakOptions = BREAK_OPTIONS;
-  readonly customDuration = CUSTOM_DURATION;
+  protected readonly workdayOptions = WORKDAY_OPTIONS;
+  protected readonly breakOptions = BREAK_OPTIONS;
+  protected readonly customDuration = CUSTOM_DURATION;
 
   private readonly timeUtils = inject(TimeUtilsService);
 
-  selectedWorkday = CUSTOM_DURATION;
-  customWorkday = '';
-
-  selectedBreak = CUSTOM_DURATION;
-  customBreak = '';
+  protected readonly selectedWorkday = signal(CUSTOM_DURATION);
+  protected readonly customWorkday = signal('');
+  protected readonly selectedBreak = signal(CUSTOM_DURATION);
+  protected readonly customBreak = signal('');
 
   ngOnInit(): void {
-    const workday = this.settings.expectedWorkdayMinutes;
-    this.selectedWorkday = WORKDAY_OPTIONS.some(opt => opt.value === workday)
-      ? workday
-      : CUSTOM_DURATION;
-    this.customWorkday = durationToTimeString(workday);
-
-    const breakMinutes = this.settings.defaultBreakMinutes;
-    this.selectedBreak = BREAK_OPTIONS.some(opt => opt.value === breakMinutes)
-      ? breakMinutes
-      : CUSTOM_DURATION;
-    this.customBreak = durationToTimeString(breakMinutes);
+    const { expectedWorkdayMinutes, defaultBreakMinutes } = this.settings();
+    this.selectedWorkday.set(optionFor(WORKDAY_OPTIONS, expectedWorkdayMinutes));
+    this.customWorkday.set(durationToTimeString(expectedWorkdayMinutes));
+    this.selectedBreak.set(optionFor(BREAK_OPTIONS, defaultBreakMinutes));
+    this.customBreak.set(durationToTimeString(defaultBreakMinutes));
   }
 
-  onWorkdaySelect(): void {
+  protected onWorkdaySelect(minutes: number): void {
+    this.selectedWorkday.set(minutes);
     // "Personalizado" não é uma duração: só revela o campo, mantendo o valor
     // salvo até que o usuário digite um novo.
-    if (this.selectedWorkday === CUSTOM_DURATION) return;
+    if (minutes === CUSTOM_DURATION) return;
 
-    this.settings.expectedWorkdayMinutes = this.selectedWorkday;
-    this.customWorkday = durationToTimeString(this.selectedWorkday);
-    this.settingsChange.emit();
+    this.customWorkday.set(durationToTimeString(minutes));
+    this.patch.emit({ expectedWorkdayMinutes: minutes });
   }
 
-  onCustomWorkday(value: string): void {
-    this.customWorkday = value;
+  protected onCustomWorkday(value: string): void {
+    this.customWorkday.set(value);
 
     // Entrada pela metade ("08:") não vale como jornada — nada é salvo até o
     // valor fazer sentido, e o anterior continua valendo enquanto isso.
-    const minutes = timeStringToDuration(this.timeUtils.formatTimeInput(value));
-    if (minutes === null) return;
-
-    this.settings.expectedWorkdayMinutes = minutes;
-    this.settingsChange.emit();
+    const minutes = this.parseDuration(value);
+    if (minutes !== null) this.patch.emit({ expectedWorkdayMinutes: minutes });
   }
 
-  onBreakSelect(): void {
-    if (this.selectedBreak === CUSTOM_DURATION) return;
+  protected onBreakSelect(minutes: number): void {
+    this.selectedBreak.set(minutes);
+    if (minutes === CUSTOM_DURATION) return;
 
-    this.settings.defaultBreakMinutes = this.selectedBreak;
-    this.customBreak = durationToTimeString(this.selectedBreak);
-    this.settingsChange.emit();
+    this.customBreak.set(durationToTimeString(minutes));
+    this.patch.emit({ defaultBreakMinutes: minutes });
   }
 
-  onCustomBreak(value: string): void {
-    this.customBreak = value;
+  protected onCustomBreak(value: string): void {
+    this.customBreak.set(value);
 
-    const minutes = timeStringToDuration(this.timeUtils.formatTimeInput(value));
-    if (minutes === null) return;
+    const minutes = this.parseDuration(value);
+    if (minutes !== null) this.patch.emit({ defaultBreakMinutes: minutes });
+  }
 
-    this.settings.defaultBreakMinutes = minutes;
-    this.settingsChange.emit();
+  private parseDuration(value: string): number | null {
+    return timeStringToDuration(this.timeUtils.formatTimeInput(value));
   }
 }

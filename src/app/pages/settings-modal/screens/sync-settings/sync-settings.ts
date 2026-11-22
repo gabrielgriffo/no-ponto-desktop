@@ -1,32 +1,25 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { ToggleSwitch } from '../../../../components/toggle-switch/toggle-switch';
 import { CustomSelect } from '../../../../components/custom-select/custom-select';
-import { AppSettings, INTERVAL_OPTIONS } from '../../settings.model';
+import { AppSettings, INTERVAL_OPTIONS, SettingsPatch } from '../../settings.model';
 
 @Component({
   selector: 'app-sync-settings',
   imports: [ToggleSwitch, CustomSelect],
   templateUrl: './sync-settings.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SyncSettingsComponent {
-  @Input() settings!: AppSettings;
-  @Output() settingsChange = new EventEmitter<void>();
+  readonly settings = input.required<AppSettings>();
+  readonly patch = output<SettingsPatch>();
 
-  readonly intervalOptions = INTERVAL_OPTIONS;
+  protected readonly intervalOptions = INTERVAL_OPTIONS;
 
-  onChange(): void {
-    this.settingsChange.emit();
+  protected onAutoSyncToggle(enabled: boolean): void {
+    this.patch.emit(enabled ? { autoImportEnabled: true, smartSyncEnabled: false } : { autoImportEnabled: false });
   }
 
-  onAutoSyncToggle(enabled: boolean): void {
-    this.settings.autoImportEnabled = enabled;
-    if (enabled) this.settings.smartSyncEnabled = false;
-    this.onChange();
-  }
-
-  onSmartSyncToggle(enabled: boolean): void {
-    this.settings.smartSyncEnabled = enabled;
-    if (enabled) this.settings.autoImportEnabled = false;
-    this.onChange();
+  protected onSmartSyncToggle(enabled: boolean): void {
+    this.patch.emit(enabled ? { smartSyncEnabled: true, autoImportEnabled: false } : { smartSyncEnabled: false });
   }
 }

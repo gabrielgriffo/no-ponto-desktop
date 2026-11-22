@@ -1,16 +1,16 @@
-@if (isOpen) {
+@if (isOpen()) {
   <div class="modal-overlay" (click)="onOverlayClick($event)">
     <div class="modal-container" #modalContainer tabindex="-1">
       <div class="modal-header">
-        @if (currentScreen) {
+        @if (currentScreen()) {
           <button class="header-button back-button" (click)="goBack()" aria-label="Voltar">
             <span class="icon-chevron-left"></span>
           </button>
         }
 
-        <h2 class="modal-title">{{ title }}</h2>
+        <h2 class="modal-title">{{ title() }}</h2>
 
-        @if (!currentScreen) {
+        @if (!currentScreen()) {
           <button class="header-button close-button" (click)="onClose()" aria-label="Fechar">
             <span class="icon-close"></span>
           </button>
@@ -18,61 +18,58 @@
       </div>
 
       <div class="modal-body">
-        @if (settingsLoaded) {
+        @if (settingsLoaded()) {
           <div class="screen">
-            @switch (currentScreen) {
+            @switch (currentScreen()) {
               @case ('conta') {
                 <app-integration-settings
-                  [settings]="integrationSettings"
-                  [isLoggingIn]="isLoggingIn"
-                  [autoReconnect]="settings.autoReconnectEnabled"
+                  [isLoggedIn]="settings().isPontomaisLoggedIn"
+                  [account]="settings().pontomaisLogin"
+                  [(login)]="loginDraft"
+                  [(password)]="passwordDraft"
+                  [isLoggingIn]="isLoggingIn()"
+                  [isLoggingOut]="isLoggingOut()"
+                  [autoReconnect]="settings().autoReconnectEnabled"
                   (saveCredentials)="onSaveCredentials()"
                   (logout)="onLogout()"
-                  (autoReconnectChange)="settings.autoReconnectEnabled = $event; saveSettings()">
-                </app-integration-settings>
+                  (autoReconnectChange)="applyPatch({ autoReconnectEnabled: $event })" />
               }
 
               @case ('sincronizacao') {
                 <app-sync-settings
-                  [settings]="settings"
-                  (settingsChange)="saveSettings()">
-                </app-sync-settings>
+                  [settings]="settings()"
+                  (patch)="applyPatch($event)" />
               }
 
               @case ('expediente') {
                 <app-workday-settings
-                  [settings]="settings"
-                  (settingsChange)="saveSettings()">
-                </app-workday-settings>
+                  [settings]="settings()"
+                  (patch)="applyPatch($event)" />
               }
 
               @case ('avisos') {
                 <app-alerts-settings
-                  [settings]="settings"
-                  (settingsChange)="saveSettings()">
-                </app-alerts-settings>
+                  [settings]="settings()"
+                  (patch)="applyPatch($event)" />
               }
 
               @case ('inicializacao') {
                 <app-startup-settings
-                  [settings]="settings"
-                  (settingsChange)="saveSettings()">
-                </app-startup-settings>
+                  [settings]="settings()"
+                  (patch)="applyPatch($event)" />
               }
 
               @case ('app-externo') {
                 <app-external-app-settings
-                  [settings]="settings"
-                  (settingsChange)="saveSettings()">
-                </app-external-app-settings>
+                  [settings]="settings()"
+                  (patch)="applyPatch($event)" />
               }
 
               @case ('sobre') {
                 <app-about-settings
-                  [appInfo]="appInfo"
-                  [settings]="settings"
-                  (settingsChange)="saveSettings()">
-                </app-about-settings>
+                  [appInfo]="appInfo()"
+                  [settings]="settings()"
+                  (patch)="applyPatch($event)" />
               }
 
               @default {
@@ -80,7 +77,7 @@
                   <app-settings-row
                     icon="icon-user"
                     label="Conta"
-                    [value]="accountValue"
+                    [value]="accountValue()"
                     (action)="openScreen('conta')">
                   </app-settings-row>
                 </app-settings-group>
@@ -89,24 +86,23 @@
                   <app-settings-row
                     icon="icon-sync"
                     label="Sincronização"
-                    [value]="syncValue"
+                    [value]="syncValue()"
                     (action)="openScreen('sincronizacao')">
                   </app-settings-row>
                   <app-settings-row
                     icon="icon-clock"
                     label="Expediente"
-                    [value]="workdayValue"
+                    [value]="workdayValue()"
                     [showValueTooltip]="false"
                     (action)="openScreen('expediente')">
                   </app-settings-row>
                 </app-settings-group>
 
                 <app-settings-group label="Avisos">
-                  <!-- Sem valor por regra: a categoria não tem recurso ativo, e
-                       anunciar "Ativado" afirmaria o que o app não faz. -->
                   <app-settings-row
                     icon="icon-bell"
                     label="Alarme e notificações"
+                    [value]="alertsValue()"
                     (action)="openScreen('avisos')">
                   </app-settings-row>
                 </app-settings-group>
@@ -120,15 +116,15 @@
                   <app-settings-row
                     icon="icon-link"
                     label="Aplicativo externo"
-                    [value]="externalAppValue"
+                    [value]="externalAppValue()"
                     (action)="openScreen('app-externo')">
                   </app-settings-row>
                   <app-settings-row
                     icon="icon-info"
                     label="Sobre"
-                    [value]="appInfo.version"
+                    [value]="appInfo().version"
                     [showValueTooltip]="false"
-                    [dot]="hasUpdate"
+                    [dot]="hasUpdate()"
                     (action)="openScreen('sobre')">
                   </app-settings-row>
                 </app-settings-group>

@@ -1,60 +1,55 @@
-import { Component, Input, Output, EventEmitter, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  input,
+  model,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { TooltipDirective } from '../../../directives/tooltip.directive';
 import { ToggleSwitch } from '../../../components/toggle-switch/toggle-switch';
 
-export interface IntegrationSettings {
-  pontomaisLogin: string;
-  pontomaisPassword: string;
-  isLoggedIn: boolean;
-}
-
 @Component({
   selector: 'app-integration-settings',
-  imports: [FormsModule, TooltipDirective, ToggleSwitch],
+  imports: [TooltipDirective, ToggleSwitch],
   templateUrl: './integration-settings.html',
   styleUrl: './integration-settings.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class IntegrationSettingsComponent implements AfterViewInit {
-  @Input() settings!: IntegrationSettings;
-  @Input() isLoggingIn: boolean = false;
-  @Input() autoReconnect: boolean = false;
-  @Output() saveCredentials = new EventEmitter<void>();
-  @Output() logout = new EventEmitter<void>();
-  @Output() autoReconnectChange = new EventEmitter<boolean>();
+export class IntegrationSettingsComponent {
+  readonly isLoggedIn = input(false);
+  readonly account = input('');
+  readonly login = model('');
+  readonly password = model('');
+  readonly isLoggingIn = input(false);
+  readonly isLoggingOut = input(false);
+  readonly autoReconnect = input(false);
 
-  @ViewChild('loginInput') loginInput?: ElementRef<HTMLInputElement>;
+  readonly saveCredentials = output<void>();
+  readonly logout = output<void>();
+  readonly autoReconnectChange = output<boolean>();
 
-  showPassword: boolean = false;
+  private readonly loginInput = viewChild<ElementRef<HTMLInputElement>>('loginInput');
 
-  get canSubmit(): boolean {
-    const login = this.settings?.pontomaisLogin?.trim() ?? '';
-    const password = this.settings?.pontomaisPassword ?? '';
-    return !this.isLoggingIn && login.length > 0 && password.length > 0;
-  }
+  protected readonly showPassword = signal(false);
+  protected readonly canSubmit = computed(
+    () => !this.isLoggingIn() && this.login().trim().length > 0 && this.password().length > 0
+  );
 
-  ngAfterViewInit(): void {
+  constructor() {
     // O usuário chegou aqui para conectar: o cursor já espera no primeiro campo
-    this.loginInput?.nativeElement.focus();
+    afterNextRender(() => this.loginInput()?.nativeElement.focus());
   }
 
-  onSaveCredentials(): void {
-    if (!this.canSubmit) {
-      return;
-    }
-    this.saveCredentials.emit();
+  protected onSaveCredentials(): void {
+    if (this.canSubmit()) this.saveCredentials.emit();
   }
 
-  onLogout(): void {
-    this.logout.emit();
-  }
-
-  togglePasswordVisibility(): void {
-    this.showPassword = !this.showPassword;
-  }
-
-  onAutoReconnectChange(enabled: boolean): void {
-    this.autoReconnect = enabled;
-    this.autoReconnectChange.emit(enabled);
+  protected togglePasswordVisibility(): void {
+    this.showPassword.update(show => !show);
   }
 }

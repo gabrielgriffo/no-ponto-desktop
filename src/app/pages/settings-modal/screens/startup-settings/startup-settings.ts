@@ -1,20 +1,17 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { ToggleSwitch } from '../../../../components/toggle-switch/toggle-switch';
 import { CustomSelect } from '../../../../components/custom-select/custom-select';
-import { AppSettings, AUTO_CLOSE_TIME_OPTIONS } from '../../settings.model';
+import { AppSettings, AUTO_CLOSE_TIME_OPTIONS, SettingsPatch } from '../../settings.model';
 
 @Component({
   selector: 'app-startup-settings',
   imports: [ToggleSwitch, CustomSelect],
   templateUrl: './startup-settings.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StartupSettingsComponent {
-  @Input() settings!: AppSettings;
-  @Output() settingsChange = new EventEmitter<void>();
+  readonly settings = input.required<AppSettings>();
+  readonly patch = output<SettingsPatch>();
 
-  readonly autoCloseTimeOptions = AUTO_CLOSE_TIME_OPTIONS;
-
-  onChange(): void {
-    this.settingsChange.emit();
-  }
+  protected readonly autoCloseTimeOptions = AUTO_CLOSE_TIME_OPTIONS;
 }

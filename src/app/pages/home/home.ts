@@ -1,21 +1,37 @@
-import { Component, ViewChild, ElementRef, NgZone, OnDestroy, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { SettingsModal } from '../settings-modal/settings-modal';
 import { FlipText } from '../../components/flip-text/flip-text';
 import { TooltipDirective } from '../../directives/tooltip.directive';
 import { TimeFormatPipe } from '../../pipes/time-format.pipe';
 import { TimeInputDirective } from '../../directives/time-input.directive';
-import { TimeCalculationService, DEFAULT_JOURNEY_MINUTES, DEFAULT_BREAK_MINUTES } from '../../services/time-calculation.service';
-import { AppSettings, formatDurationLong, formatIntervalShort } from '../settings-modal/settings.model';
+import {
+  TimeCalculationService,
+  DEFAULT_JOURNEY_MINUTES,
+  WorkTimeResult,
+} from '../../services/time-calculation.service';
+import { formatDurationLong, formatIntervalShort } from '../settings-modal/settings.model';
 import { UpdateService } from '../../services/update.service';
 import { WindowService } from '../../services/window.service';
 import { TimeObject } from '../../models/time-object';
 import { TimeUtilsService } from '../../services/time-utils.service';
 import { ToastService } from '../../services/toast.service';
 import { PontoMaisService, TimeCard, WorkDaysResponse } from '../../services/pontomais.service';
-import { Subscription, timer } from 'rxjs';
-import { invoke } from '@tauri-apps/api/core';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { SettingsStore } from '../../services/settings.store';
+import { AutoSyncService } from '../../services/auto-sync.service';
 import {
   AlarmService,
   JourneyState,
@@ -26,29 +42,45 @@ import {
 } from '../../services/alarm.service';
 import { AlarmBanner } from '../../components/alarm-banner/alarm-banner';
 import { UpdateButton } from '../../components/update-button/update-button';
-
-type AlertSettings = Pick<
-  AppSettings,
-  'alarmEnabled' | 'alarmSound' | 'alarmVolume' | 'alarmMode' | 'alarmDurationSeconds' | 'notificationEnabled'
->;
+import { hasTimeCards, todayLocalDate, validTimeCards } from '../../models/work-day';
+import { TimeField, validateTimes } from './time-validation';
 
 const STARTUP_IMPORT_RETRY_MS = 5 * 60_000;
+const SIGNED_OUT = 'SIGNED_OUT';
+const VAULT_UNAVAILABLE = 'VAULT_UNAVAILABLE';
 const STARTUP_IMPORT_MAX_RETRIES = 3;
+const ERROR_HIGHLIGHT_MS = 3000;
 
-function cardMinutes(card: TimeCard): number {
-  const [hours, minutes] = card.time.split(':').map(Number);
-  return hours * 60 + minutes;
+const ZERO: TimeObject = { hours: 0, minutes: 0 };
+const IDLE_METRICS: WorkTimeResult = {
+  firstPeriod: ZERO,
+  secondPeriod: ZERO,
+  workedTime: ZERO,
+  remainingTime: ZERO,
+  endTime: ZERO,
+  lunchHourAdded: false,
+};
+
+const toMinutes = (time: TimeObject) => time.hours * 60 + time.minutes;
+const percentOf = (time: TimeObject, total: number) => Math.min((toMinutes(time) / total) * 100, 100);
+
+// O relógio roda a cada segundo, mas as métricas só mudam de minuto em minuto: sem
+// esta igualdade, cada tique repintaria a tela inteira à toa.
+const sameMetrics = (a: WorkTimeResult, b: WorkTimeResult) =>
+  a.lunchHourAdded === b.lunchHourAdded &&
+  (['firstPeriod', 'secondPeriod', 'workedTime', 'remainingTime', 'endTime'] as const).every(
+    key => toMinutes(a[key]) === toMinutes(b[key])
+  );
+
+interface CapturedTimes {
+  checkIn: string;
+  checkOut: string;
+  checkIn2: string;
+  checkOut2: string;
+  extras: string[];
 }
 
-function validTimeCards(workDay: WorkDaysResponse | null): TimeCard[] {
-  return (workDay?.work_days?.[0]?.time_cards ?? [])
-    .filter(card => !card.disabled)
-    .sort((a, b) => cardMinutes(a) - cardMinutes(b));
-}
-
-function hasTimeCards(workDay: WorkDaysResponse | null): boolean {
-  return validTimeCards(workDay).length > 0;
-}
+const NO_CAPTURE: CapturedTimes = { checkIn: '', checkOut: '', checkIn2: '', checkOut2: '', extras: [] };
 
 interface AutoSyncPayload {
   status: 'success' | 'error' | 'unauthenticated';
@@ -58,141 +90,206 @@ interface AutoSyncPayload {
 
 @Component({
   selector: 'app-home',
-  imports: [CommonModule, SettingsModal, FlipText, TooltipDirective, TimeFormatPipe, TimeInputDirective, AlarmBanner, UpdateButton],
+  imports: [SettingsModal, FlipText, TooltipDirective, TimeFormatPipe, TimeInputDirective, AlarmBanner, UpdateButton],
   templateUrl: './home.html',
   styleUrl: './home.css',
-  host: { '[attr.data-state]': 'journeyState' }
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[attr.data-state]': 'journeyState()' },
 })
 export class Home implements OnInit, OnDestroy {
-  showSettingsModal = false;
-  isMonitoring = false;
-  private trayStatus = '';
-  isPontomaisLoggedIn = false;
-  isImporting = false;
-  autoImportEnabled = false;
-  smartSyncEnabled = false;
-  autoImportInterval = 10;
-  importOnStartupEnabled = false;
-  alarmEnabled = false;
-  notificationEnabled = false;
-  private alertSettings?: AlertSettings;
+  private readonly timeCalc = inject(TimeCalculationService);
+  private readonly timeUtils = inject(TimeUtilsService);
+  private readonly windowService = inject(WindowService);
+  private readonly toastService = inject(ToastService);
+  private readonly pontoMaisService = inject(PontoMaisService);
+  private readonly updateService = inject(UpdateService);
+  private readonly alarmService = inject(AlarmService);
+  private readonly settingsStore = inject(SettingsStore);
+  private readonly autoSync = inject(AutoSyncService);
+
+  private readonly checkInInput = viewChild.required<ElementRef<HTMLInputElement>>('checkInInput');
+  private readonly checkOutInput = viewChild.required<ElementRef<HTMLInputElement>>('checkOutInput');
+  private readonly checkIn2Input = viewChild.required<ElementRef<HTMLInputElement>>('checkIn2Input');
+  private readonly settingsModal = viewChild(SettingsModal);
+
+  protected readonly showSettingsModal = signal(false);
+  protected readonly isMonitoring = signal(false);
+  protected readonly isPontomaisLoggedIn = signal(false);
+  protected readonly isImporting = signal(false);
+  protected readonly errorFields = signal<ReadonlySet<TimeField>>(new Set());
+  protected readonly metrics = signal(IDLE_METRICS, { equal: sameMetrics });
+
+  private readonly captured = signal(NO_CAPTURE);
+  private readonly workdayEndNotifiedOn = signal('');
+
+  private readonly settings = this.settingsStore.settings;
+  protected readonly autoImportEnabled = computed(() => this.settings().autoImportEnabled);
+  protected readonly alarmEnabled = computed(() => this.settings().alarmEnabled);
+  protected readonly notificationEnabled = computed(() => this.settings().notificationEnabled);
+  protected readonly isSyncEnabled = computed(
+    () => this.settings().autoImportEnabled || this.settings().smartSyncEnabled
+  );
+  private readonly journeyMinutes = computed(() => {
+    const minutes = this.settings().expectedWorkdayMinutes;
+    return minutes > 0 ? minutes : DEFAULT_JOURNEY_MINUTES;
+  });
+  private readonly breakMinutes = computed(() => this.settings().defaultBreakMinutes);
+
+  protected readonly hasFirstPeriod = computed(() => this.captured().checkIn.length > 0);
+  protected readonly hasSecondPeriod = computed(() => this.captured().checkIn2.length > 0);
+  protected readonly isWorkDayComplete = computed(() => {
+    const { checkOut2, extras } = this.captured();
+    // Com um novo intervalo, a quinta batida reabre o dia: só a quantidade par encerra.
+    return checkOut2.length > 0 && extras.length % 2 === 0;
+  });
+  protected readonly isOnBreak = computed(
+    () => this.hasFirstPeriod() && this.captured().checkOut.length > 0 && !this.hasSecondPeriod()
+  );
+  private readonly journeyTargetMinutes = computed(() => {
+    const breakPending = this.hasFirstPeriod() && this.captured().checkOut.length === 0;
+    return breakPending ? this.journeyMinutes() + Math.max(0, this.breakMinutes()) : this.journeyMinutes();
+  });
+
+  protected readonly journeyState = computed<JourneyState>(() => {
+    if (this.isWorkDayComplete()) return 'terminou';
+    if (this.isOnBreak()) return 'pausado';
+    const worked = toMinutes(this.metrics().workedTime);
+    if (this.isMonitoring() && worked >= this.journeyTargetMinutes()) return 'extra';
+    return 'andamento';
+  });
+
+  protected readonly progressPercentage = computed(() => percentOf(this.metrics().workedTime, this.journeyMinutes()));
+  protected readonly progressLabel = computed(() => this.progressPercentage().toFixed(1).replace('.', ','));
+  protected readonly firstPeriodPercentage = computed(() => percentOf(this.metrics().firstPeriod, this.journeyMinutes()));
+  protected readonly secondPeriodPercentage = computed(() => percentOf(this.metrics().secondPeriod, this.journeyMinutes()));
+
+  protected readonly lunchHourTooltip = computed(
+    () => `O cálculo foi ajustado para incluir ${formatDurationLong(this.breakMinutes())} de intervalo`
+  );
+
+  private readonly trayStatusLabel = computed(() => {
+    if (!this.isMonitoring()) return 'Monitoramento parado';
+    switch (this.journeyState()) {
+      case 'terminou': return 'Saída final do dia registrada';
+      case 'pausado': return 'Saída registrada, aguardando o retorno';
+      case 'extra': return 'Jornada atingida, sem a saída final';
+      default: return 'Expediente em curso';
+    }
+  });
+
+  protected readonly autoSyncTooltip = computed(() => {
+    if (!this.isSyncEnabled()) return 'Sincronização automática desativada';
+    if (!this.isPontomaisLoggedIn()) return 'Conecte-se a uma conta para ativar a sincronização';
+    if (this.settings().smartSyncEnabled) return 'Sincronização inteligente ativada';
+    return `Sincronização automática a cada ${formatDurationLong(this.settings().autoImportInterval)}`;
+  });
+  protected readonly autoSyncIntervalLabel = computed(() => formatIntervalShort(this.settings().autoImportInterval));
+  protected readonly alarmTooltip = computed(() =>
+    this.alarmEnabled() ? 'Alarme ativado para o fim do expediente' : 'Alarme desativado'
+  );
+  protected readonly notificationTooltip = computed(() =>
+    this.notificationEnabled() ? 'Notificações ativadas para o fim do expediente' : 'Notificações desativadas'
+  );
+
+  protected readonly nextAlarmTime = computed<TimeObject | null>(() => {
+    if (!this.alarmEnabled() || !this.isMonitoring()) return null;
+
+    const snoozedUntil = this.alarmService.snoozedUntil();
+    if (snoozedUntil) {
+      return { hours: snoozedUntil.getHours(), minutes: snoozedUntil.getMinutes() };
+    }
+
+    if (this.workdayEndNotifiedOn() === todayLocalDate()) return null;
+
+    const state = this.journeyState();
+    if (state === 'extra' || state === 'terminou') return null;
+    // Jornada cumprida antes do intervalo: o fim calculado já passou e o alarme só
+    // tocaria numa volta que talvez nem aconteça.
+    if (toMinutes(this.metrics().workedTime) >= this.journeyMinutes()) return null;
+    return this.metrics().endTime;
+  });
+
   private previousJourneyState: JourneyState | null = null;
-  private workdayEndNotifiedOn = '';
-  expectedWorkdayMinutes = DEFAULT_JOURNEY_MINUTES;
-  defaultBreakMinutes = DEFAULT_BREAK_MINUTES;
-
-  @ViewChild('checkInInput') checkInInput!: ElementRef<HTMLInputElement>;
-  @ViewChild('checkOutInput') checkOutInput!: ElementRef<HTMLInputElement>;
-  @ViewChild('checkIn2Input') checkIn2Input!: ElementRef<HTMLInputElement>;
-  @ViewChild(SettingsModal) settingsModal?: SettingsModal;
-
-  checkInError = false;
-  checkOutError = false;
-  checkIn2Error = false;
-
-  workedTime: TimeObject = { hours: 0, minutes: 0 };
-  remainingTime: TimeObject = { hours: 0, minutes: 0 };
-  firstPeriodTime: TimeObject = { hours: 0, minutes: 0 };
-  secondPeriodTime: TimeObject = { hours: 0, minutes: 0 };
-  endTime: TimeObject = { hours: 0, minutes: 0 };
-  hasLunchHourAdded: boolean = false;
-
-  private updateInterval: any;
-  private capturedCheckIn: string = '';
-  private capturedCheckOut: string = '';
-  private capturedCheckIn2: string = '';
-  private capturedCheckOut2: string = '';
   private monitoringDate = '';
   private importedInputs = '';
   private importedCheckOut2 = '';
-  private capturedExtras: string[] = [];
   private importedExtras: string[] = [];
-  private errorTimerSub?: Subscription;
-  private windowFocusHandler?: () => void;
-  private mouseMoveHandler?: () => void;
+  private updateInterval?: ReturnType<typeof setInterval>;
+  private errorTimer?: ReturnType<typeof setTimeout>;
+  private startupImportRetryTimer?: ReturnType<typeof setTimeout>;
   private sessionRestorePromise?: Promise<void>;
   private autoSyncUnlisten?: UnlistenFn;
-  private startupImportRetryTimer?: ReturnType<typeof setTimeout>;
+  private readonly removeFocusListeners: (() => void)[] = [];
 
-  constructor(
-    private timeCalc: TimeCalculationService,
-    private timeUtils: TimeUtilsService,
-    private windowService: WindowService,
-    private toastService: ToastService,
-    private pontoMaisService: PontoMaisService,
-    private updateService: UpdateService,
-    private zone: NgZone,
-    private alarmService: AlarmService
-  ) { }
+  constructor() {
+    effect(() => {
+      const status = this.trayStatusLabel();
+      const state = this.isMonitoring() ? this.journeyState() : null;
+      invoke('set_tray_status', { status, state }).catch(() => {});
+    });
 
-  async ngOnInit() {
-    this.syncTrayStatus();
-    // Habilitar botão rapidamente com o estado salvo em cache (JSON simples, < 50ms)
+    effect(() => {
+      if (!this.alarmEnabled()) untracked(() => this.alarmService.dismiss());
+    });
+  }
+
+  async ngOnInit(): Promise<void> {
     try {
-      const cached = await invoke<{
-        isPontomaisLoggedIn: boolean;
-        autoImportEnabled: boolean;
-        smartSyncEnabled: boolean;
-        autoImportInterval: number;
-        importOnStartupEnabled: boolean;
-        expectedWorkdayMinutes: number;
-        defaultBreakMinutes: number;
-      } & AlertSettings>('load_settings');
-      this.isPontomaisLoggedIn = cached.isPontomaisLoggedIn;
-      this.applyAlertSettings(cached);
-      this.autoImportEnabled = cached.autoImportEnabled;
-      this.smartSyncEnabled = cached.smartSyncEnabled;
-      if (this.autoImportEnabled && this.smartSyncEnabled) {
+      const settings = await this.settingsStore.load();
+      this.isPontomaisLoggedIn.set(settings.isPontomaisLoggedIn);
+      if (settings.autoImportEnabled && settings.smartSyncEnabled) {
         await this.turnOffAutoSyncInFavorOfSmart();
       }
-      this.autoImportInterval = cached.autoImportInterval;
-      this.importOnStartupEnabled = cached.importOnStartupEnabled;
-      this.expectedWorkdayMinutes = cached.expectedWorkdayMinutes;
-      this.defaultBreakMinutes = cached.defaultBreakMinutes;
-    } catch {}
+    } catch (error) {
+      console.error('Erro ao carregar configurações:', error);
+    }
 
     // Registrar listener ANTES de restaurar sessão para não perder eventos iniciais.
-    // O Tauri entrega eventos avaliando script pelo lado nativo (runCallback), caminho
-    // que o zone.js não intercepta — sem o zone.run o handler rodaria na zona raiz e
-    // nem a detecção de mudanças nem o setInterval de onStartMonitoringClick seriam
-    // agendados no Angular, deixando as métricas congeladas.
-    this.autoSyncUnlisten = await listen<AutoSyncPayload>(
-      'auto-sync-result',
-      (event) => this.zone.run(() => this.onAutoSyncResult(event.payload))
+    this.autoSyncUnlisten = await listen<AutoSyncPayload>('auto-sync-result', event =>
+      this.onAutoSyncResult(event.payload)
     );
 
-    // Restaurar sessão a partir do keyring do SO em segundo plano
     // onImportClick aguarda essa promise antes de executar
     this.sessionRestorePromise = this.restoreSessionFromStorage();
 
     this.checkForUpdateSilently();
+    this.listenForFocusRemoval();
+  }
 
-    // Remover foco quando a janela se tornar visível ou mouse se mover
+  ngOnDestroy(): void {
+    this.alarmService.dismiss();
+    this.cancelStartupImportRetry();
+    clearInterval(this.updateInterval);
+    clearTimeout(this.errorTimer);
+    this.removeFocusListeners.forEach(remove => remove());
+    this.autoSyncUnlisten?.();
+  }
+
+  /** Tira o foco de botões quando a janela volta a aparecer ou o mouse se move. */
+  private listenForFocusRemoval(): void {
     const removeFocus = () => {
-      const activeElement = document.activeElement as HTMLElement;
-      if (activeElement && activeElement.blur && activeElement.tagName !== 'INPUT') {
-        activeElement.blur();
-      }
+      const active = document.activeElement as HTMLElement | null;
+      if (active?.blur && active.tagName !== 'INPUT') active.blur();
     };
 
-    this.windowFocusHandler = () => {
-      if (!document.hidden) {
-        setTimeout(removeFocus, 100);
-      }
+    const onVisibilityChange = () => {
+      if (!document.hidden) setTimeout(removeFocus, 100);
     };
-    document.addEventListener('visibilitychange', this.windowFocusHandler);
 
     let canRemoveFocus = true;
-    this.mouseMoveHandler = () => {
-      if (canRemoveFocus) {
-        removeFocus();
-        canRemoveFocus = false;
-        setTimeout(() => {
-          canRemoveFocus = true;
-        }, 500);
-      }
+    const onMouseMove = () => {
+      if (!canRemoveFocus) return;
+      removeFocus();
+      canRemoveFocus = false;
+      setTimeout(() => (canRemoveFocus = true), 500);
     };
-    document.addEventListener('mousemove', this.mouseMoveHandler);
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    document.addEventListener('mousemove', onMouseMove, { passive: true });
+    this.removeFocusListeners.push(
+      () => document.removeEventListener('visibilitychange', onVisibilityChange),
+      () => document.removeEventListener('mousemove', onMouseMove)
+    );
   }
 
   private async restoreSessionFromStorage(): Promise<void> {
@@ -200,34 +297,22 @@ export class Home implements OnInit, OnDestroy {
       const status = await this.pontoMaisService.ensureSession();
 
       if (status === 'signedOut') {
-        this.isPontomaisLoggedIn = false;
+        this.isPontomaisLoggedIn.set(false);
         return;
       }
 
-      this.isPontomaisLoggedIn = true;
+      this.isPontomaisLoggedIn.set(true);
 
-      // Iniciar sincronização automática agora que a sessão está no estado Rust
-      if (this.autoImportEnabled || this.smartSyncEnabled) {
-        await invoke('configure_auto_sync', {
-          enabled: this.autoImportEnabled,
-          intervalMins: this.autoImportInterval,
-          smart: this.smartSyncEnabled
-        });
-      }
+      const settings = this.settings();
+      await this.autoSync.apply(settings, true);
 
-      // Importar horários automaticamente ao iniciar, se habilitado.
-      // Chama onImportClick diretamente para reaproveitar o feedback visual
-      // (spinner/toast) e o guard de isImporting, evitando clique duplicado
-      // enquanto a importação automática está em andamento. Pula a espera pela
-      // sessão pois já estamos dentro dela (evita deadlock com sessionRestorePromise).
-      if (this.importOnStartupEnabled) {
+      // Reaproveita o feedback visual e o guard de isImporting do botão. Pula a espera
+      // pela sessão pois já estamos dentro dela (evita deadlock com sessionRestorePromise).
+      if (settings.importOnStartupEnabled) {
         const workDay = await this.onImportClick(true);
 
         if (workDay) {
-          await invoke('external_app_maybe_launch', {
-            workDay,
-            date: this.todayLocalDate()
-          });
+          await invoke('external_app_maybe_launch', { workDay, date: todayLocalDate() });
         }
 
         if (!hasTimeCards(workDay)) {
@@ -237,8 +322,7 @@ export class Home implements OnInit, OnDestroy {
     } catch (error) {
       console.error('Erro ao restaurar sessão:', error);
       // Não deu para ler o cofre. A conta continua vinculada — a próxima busca dirá se
-      // a sessão vale —, mas o usuário precisa saber que o app subiu sem sessão em vez
-      // de descobrir sozinho quando a importação não trouxer nada.
+      // a sessão vale —, mas o usuário precisa saber que o app subiu sem sessão.
       this.toastService.error('Não foi possível restaurar a sessão. Tente importar novamente.', 5000);
     }
   }
@@ -250,7 +334,7 @@ export class Home implements OnInit, OnDestroy {
    */
   private scheduleStartupImportRetry(retriesLeft: number): void {
     this.cancelStartupImportRetry();
-    if (retriesLeft <= 0 || this.isSyncEnabled) return;
+    if (retriesLeft <= 0 || this.isSyncEnabled()) return;
 
     this.startupImportRetryTimer = setTimeout(
       () => this.retryStartupImport(retriesLeft - 1),
@@ -259,19 +343,17 @@ export class Home implements OnInit, OnDestroy {
   }
 
   private cancelStartupImportRetry(): void {
-    if (this.startupImportRetryTimer) {
-      clearTimeout(this.startupImportRetryTimer);
-      this.startupImportRetryTimer = undefined;
-    }
+    clearTimeout(this.startupImportRetryTimer);
+    this.startupImportRetryTimer = undefined;
   }
 
   private async retryStartupImport(retriesLeft: number): Promise<void> {
     this.startupImportRetryTimer = undefined;
-    if (this.isSyncEnabled || !this.isPontomaisLoggedIn) return;
+    if (this.isSyncEnabled() || !this.isPontomaisLoggedIn()) return;
 
     try {
-      const date = this.todayLocalDate();
-      const workDay = await this.pontoMaisService.getCurrentWorkDay(date);
+      const date = todayLocalDate();
+      const workDay = await this.fetchWorkDay(date);
 
       if (hasTimeCards(workDay)) {
         this.applyImportedCards(workDay);
@@ -308,9 +390,9 @@ export class Home implements OnInit, OnDestroy {
    * só o que é da tela.
    */
   private async handleSessionExpired(): Promise<void> {
-    this.isPontomaisLoggedIn = false;
+    this.isPontomaisLoggedIn.set(false);
 
-    await invoke('configure_auto_sync', { enabled: false, intervalMins: this.autoImportInterval, smart: false });
+    await this.autoSync.apply(this.settings(), false);
 
     this.toastService.error('Sessão expirada. Faça login novamente nas configurações.', 5000);
   }
@@ -320,9 +402,9 @@ export class Home implements OnInit, OnDestroy {
     if (!cards.length) return 0;
 
     const format = (card?: TimeCard) => (card ? this.timeUtils.formatTimeInput(card.time) : '');
-    this.checkInInput.nativeElement.value = format(cards[0]);
-    this.checkOutInput.nativeElement.value = format(cards[1]);
-    this.checkIn2Input.nativeElement.value = format(cards[2]);
+    this.checkInInput().nativeElement.value = format(cards[0]);
+    this.checkOutInput().nativeElement.value = format(cards[1]);
+    this.checkIn2Input().nativeElement.value = format(cards[2]);
 
     this.importedInputs = this.currentInputs();
     this.importedCheckOut2 = format(cards[3]);
@@ -331,50 +413,41 @@ export class Home implements OnInit, OnDestroy {
     return Math.min(cards.length, 3);
   }
 
-  updateWorkTime(): void {
-    if (this.isMonitoring && this.monitoringDate !== this.todayLocalDate()) {
-      this.checkInInput.nativeElement.value = '';
-      this.checkOutInput.nativeElement.value = '';
-      this.checkIn2Input.nativeElement.value = '';
+  private updateWorkTime(): void {
+    if (this.isMonitoring() && this.monitoringDate !== todayLocalDate()) {
+      // As batidas importadas são de ontem: digitar hoje os mesmos horários não pode
+      // trazer de volta a saída final daquele dia.
+      this.importedInputs = '';
+      this.importedCheckOut2 = '';
+      this.importedExtras = [];
+      this.clearInputs();
       this.stopMonitoring();
       return;
     }
 
-    const result = this.timeCalc.calculateWorkTime(
-      this.capturedCheckIn,
-      this.capturedCheckOut,
-      this.capturedCheckIn2,
-      this.capturedCheckOut2,
-      this.expectedWorkdayMinutes,
-      this.defaultBreakMinutes,
-      this.capturedExtras
+    const { checkIn, checkOut, checkIn2, checkOut2, extras } = this.captured();
+    this.metrics.set(
+      this.timeCalc.calculateWorkTime(
+        checkIn,
+        checkOut,
+        checkIn2,
+        checkOut2,
+        this.journeyMinutes(),
+        this.breakMinutes(),
+        extras
+      )
     );
-
-    this.firstPeriodTime = result.firstPeriod;
-    this.secondPeriodTime = result.secondPeriod;
-    this.workedTime = result.workedTime;
-    this.remainingTime = result.remainingTime;
-    this.endTime = result.endTime;
-    this.hasLunchHourAdded = result.lunchHourAdded;
-    this.syncTrayStatus();
     this.checkAlarm();
   }
 
-  private applyAlertSettings(settings: AlertSettings): void {
-    this.alertSettings = settings;
-    this.alarmEnabled = settings.alarmEnabled;
-    this.notificationEnabled = settings.notificationEnabled;
-    if (!settings.alarmEnabled) this.alarmService.dismiss();
-  }
-
   private checkAlarm(): void {
-    if (!this.isMonitoring) return;
+    if (!this.isMonitoring()) return;
     const previous = this.previousJourneyState;
-    const current = this.journeyState;
+    const current = this.journeyState();
     this.previousJourneyState = current;
 
     if (isWorkdayReopened(previous, current)) {
-      this.workdayEndNotifiedOn = '';
+      this.workdayEndNotifiedOn.set('');
       this.alarmService.dismiss();
       return;
     }
@@ -386,12 +459,12 @@ export class Home implements OnInit, OnDestroy {
 
     if (!shouldRingAlarm(previous, current)) return;
 
-    const settings = this.alertSettings;
-    if (!settings?.alarmEnabled && !settings?.notificationEnabled) return;
+    const settings = this.settings();
+    if (!settings.alarmEnabled && !settings.notificationEnabled) return;
 
-    const today = new Date().toDateString();
-    if (this.workdayEndNotifiedOn === today) return;
-    this.workdayEndNotifiedOn = today;
+    const today = todayLocalDate();
+    if (this.workdayEndNotifiedOn() === today) return;
+    this.workdayEndNotifiedOn.set(today);
 
     if (settings.alarmEnabled) {
       this.alarmService.ring({
@@ -399,348 +472,106 @@ export class Home implements OnInit, OnDestroy {
         volume: settings.alarmVolume,
         mode: settings.alarmMode,
         durationSeconds: settings.alarmDurationSeconds,
-        journeyMinutes: this.journeyMinutes,
+        journeyMinutes: this.journeyMinutes(),
       });
     }
 
     if (settings.notificationEnabled) {
       invoke('notify_workday_end', {
         title: WORKDAY_END_TITLE,
-        body: workdayEndMessage(this.journeyMinutes),
+        body: workdayEndMessage(this.journeyMinutes()),
       }).catch(() => {});
     }
   }
 
-
-  get lunchHourTooltip(): string {
-    return `O cálculo foi ajustado para incluir ${formatDurationLong(this.defaultBreakMinutes)} de intervalo`;
-  }
-
-  private get journeyMinutes(): number {
-    return this.expectedWorkdayMinutes > 0
-      ? this.expectedWorkdayMinutes
-      : DEFAULT_JOURNEY_MINUTES;
-  }
-
-  private get isBreakPending(): boolean {
-    return this.hasFirstPeriod && this.capturedCheckOut.length === 0;
-  }
-
-  private get journeyTargetMinutes(): number {
-    return this.isBreakPending
-      ? this.journeyMinutes + Math.max(0, this.defaultBreakMinutes)
-      : this.journeyMinutes;
-  }
-
-  get progressPercentageValue(): number {
-    const totalWorkMinutes = (this.workedTime.hours * 60) + this.workedTime.minutes;
-    const percentage = (totalWorkMinutes / this.journeyMinutes) * 100;
-    return Math.min(percentage, 100);
-  }
-
-  get firstPeriodPercentage(): number {
-    const firstPeriodMinutes = (this.firstPeriodTime.hours * 60) + this.firstPeriodTime.minutes;
-    const percentage = (firstPeriodMinutes / this.journeyMinutes) * 100;
-    return Math.min(percentage, 100);
-  }
-
-  get secondPeriodPercentage(): number {
-    const secondPeriodMinutes = (this.secondPeriodTime.hours * 60) + this.secondPeriodTime.minutes;
-    const percentage = (secondPeriodMinutes / this.journeyMinutes) * 100;
-    return Math.min(percentage, 100);
-  }
-
-  get hasFirstPeriod(): boolean {
-    return this.capturedCheckIn.length > 0;
-  }
-
-  get hasSecondPeriod(): boolean {
-    return this.capturedCheckIn2.length > 0;
-  }
-
-  get isWorkDayComplete(): boolean {
-    // Com um novo intervalo, a quinta batida reabre o dia: só a quantidade par encerra.
-    return this.capturedCheckOut2.length > 0 && this.capturedExtras.length % 2 === 0;
-  }
-
-  get isOnBreak(): boolean {
-    return this.hasFirstPeriod && this.capturedCheckOut.length > 0 && !this.hasSecondPeriod;
-  }
-
-  get journeyState(): JourneyState {
-    if (this.isWorkDayComplete) return 'terminou';
-    if (this.isOnBreak) return 'pausado';
-    const workedMinutes = (this.workedTime.hours * 60) + this.workedTime.minutes;
-    if (this.isMonitoring && workedMinutes >= this.journeyTargetMinutes) return 'extra';
-    return 'andamento';
-  }
-
-  get trayStatusLabel(): string {
-    if (!this.isMonitoring) return 'Monitoramento parado';
-    switch (this.journeyState) {
-      case 'terminou': return 'Saída final do dia registrada';
-      case 'pausado': return 'Saída registrada, aguardando o retorno';
-      case 'extra': return 'Jornada atingida, sem a saída final';
-      default: return 'Expediente em curso';
-    }
-  }
-
-  private syncTrayStatus(): void {
-    const status = this.trayStatusLabel;
-    if (status === this.trayStatus) return;
-    this.trayStatus = status;
-    const state = this.isMonitoring ? this.journeyState : null;
-    invoke('set_tray_status', { status, state }).catch(() => {
-      this.trayStatus = '';
-    });
-  }
-
-  get isSyncEnabled(): boolean {
-    return this.autoImportEnabled || this.smartSyncEnabled;
-  }
-
-  get autoSyncTooltip(): string {
-    if (!this.isSyncEnabled) {
-      return 'Sincronização automática desativada';
-    }
-    if (!this.isPontomaisLoggedIn) {
-      return 'Conecte-se a uma conta para ativar a sincronização';
-    }
-    if (this.smartSyncEnabled) {
-      return 'Sincronização inteligente ativada';
-    }
-    return `Sincronização automática a cada ${formatDurationLong(this.autoImportInterval)}`;
-  }
-
   private async turnOffAutoSyncInFavorOfSmart(): Promise<void> {
-    this.autoImportEnabled = false;
     try {
-      const settings = await invoke<AppSettings>('load_settings');
-      settings.autoImportEnabled = false;
-      await invoke('save_settings', { settings });
-    } catch {}
+      await this.settingsStore.update({ autoImportEnabled: false });
+    } catch (error) {
+      console.error('Erro ao desligar a sincronização automática:', error);
+    }
     this.toastService.info('A sincronização automática foi desligada: ela não funciona junto com a inteligente', 5000);
   }
 
-  get alarmTooltip(): string {
-    return this.alarmEnabled
-      ? 'Alarme ativado para o fim do expediente'
-      : 'Alarme desativado';
+  protected hasError(field: TimeField): boolean {
+    return this.errorFields().has(field);
   }
 
-  get nextAlarmTime(): TimeObject | null {
-    if (!this.alarmEnabled || !this.isMonitoring) return null;
-
-    const snoozedUntil = this.alarmService.snoozedUntil;
-    if (snoozedUntil) {
-      return { hours: snoozedUntil.getHours(), minutes: snoozedUntil.getMinutes() };
-    }
-
-    if (this.workdayEndNotifiedOn === new Date().toDateString()) return null;
-
-    const state = this.journeyState;
-    if (state === 'extra' || state === 'terminou') return null;
-    return this.endTime;
+  protected clearTimeErrors(): void {
+    this.errorFields.set(new Set());
+    clearTimeout(this.errorTimer);
+    this.errorTimer = undefined;
   }
 
-  get notificationTooltip(): string {
-    return this.notificationEnabled
-      ? 'Notificações ativadas para o fim do expediente'
-      : 'Notificações desativadas';
-  }
-
-  get autoSyncIntervalLabel(): string {
-    return formatIntervalShort(this.autoImportInterval);
-  }
-
-  /**
-   * Data de hoje no fuso local, no formato aceito pela API (YYYY-MM-DD).
-   * Não usar `toISOString()`: ele converte para UTC e, em UTC-3, a partir das 21h
-   * já retorna o dia seguinte — divergindo do `Local::now()` usado no auto-sync.
-   */
-  private todayLocalDate(): string {
-    const now = new Date();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${now.getFullYear()}-${month}-${day}`;
-  }
-
-  private timeToMinutes(time: string): number {
-    if (!time || time.length !== 5) return -1;
-    const [hours, minutes] = time.split(':').map(Number);
-    if (isNaN(hours) || isNaN(minutes)) return -1;
-    return hours * 60 + minutes;
-  }
-
-  clearTimeErrors(): void {
-    this.checkInError = false;
-    this.checkOutError = false;
-    this.checkIn2Error = false;
-
-    if (this.errorTimerSub) {
-      this.errorTimerSub.unsubscribe();
-      this.errorTimerSub = undefined;
-    }
-  }
-
-  validateTimeInputs(): void {
-    const checkIn = this.checkInInput?.nativeElement.value || '';
-    const checkOut = this.checkOutInput?.nativeElement.value || '';
-    const checkIn2 = this.checkIn2Input?.nativeElement.value || '';
-
-    const checkInMinutes = this.timeToMinutes(checkIn);
-    const checkOutMinutes = this.timeToMinutes(checkOut);
-    const checkIn2Minutes = this.timeToMinutes(checkIn2);
+  /** Devolve se os horários digitados são válidos. */
+  private validateTimeInputs(): boolean {
+    const { fields, message } = validateTimes(
+      this.checkInInput().nativeElement.value,
+      this.checkOutInput().nativeElement.value,
+      this.checkIn2Input().nativeElement.value
+    );
 
     this.clearTimeErrors();
+    if (fields.length === 0) return true;
 
-    const errors: Array<{ field: 'checkIn' | 'checkOut' | 'checkIn2'; message: string }> = [];
-
-    if (checkIn.length > 0 && checkInMinutes === -1) {
-      errors.push({ field: 'checkIn', message: 'Formato de horário de entrada inválido' });
-    }
-
-    if (checkOut.length > 0 && checkOutMinutes === -1) {
-      errors.push({ field: 'checkOut', message: 'Formato de horário de saída inválido' });
-    }
-
-    if (checkIn2.length > 0 && checkIn2Minutes === -1) {
-      errors.push({ field: 'checkIn2', message: 'Formato de horário de retorno inválido' });
-    }
-
-    if (errors.length > 0) {
-      errors.forEach(error => {
-        if (error.field === 'checkIn') this.checkInError = true;
-        if (error.field === 'checkOut') this.checkOutError = true;
-        if (error.field === 'checkIn2') this.checkIn2Error = true;
-      });
-
-      if (errors.length === 1) {
-        this.toastService.error(errors[0].message, 3000);
-      } else if (errors.length > 1) {
-        this.toastService.error('Horários informados com erro', 3000);
-      }
-
-      this.errorTimerSub = timer(3000).subscribe(() => {
-        this.clearTimeErrors();
-      });
-
-      return;
-    }
-
-    if (checkOutMinutes !== -1 && checkInMinutes === -1) {
-      errors.push({ field: 'checkIn', message: 'Horário de entrada não informado' });
-    }
-
-    if (checkIn2Minutes !== -1 && checkInMinutes === -1 && checkOutMinutes === -1) {
-      errors.push({ field: 'checkIn', message: 'Horários de entrada e saída não informados' });
-      errors.push({ field: 'checkOut', message: 'Horários de entrada e saída não informados' });
-    } else if (checkIn2Minutes !== -1 && checkInMinutes === -1) {
-      errors.push({ field: 'checkIn', message: 'Horário de entrada não informado' });
-    } else if (checkIn2Minutes !== -1 && checkOutMinutes === -1) {
-      errors.push({ field: 'checkOut', message: 'Horário de saída não informado' });
-    }
-
-    if (checkIn.length === 0 && checkOut.length === 0 && checkIn2.length === 0) {
-      errors.push({ field: 'checkIn', message: 'Horário de entrada não informado' });
-    }
-
-    if (checkOutMinutes !== -1 && checkInMinutes !== -1 && checkOutMinutes < checkInMinutes) {
-      errors.push({ field: 'checkOut', message: 'Horário de saída anterior ao de entrada' });
-    }
-
-    if (checkIn2Minutes !== -1 && checkOutMinutes !== -1 && checkIn2Minutes < checkOutMinutes) {
-      errors.push({ field: 'checkIn2', message: 'Horário de retorno anterior ao de saída' });
-    }
-
-    errors.forEach(error => {
-      if (error.field === 'checkIn') this.checkInError = true;
-      if (error.field === 'checkOut') this.checkOutError = true;
-      if (error.field === 'checkIn2') this.checkIn2Error = true;
-    });
-
-    if (errors.length === 1) {
-      this.toastService.error(errors[0].message, 3000);
-    } else if (errors.length > 1) {
-      const uniqueMessages = new Set(errors.map(e => e.message));
-      if (uniqueMessages.size === 1) {
-        this.toastService.error(errors[0].message, 3000);
-      } else {
-        this.toastService.error('Horários informados com erro', 3000);
-      }
-    }
-
-    if (errors.length > 0) {
-      this.errorTimerSub = timer(3000).subscribe(() => {
-        this.clearTimeErrors();
-      });
-    }
+    this.errorFields.set(new Set(fields));
+    if (message) this.toastService.error(message, ERROR_HIGHLIGHT_MS);
+    this.errorTimer = setTimeout(() => this.clearTimeErrors(), ERROR_HIGHLIGHT_MS);
+    return false;
   }
 
-  async onMinimizeClick(): Promise<void> {
+  protected async onMinimizeClick(): Promise<void> {
     await this.windowService.minimize();
   }
 
-  async onCloseClick(): Promise<void> {
+  protected async onCloseClick(): Promise<void> {
     await this.windowService.close();
   }
 
-  onStartMonitoringClick(): void {
-    this.validateTimeInputs();
-
-    if (!this.checkInError && !this.checkOutError && !this.checkIn2Error) {
-      this.capturedCheckIn = this.checkInInput.nativeElement.value;
-      this.capturedCheckOut = this.checkOutInput.nativeElement.value;
-      this.capturedCheckIn2 = this.checkIn2Input.nativeElement.value;
-      // A saída final não tem campo na tela: só vale se os horários ainda forem os importados.
-      const keepImported = this.currentInputs() === this.importedInputs;
-      this.capturedCheckOut2 = keepImported ? this.importedCheckOut2 : '';
-      this.capturedExtras = keepImported ? this.importedExtras : [];
-      this.monitoringDate = this.todayLocalDate();
-
-      this.updateWorkTime();
-
-      this.isMonitoring = true;
-      this.syncTrayStatus();
-
-      if (this.updateInterval) {
-        clearInterval(this.updateInterval);
-      }
-      this.updateInterval = setInterval(() => {
-        this.updateWorkTime();
-      }, 1000);
-    } else {
+  protected onStartMonitoringClick(): void {
+    if (!this.validateTimeInputs()) {
       this.stopMonitoring();
+      return;
     }
+
+    // A saída final não tem campo na tela: só vale se os horários ainda forem os importados.
+    const keepImported = this.currentInputs() === this.importedInputs;
+    this.captured.set({
+      checkIn: this.checkInInput().nativeElement.value,
+      checkOut: this.checkOutInput().nativeElement.value,
+      checkIn2: this.checkIn2Input().nativeElement.value,
+      checkOut2: keepImported ? this.importedCheckOut2 : '',
+      extras: keepImported ? this.importedExtras : [],
+    });
+    this.monitoringDate = todayLocalDate();
+
+    this.updateWorkTime();
+    this.isMonitoring.set(true);
+
+    clearInterval(this.updateInterval);
+    this.updateInterval = setInterval(() => this.updateWorkTime(), 1000);
   }
 
   private currentInputs(): string {
-    return [this.checkInInput, this.checkOutInput, this.checkIn2Input]
+    return [this.checkInInput(), this.checkOutInput(), this.checkIn2Input()]
       .map(input => input.nativeElement.value)
       .join('|');
   }
 
-  private stopMonitoring(): void {
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
-      this.updateInterval = undefined;
+  private clearInputs(): void {
+    for (const input of [this.checkInInput(), this.checkOutInput(), this.checkIn2Input()]) {
+      input.nativeElement.value = '';
     }
-    this.isMonitoring = false;
-    this.capturedCheckIn = '';
-    this.capturedCheckOut = '';
-    this.capturedCheckIn2 = '';
-    this.capturedCheckOut2 = '';
-    this.capturedExtras = [];
-    const zero = (): TimeObject => ({ hours: 0, minutes: 0 });
-    this.workedTime = zero();
-    this.remainingTime = zero();
-    this.firstPeriodTime = zero();
-    this.secondPeriodTime = zero();
-    this.endTime = zero();
-    this.hasLunchHourAdded = false;
+  }
+
+  private stopMonitoring(): void {
+    clearInterval(this.updateInterval);
+    this.updateInterval = undefined;
+    this.isMonitoring.set(false);
+    this.captured.set(NO_CAPTURE);
+    this.metrics.set(IDLE_METRICS);
     this.previousJourneyState = null;
     this.alarmService.dismiss();
-    this.syncTrayStatus();
   }
 
   /**
@@ -748,24 +579,22 @@ export class Home implements OnInit, OnDestroy {
    * de dentro de `restoreSessionFromStorage` (importação automática ao iniciar), onde
    * aguardar essa mesma promise causaria deadlock.
    */
-  async onImportClick(skipSessionWait = false): Promise<WorkDaysResponse | null> {
-    if (this.isImporting) return null;
+  protected async onImportClick(skipSessionWait = false): Promise<WorkDaysResponse | null> {
+    if (this.isImporting()) return null;
 
     try {
-      this.isImporting = true;
+      this.isImporting.set(true);
 
       if (!skipSessionWait) {
-        // Aguarda restauração de sessão caso ainda esteja em andamento
         await this.sessionRestorePromise;
       }
 
-      if (!this.isPontomaisLoggedIn) {
+      if (!this.isPontomaisLoggedIn()) {
         this.toastService.error('Conecte-se a uma conta para importar os registros de ponto', 3000);
         return null;
       }
 
-      const today = this.todayLocalDate();
-      const workDay = await this.pontoMaisService.getCurrentWorkDay(today);
+      const workDay = await this.fetchWorkDay(todayLocalDate());
       const imported = this.applyImportedCards(workDay);
 
       // Só o caso vazio avisa: quando há registros, eles próprios aparecem nos
@@ -780,6 +609,11 @@ export class Home implements OnInit, OnDestroy {
     } catch (error) {
       if (error === 'SESSION_EXPIRED') {
         await this.handleSessionExpired();
+      } else if (error === SIGNED_OUT) {
+        this.isPontomaisLoggedIn.set(false);
+        this.toastService.error('Conecte-se a uma conta para importar os registros de ponto', 3000);
+      } else if (error === VAULT_UNAVAILABLE) {
+        this.toastService.error('Não foi possível ler a sessão salva no sistema. Tente de novo em instantes.', 4000);
       } else if (error === 'RECONNECT_PENDING') {
         // A sessão caiu e a reconexão não foi adiante desta vez. A conta continua
         // vinculada — dizer "erro ao importar" mandaria o usuário procurar defeito no
@@ -792,101 +626,89 @@ export class Home implements OnInit, OnDestroy {
 
       return null;
     } finally {
-      this.isImporting = false;
+      this.isImporting.set(false);
     }
   }
 
-  onSettingsClick(): void {
-    if (this.showSettingsModal) {
-      this.settingsModal?.resetToRootScreen();
+  /**
+   * Sem sessão em memória o Rust recusa a busca (`NOT_AUTHENTICATED`) em vez de
+   * mandá-la sem token. Isso acontece quando o cofre não pôde ser lido na abertura:
+   * aqui ele é lido de novo uma vez antes de desistir.
+   */
+  private async fetchWorkDay(date: string): Promise<WorkDaysResponse> {
+    try {
+      return await this.pontoMaisService.getCurrentWorkDay(date);
+    } catch (error) {
+      if (error !== 'NOT_AUTHENTICATED') throw error;
+    }
+
+    let status;
+    try {
+      status = await this.pontoMaisService.ensureSession();
+    } catch {
+      throw VAULT_UNAVAILABLE;
+    }
+    if (status !== 'connected') throw SIGNED_OUT;
+
+    this.isPontomaisLoggedIn.set(true);
+    await this.autoSync.apply(this.settings(), true).catch(error =>
+      console.error('Erro ao configurar a sincronização:', error)
+    );
+    return await this.pontoMaisService.getCurrentWorkDay(date);
+  }
+
+  protected onSettingsClick(): void {
+    if (this.showSettingsModal()) {
+      this.settingsModal()?.resetToRootScreen();
       return;
     }
 
-    this.showSettingsModal = true;
+    this.showSettingsModal.set(true);
   }
 
   private async checkForUpdateSilently(): Promise<void> {
+    let patch;
     try {
       const update = await this.updateService.checkForUpdate();
       this.updateService.available.set(update);
-
-      const settings = await invoke<AppSettings>('load_settings');
-      settings.lastUpdateCheck = new Date().toISOString();
-      settings.lastUpdateResult = update ? 'available' : 'up-to-date';
-      settings.lastUpdateVersion = update?.version ?? '';
-
-      await invoke('save_settings', { settings });
+      patch = {
+        lastUpdateResult: update ? 'available' : 'up-to-date',
+        lastUpdateVersion: update?.version ?? '',
+      } as const;
     } catch (error) {
       console.error('Erro ao verificar atualizações na inicialização:', error);
+      patch = { lastUpdateResult: 'error', lastUpdateVersion: '' } as const;
+    }
 
-      try {
-        const settings = await invoke<AppSettings>('load_settings');
-        settings.lastUpdateCheck = new Date().toISOString();
-        settings.lastUpdateResult = 'error';
-        settings.lastUpdateVersion = '';
-
-        await invoke('save_settings', { settings });
-      } catch (saveError) {
-        console.error('Erro ao registrar falha da verificação:', saveError);
-      }
+    try {
+      await this.settingsStore.update({ ...patch, lastUpdateCheck: new Date().toISOString() });
+    } catch (error) {
+      console.error('Erro ao registrar a verificação de atualização:', error);
     }
   }
 
-  async onCloseSettingsModal(): Promise<void> {
-    this.showSettingsModal = false;
-    // Recarregar estado após fechar configurações (usuário pode ter alterado auto-sync ou feito logout)
+  protected async onCloseSettingsModal(): Promise<void> {
+    this.showSettingsModal.set(false);
+    // Usuário pode ter feito login ou logout no modal
     try {
-      this.isPontomaisLoggedIn = (await this.pontoMaisService.ensureSession()) === 'connected';
+      this.isPontomaisLoggedIn.set((await this.pontoMaisService.ensureSession()) === 'connected');
     } catch (error) {
       console.error('Erro ao restaurar sessão:', error);
-      this.isPontomaisLoggedIn = false;
-    }
-    try {
-      const settings = await invoke<{
-        autoImportEnabled: boolean;
-        smartSyncEnabled: boolean;
-        autoImportInterval: number;
-        importOnStartupEnabled: boolean;
-        expectedWorkdayMinutes: number;
-        defaultBreakMinutes: number;
-      } & AlertSettings>('load_settings');
-      this.applyAlertSettings(settings);
-      this.autoImportEnabled = settings.autoImportEnabled;
-      this.smartSyncEnabled = settings.smartSyncEnabled;
-      this.autoImportInterval = settings.autoImportInterval;
-      this.importOnStartupEnabled = settings.importOnStartupEnabled;
-      if (this.isSyncEnabled || !this.isPontomaisLoggedIn) {
-        this.cancelStartupImportRetry();
-      }
-
-      // Jornada e intervalo mudam o tempo restante e o fim do expediente: sem
-      // recalcular aqui, as métricas ficariam nos valores antigos até a próxima
-      // batida.
-      this.expectedWorkdayMinutes = settings.expectedWorkdayMinutes;
-      this.defaultBreakMinutes = settings.defaultBreakMinutes;
-      if (this.isMonitoring) {
-        this.updateWorkTime();
-      }
-    } catch {}
-  }
-
-  ngOnDestroy(): void {
-    this.alarmService.dismiss();
-    this.cancelStartupImportRetry();
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
+      this.isPontomaisLoggedIn.set(false);
     }
 
-    if (this.windowFocusHandler) {
-      document.removeEventListener('visibilitychange', this.windowFocusHandler);
+    if (this.isSyncEnabled() || !this.isPontomaisLoggedIn()) {
+      this.cancelStartupImportRetry();
     }
 
-    if (this.mouseMoveHandler) {
-      document.removeEventListener('mousemove', this.mouseMoveHandler);
-    }
+    // Se a sessão só subiu agora (cofre ilegível na abertura), o laço ainda não existe.
+    await this.autoSync.apply(this.settings(), this.isPontomaisLoggedIn()).catch(error =>
+      console.error('Erro ao configurar a sincronização:', error)
+    );
 
-    if (this.autoSyncUnlisten) {
-      this.autoSyncUnlisten();
+    // Jornada e intervalo mudam o tempo restante e o fim do expediente.
+    if (this.isMonitoring()) {
+      this.updateWorkTime();
     }
   }
 }

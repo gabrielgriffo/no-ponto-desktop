@@ -1,25 +1,25 @@
 <button class="settings-row" type="button" (click)="action.emit()">
-  @if (icon) {
-    <span [class]="'settings-row-icon ' + icon"></span>
+  @if (icon()) {
+    <span class="settings-row-icon" [class]="icon()"></span>
   }
 
   <span class="settings-row-text">
-    <span class="settings-row-label">{{ label }}</span>
-    @if (description) {
-      <span class="settings-row-description">{{ description }}</span>
+    <span class="settings-row-label">{{ label() }}</span>
+    @if (description()) {
+      <span class="settings-row-description">{{ description() }}</span>
     }
   </span>
 
-  @if (badge) {
-    <span class="dev-badge">{{ badge }}</span>
-  } @else if (value) {
+  @if (badge()) {
+    <span class="dev-badge">{{ badge() }}</span>
+  } @else if (value()) {
     <span class="settings-row-value"
-          [appTooltip]="showValueTooltip ? value : ''"
+          [appTooltip]="showValueTooltip() ? value() : ''"
           [tooltipWhenTruncated]="true"
-          tooltipPosition="top">{{ value }}</span>
+          tooltipPosition="top">{{ value() }}</span>
   }
 
-  @if (dot) {
+  @if (dot()) {
     <span class="settings-row-dot"></span>
   }
 

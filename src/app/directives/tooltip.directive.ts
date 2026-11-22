@@ -1,16 +1,13 @@
 import {
   Directive,
   input,
-  HostListener,
   ElementRef,
   Renderer2,
   OnDestroy,
   inject,
   ComponentRef,
   effect,
-  PLATFORM_ID
 } from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
 import {
   Overlay,
   OverlayRef,
@@ -22,7 +19,13 @@ import { TooltipComponent } from '../components/tooltip/tooltip';
 
 @Directive({
   selector: '[appTooltip]',
-  standalone: true
+  host: {
+    '(mouseenter)': 'scheduleShow()',
+    '(mouseleave)': 'onMouseLeave()',
+    '(click)': 'cancelShow()',
+    '(window:blur)': 'dismissImmediately()',
+    '(document:visibilitychange)': 'onVisibilityChange()',
+  },
 })
 export class TooltipDirective implements OnDestroy {
   appTooltip = input<string>('');
@@ -34,7 +37,6 @@ export class TooltipDirective implements OnDestroy {
   private renderer = inject(Renderer2);
   private overlay = inject(Overlay);
   private overlayPositionBuilder = inject(OverlayPositionBuilder);
-  private platformId = inject(PLATFORM_ID);
 
   private overlayRef: OverlayRef | null = null;
   private tooltipRef: ComponentRef<TooltipComponent> | null = null;
@@ -76,35 +78,18 @@ export class TooltipDirective implements OnDestroy {
     });
   }
 
-  @HostListener('mouseenter')
-  onMouseEnter(): void {
-    this.scheduleShow();
-  }
-
-  @HostListener('mouseleave')
-  onMouseLeave(): void {
+  protected onMouseLeave(): void {
     this.cancelShow();
     this.hide();
   }
 
-  @HostListener('click')
-  onClick(): void {
-    this.cancelShow();
-  }
-
-  @HostListener('window:blur')
-  onWindowBlur(): void {
-    this.dismissImmediately();
-  }
-
-  @HostListener('document:visibilitychange')
-  onVisibilityChange(): void {
+  protected onVisibilityChange(): void {
     if (document.hidden) {
       this.dismissImmediately();
     }
   }
 
-  private scheduleShow(): void {
+  protected scheduleShow(): void {
     if (!this.appTooltip()) return;
 
     const element: HTMLElement = this.elementRef.nativeElement;
@@ -117,7 +102,7 @@ export class TooltipDirective implements OnDestroy {
     }, this.tooltipDelay());
   }
 
-  private cancelShow(): void {
+  protected cancelShow(): void {
     if (this.showTimeout) {
       clearTimeout(this.showTimeout);
       this.showTimeout = null;
@@ -125,9 +110,6 @@ export class TooltipDirective implements OnDestroy {
   }
 
   private show(): void {
-    // SSR: evita execução no servidor
-    if (!isPlatformBrowser(this.platformId)) return;
-
     // Previne race condition ao reabrir antes do hide completar
     if (this.hideTimeout) {
       clearTimeout(this.hideTimeout);
@@ -207,7 +189,7 @@ export class TooltipDirective implements OnDestroy {
     }, 200);
   }
 
-  private dismissImmediately(): void {
+  protected dismissImmediately(): void {
     this.cancelShow();
 
     if (this.hideTimeout) {

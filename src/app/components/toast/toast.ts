@@ -1,134 +1,74 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ToastService, ToastMessage, ToastType } from '../../services/toast.service';
-import { Subscription } from 'rxjs';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ToastService, ToastMessage } from '../../services/toast.service';
 
 interface ToastItem extends ToastMessage {
   id: number;
   isExiting: boolean;
-  zIndex: number;
 }
+
+interface ToastView extends ToastItem {
+  zIndex: number;
+  bottom: number;
+  blur?: string;
+  scale?: number;
+}
+
+const BASE_Z_INDEX = 9999999;
+const MAX_TOASTS = 3;
+const EXIT_ANIMATION_MS = 300;
 
 @Component({
   selector: 'app-toast',
-  imports: [CommonModule],
   templateUrl: './toast.html',
   styleUrl: './toast.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Toast implements OnInit, OnDestroy {
-  toasts: ToastItem[] = [];
-  private subscription?: Subscription;
-  private nextId: number = 1;
-  private baseZIndex: number = 9999999;
-  private readonly maxToasts: number = 3;
+export class Toast {
+  private readonly toasts = signal<ToastItem[]>([]);
+  private nextId = 1;
 
-  constructor(private toastService: ToastService) {}
+  protected readonly views = computed<ToastView[]>(() => {
+    const toasts = this.toasts();
+    return toasts.map((toast, index) => {
+      const view: ToastView = { ...toast, zIndex: BASE_Z_INDEX + index, bottom: 20 };
+      if (toast.isExiting) return view;
 
-  ngOnInit() {
-    this.subscription = this.toastService.toast$.subscribe((toast: ToastMessage) => {
-      this.showToast(toast);
+      const above = toasts.slice(index + 1).filter(t => !t.isExiting).length;
+      return { ...view, bottom: 20 + above * 10, blur: `blur(${above * 0.4}px)`, scale: 1 - above * 0.05 };
     });
+  });
+
+  constructor() {
+    inject(ToastService).toast$
+      .pipe(takeUntilDestroyed(inject(DestroyRef)))
+      .subscribe(toast => this.show(toast));
   }
 
-  ngOnDestroy() {
-    if (this.subscription) {
-      this.subscription.unsubscribe();
-    }
+  protected close(id: number): void {
+    const toast = this.toasts().find(t => t.id === id);
+    if (!toast || toast.isExiting) return;
+
+    this.setExiting(id);
+    setTimeout(() => this.remove(id), EXIT_ANIMATION_MS);
   }
 
-  private showToast(toast: ToastMessage) {
-    const activeToasts = this.toasts.filter(t => !t.isExiting);
-
-    // Remove toasts antigos se exceder o limite
-    while (activeToasts.length >= this.maxToasts) {
-      const oldestToast = activeToasts[0];
-      this.closeImmediately(oldestToast.id);
-      activeToasts.shift();
-    }
-
-    const newToast: ToastItem = {
-      id: this.nextId++,
-      message: toast.message,
-      type: toast.type,
-      duration: toast.duration,
-      isExiting: false,
-      zIndex: this.baseZIndex + this.nextId
-    };
-
-    this.toasts.push(newToast);
-
-    const duration = toast.duration || 3000;
-    setTimeout(() => {
-      this.close(newToast.id);
-    }, duration);
-  }
-
-  close(id: number) {
-    const toast = this.toasts.find(t => t.id === id);
-    if (toast && !toast.isExiting) {
-      toast.isExiting = true;
-      setTimeout(() => {
-        this.toasts = this.toasts.filter(t => t.id !== id);
-      }, 300);
-    }
-  }
-
-  private closeImmediately(id: number) {
-    const toast = this.toasts.find(t => t.id === id);
-    if (toast && !toast.isExiting) {
-      toast.isExiting = true;
-      // Remove sem esperar animação
-      this.toasts = this.toasts.filter(t => t.id !== id);
-    }
-  }
-
-  getZIndex(index: number): number {
-    return this.baseZIndex + index;
-  }
-
-  private countActiveToastsAfter(index: number): number {
-    return this.toasts
-      .slice(index + 1)
-      .filter(t => !t.isExiting)
-      .length;
-  }
-
-  getBottomOffset(index: number): number {
-    const toast = this.toasts[index];
-
-    if (toast.isExiting){
-      return 20;
+  private show(toast: ToastMessage): void {
+    const active = this.toasts().filter(t => !t.isExiting);
+    for (const oldest of active.slice(0, Math.max(0, active.length - MAX_TOASTS + 1))) {
+      this.remove(oldest.id);
     }
 
-    const toastsAbove = this.countActiveToastsAfter(index);
-
-    const offset = 20 + (toastsAbove * 10)
-    return offset;
+    const item: ToastItem = { ...toast, id: this.nextId++, isExiting: false };
+    this.toasts.update(toasts => [...toasts, item]);
+    setTimeout(() => this.close(item.id), toast.duration || 3000);
   }
 
-  getBlur(index: number): string | undefined {
-    const toast = this.toasts[index];
-
-    if (toast.isExiting) {
-      return undefined;
-    }
-
-    const toastsAbove = this.countActiveToastsAfter(index);
-
-    const blur = "blur(" + (toastsAbove * 0.40) + "px)";
-    return blur;
+  private setExiting(id: number): void {
+    this.toasts.update(toasts => toasts.map(t => (t.id === id ? { ...t, isExiting: true } : t)));
   }
 
-  getScale(index: number): number | undefined {
-    const toast = this.toasts[index];
-
-    if (toast.isExiting) {
-      return undefined;
-    }
-
-    const toastsAbove = this.countActiveToastsAfter(index);
-
-    const scale = 1 - (toastsAbove * 0.05);
-    return scale;
+  private remove(id: number): void {
+    this.toasts.update(toasts => toasts.filter(t => t.id !== id));
   }
 }

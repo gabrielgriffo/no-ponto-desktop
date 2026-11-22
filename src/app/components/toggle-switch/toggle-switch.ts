@@ -1,25 +1,31 @@
-import { Component, Input, Output, EventEmitter, AfterViewInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, afterNextRender, input, output, signal } from '@angular/core';
 
+/**
+ * Controlado: a posição vem só de `checked`. O clique emite o pedido de mudança e o
+ * checkbox volta ao valor atual até o pai confirmar, para que uma gravação recusada
+ * não deixe na tela uma configuração que não foi salva.
+ */
 @Component({
   selector: 'app-toggle-switch',
-  imports: [CommonModule],
   templateUrl: './toggle-switch.html',
   styleUrl: './toggle-switch.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ToggleSwitch implements AfterViewInit {
-  @Input() checked: boolean = false;
-  @Input() disabled: boolean = false;
-  @Output() checkedChange = new EventEmitter<boolean>();
+export class ToggleSwitch {
+  readonly checked = input(false);
+  readonly disabled = input(false);
+  readonly checkedChange = output<boolean>();
 
-  isReady = false;
+  protected readonly isReady = signal(false);
 
-  ngAfterViewInit(): void {
-    setTimeout(() => (this.isReady = true));
+  constructor() {
+    afterNextRender(() => setTimeout(() => this.isReady.set(true)));
   }
 
-  onToggle(event: Event): void {
-    this.checked = (event.target as HTMLInputElement).checked;
-    this.checkedChange.emit(this.checked);
+  protected onToggle(event: Event): void {
+    const checkbox = event.target as HTMLInputElement;
+    const requested = checkbox.checked;
+    checkbox.checked = this.checked();
+    this.checkedChange.emit(requested);
   }
 }

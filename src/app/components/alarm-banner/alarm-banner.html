@@ -1,4 +1,4 @@
-@if (alarmService.isVisible) {
+@if (alarmService.isVisible()) {
   <div class="alarm-overlay">
     <div class="alarm-dialog" role="alertdialog" aria-labelledby="alarm-title" aria-describedby="alarm-subtitle">
       <div class="alarm-header">
@@ -7,7 +7,7 @@
         </div>
         <div class="alarm-texts">
           <h2 id="alarm-title" class="alarm-title">{{ title }}</h2>
-          <p id="alarm-subtitle" class="alarm-subtitle">{{ message }}</p>
+          <p id="alarm-subtitle" class="alarm-subtitle">{{ message() }}</p>
         </div>
       </div>
       <div class="alarm-actions">

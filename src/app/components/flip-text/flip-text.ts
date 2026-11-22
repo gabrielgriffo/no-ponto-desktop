@@ -1,69 +1,51 @@
 import {
-  AfterViewInit,
+  ChangeDetectionStrategy,
   Component,
   ElementRef,
-  Input,
-  OnChanges,
-  SimpleChanges,
-  ViewChild,
   ViewEncapsulation,
+  afterRenderEffect,
+  input,
+  untracked,
+  viewChild,
 } from '@angular/core';
 
 @Component({
   selector: 'app-flip-text',
-  imports: [],
   templateUrl: './flip-text.html',
   styleUrl: './flip-text.css',
-  standalone: true,
-  encapsulation: ViewEncapsulation.None
+  encapsulation: ViewEncapsulation.None,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FlipText implements OnChanges, AfterViewInit {
-  @Input() text = '';
-  @Input() fontSize: number = 42; // Tamanho da fonte em pixels
-  @Input() grayPrefix?: string; // Prefixo opcional para aplicar cor cinza (ex: '00h')
+export class FlipText {
+  readonly text = input('');
+  readonly fontSize = input(42);
+  readonly grayPrefix = input<string>();
 
-  @ViewChild('flipContainer', { static: false }) flipContainer!: ElementRef<HTMLDivElement>;
+  private readonly flipContainer = viewChild.required<ElementRef<HTMLDivElement>>('flipContainer');
+  private rendered = false;
 
-  private isInitialized = false;
+  constructor() {
+    afterRenderEffect(() => {
+      const container = this.flipContainer().nativeElement;
+      const fontSize = this.fontSize();
+      container.style.height = `${fontSize * 1.2}px`;
+      container.style.fontSize = `${fontSize}px`;
+    });
 
-  ngAfterViewInit(): void {
-    this.isInitialized = true;
-    this.applyContainerStyles();
-    // Renderiza o texto inicial sem animação
-    if (this.text) {
-      this.renderText(this.text, false);
-    }
-  }
-
-  private applyContainerStyles(): void {
-    if (!this.flipContainer?.nativeElement) {
-      return;
-    }
-
-    const container = this.flipContainer.nativeElement;
-    // Altura proporcional ao fontSize (aprox. 1.2x)
-    container.style.height = `${this.fontSize * 1.2}px`;
-    container.style.fontSize = `${this.fontSize}px`;
-  }
-
-  ngOnChanges(changes: SimpleChanges): void {
-    // Atualiza estilos se fontSize mudar
-    if (changes['fontSize'] && this.isInitialized) {
-      this.applyContainerStyles();
-    }
-
-    // Só anima se já foi inicializado e o texto realmente mudou
-    if (changes['text'] && this.isInitialized && !changes['text'].firstChange) {
-      this.renderText(this.text, true);
-    }
+    afterRenderEffect(() => {
+      const text = this.text();
+      untracked(() => {
+        if (!text && !this.rendered) return;
+        this.renderText(text, this.rendered);
+        this.rendered = true;
+      });
+    });
   }
 
   private renderText(value: string, animate: boolean): void {
-    if (!this.flipContainer?.nativeElement) {
-      return;
-    }
-
-    const container = this.flipContainer.nativeElement;
+    const container = this.flipContainer().nativeElement;
+    const fontSize = this.fontSize();
+    const grayPrefix = this.grayPrefix();
 
     // Marca os elementos antigos para saída
     const oldWords = container.querySelectorAll('.word');
@@ -79,14 +61,14 @@ export class FlipText implements OnChanges, AfterViewInit {
     wordWrapper.className = 'word';
 
     // Verifica se deve aplicar cor cinza no prefixo
-    const shouldGrayPrefix = this.grayPrefix && value.startsWith(this.grayPrefix);
-    const grayPrefixLength = shouldGrayPrefix ? this.grayPrefix!.length : 0;
+    const shouldGrayPrefix = !!grayPrefix && value.startsWith(grayPrefix);
+    const grayPrefixLength = shouldGrayPrefix ? grayPrefix.length : 0;
 
     // Calcula valores de animação proporcionais ao fontSize
-    const translateYIn = this.fontSize * 0.42; // ~20px para 48px
-    const translateYOut = this.fontSize * 0.625; // ~30px para 48px
-    const blurIn = this.fontSize * 0.208; // ~10px para 48px
-    const blurOut = this.fontSize * 0.25; // ~12px para 48px
+    const translateYIn = fontSize * 0.42; // ~20px para 48px
+    const translateYOut = fontSize * 0.625; // ~30px para 48px
+    const blurIn = fontSize * 0.208; // ~10px para 48px
+    const blurOut = fontSize * 0.25; // ~12px para 48px
 
     // Cria cada letra
     [...value].forEach((char, index) => {

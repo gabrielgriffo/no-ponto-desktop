@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { AlarmMode } from '../pages/settings-modal/settings.model';
 
@@ -34,13 +34,15 @@ export function workdayEndMessage(journeyMinutes: number): string {
   return `Você completou ${formatJourney(journeyMinutes)}. Já pode bater o ponto.`;
 }
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class AlarmService {
-  isVisible = false;
-  journeyMinutes = 0;
-  snoozedUntil: Date | null = null;
+  private readonly visible = signal(false);
+  private readonly journey = signal(0);
+  private readonly snoozed = signal<Date | null>(null);
+
+  readonly isVisible = this.visible.asReadonly();
+  readonly journeyMinutes = this.journey.asReadonly();
+  readonly snoozedUntil = this.snoozed.asReadonly();
 
   private audio: HTMLAudioElement | null = null;
   private stopTimer?: ReturnType<typeof setTimeout>;
@@ -61,8 +63,8 @@ export class AlarmService {
 
     this.audio = audio;
     this.lastOptions = options;
-    this.journeyMinutes = options.journeyMinutes;
-    this.isVisible = true;
+    this.journey.set(options.journeyMinutes);
+    this.visible.set(true);
     audio.play().catch(() => this.silence());
     invoke('focus_main_window').catch(() => {});
   }
@@ -71,16 +73,16 @@ export class AlarmService {
     const options = this.lastOptions;
     this.dismiss();
     if (!options) return;
-    this.snoozedUntil = new Date(Date.now() + SNOOZE_MINUTES * 60_000);
+    this.snoozed.set(new Date(Date.now() + SNOOZE_MINUTES * 60_000));
     this.snoozeTimer = setTimeout(() => this.ring(options), SNOOZE_MINUTES * 60_000);
   }
 
   dismiss(): void {
     clearTimeout(this.snoozeTimer);
     this.snoozeTimer = undefined;
-    this.snoozedUntil = null;
+    this.snoozed.set(null);
     this.silence();
-    this.isVisible = false;
+    this.visible.set(false);
   }
 
   private silence(): void {

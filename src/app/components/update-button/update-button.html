@@ -1,16 +1,16 @@
-@if (update) {
+@if (update(); as update) {
   <button
     type="button"
     class="update-button"
-    [class.is-installing]="isInstalling"
-    [attr.aria-busy]="isInstalling"
+    [class.is-installing]="isInstalling()"
+    [attr.aria-busy]="isInstalling()"
     (click)="onClick()"
     [appTooltip]="'Versão ' + update.version + ' disponível'"
     tooltipPosition="bottom"
     [tooltipDelay]="500"
     >
     Atualizar
-    @if (isInstalling) {
+    @if (isInstalling()) {
       <span class="spinner update-spinner"></span>
     }
   </button>

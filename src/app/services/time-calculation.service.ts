@@ -5,9 +5,16 @@ export const DEFAULT_JOURNEY_MINUTES = 480;
 
 export const DEFAULT_BREAK_MINUTES = 60;
 
-@Injectable({
-  providedIn: 'root'
-})
+export interface WorkTimeResult {
+  firstPeriod: TimeObject;
+  secondPeriod: TimeObject;
+  workedTime: TimeObject;
+  remainingTime: TimeObject;
+  endTime: TimeObject;
+  lunchHourAdded: boolean;
+}
+
+@Injectable({ providedIn: 'root' })
 export class TimeCalculationService {
 
   /** -1 indica horário ausente; 0 é meia-noite, um horário válido. */
@@ -55,14 +62,7 @@ export class TimeCalculationService {
     targetJourneyMinutes: number = DEFAULT_JOURNEY_MINUTES,
     breakMinutes: number = DEFAULT_BREAK_MINUTES,
     extraTimes: string[] = []
-  ): {
-    firstPeriod: TimeObject;
-    secondPeriod: TimeObject;
-    workedTime: TimeObject;
-    remainingTime: TimeObject;
-    endTime: TimeObject;
-    lunchHourAdded: boolean;
-  } {
+  ): WorkTimeResult {
     const checkInMinutes = this.timeStringToMinutes(checkIn);
     const checkOutMinutes = this.timeStringToMinutes(checkOut);
     const checkIn2Minutes = this.timeStringToMinutes(checkIn2);

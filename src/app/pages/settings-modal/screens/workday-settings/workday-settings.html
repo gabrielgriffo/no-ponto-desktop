@@ -4,12 +4,11 @@
       <label class="input-label">Jornada de referência</label>
       <app-custom-select
         [options]="workdayOptions"
-        [(value)]="selectedWorkday"
-        (valueChange)="onWorkdaySelect()">
-      </app-custom-select>
+        [value]="selectedWorkday()"
+        (valueChange)="onWorkdaySelect($event)" />
     </div>
 
-    @if (selectedWorkday === customDuration) {
+    @if (selectedWorkday() === customDuration) {
       <div class="setting-content">
         <label class="input-label" for="workday-custom">Horas e minutos</label>
         <div class="field-control">
@@ -22,7 +21,7 @@
             maxlength="5"
             autocomplete="off"
             appTimeInput
-            [value]="customWorkday"
+            [value]="customWorkday()"
             (input)="onCustomWorkday($any($event.target).value)"
           />
         </div>
@@ -39,12 +38,11 @@
       <label class="input-label">Intervalo padrão</label>
       <app-custom-select
         [options]="breakOptions"
-        [(value)]="selectedBreak"
-        (valueChange)="onBreakSelect()">
-      </app-custom-select>
+        [value]="selectedBreak()"
+        (valueChange)="onBreakSelect($event)" />
     </div>
 
-    @if (selectedBreak === customDuration) {
+    @if (selectedBreak() === customDuration) {
       <div class="setting-content">
         <label class="input-label" for="break-custom">Horas e minutos</label>
         <div class="field-control">
@@ -57,7 +55,7 @@
             maxlength="5"
             autocomplete="off"
             appTimeInput
-            [value]="customBreak"
+            [value]="customBreak()"
             (input)="onCustomBreak($any($event.target).value)"
           />
         </div>

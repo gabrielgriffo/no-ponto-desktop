@@ -1,5 +1,4 @@
-import { Component } from '@angular/core';
-import { Update } from '@tauri-apps/plugin-updater';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { UpdateService } from '../../services/update.service';
 import { ToastService } from '../../services/toast.service';
 import { TooltipDirective } from '../../directives/tooltip.directive';
@@ -9,24 +8,18 @@ import { TooltipDirective } from '../../directives/tooltip.directive';
   imports: [TooltipDirective],
   templateUrl: './update-button.html',
   styleUrl: './update-button.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UpdateButton {
-  constructor(
-    private updateService: UpdateService,
-    private toastService: ToastService
-  ) {}
+  private readonly updateService = inject(UpdateService);
+  private readonly toastService = inject(ToastService);
 
-  get update(): Update | null {
-    return this.updateService.available();
-  }
+  protected readonly update = this.updateService.available;
+  protected readonly isInstalling = this.updateService.installing;
 
-  get isInstalling(): boolean {
-    return this.updateService.installing();
-  }
-
-  async onClick(): Promise<void> {
-    const update = this.update;
-    if (!update || this.isInstalling) return;
+  protected async onClick(): Promise<void> {
+    const update = this.update();
+    if (!update || this.isInstalling()) return;
 
     try {
       await this.updateService.downloadAndInstall(update);

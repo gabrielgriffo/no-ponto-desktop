@@ -1,22 +1,18 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { HoverResetService } from './hover-reset.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class WindowService {
-  constructor(private hoverReset: HoverResetService) {}
+  private readonly hoverReset = inject(HoverResetService);
 
   async minimize(): Promise<void> {
     this.hoverReset.arm();
-    const window = await getCurrentWindow();
-    await window.minimize();
+    await getCurrentWindow().minimize();
   }
 
   async close(): Promise<void> {
     this.hoverReset.arm();
-    const window = await getCurrentWindow();
-    await window.close();
+    await getCurrentWindow().close();
   }
 }

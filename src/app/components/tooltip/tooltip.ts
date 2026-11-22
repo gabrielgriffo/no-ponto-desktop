@@ -1,10 +1,10 @@
-import { Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 @Component({
   selector: 'app-tooltip-content',
-  standalone: true,
   templateUrl: './tooltip.html',
-  styleUrl: './tooltip.css'
+  styleUrl: './tooltip.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TooltipComponent {
   text = input.required<string>();

@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, input, linkedSignal, output, signal } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { ToggleSwitch } from '../../../../components/toggle-switch/toggle-switch';
 import { CustomSelect } from '../../../../components/custom-select/custom-select';
@@ -8,6 +8,7 @@ import {
   ALARM_MODE_OPTIONS,
   ALARM_SOUND_OPTIONS,
   AppSettings,
+  SettingsPatch,
 } from '../../settings.model';
 
 type NotificationStatus =
@@ -17,101 +18,89 @@ type NotificationStatus =
   | 'disabledByPolicy'
   | 'unknown';
 
+const NOTIFICATION_WARNINGS: Partial<Record<NotificationStatus, string>> = {
+  disabledForUser: 'As notificações estão desativadas no sistema',
+  disabledForApplication: 'As notificações do No Ponto estão desativadas no sistema',
+  disabledByPolicy: 'As notificações estão bloqueadas pela política da sua organização',
+};
+
 @Component({
   selector: 'app-alerts-settings',
   imports: [ToggleSwitch, CustomSelect, RangeSlider],
   templateUrl: './alerts-settings.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(window:focus)': 'refreshNotificationStatus()' },
 })
 export class AlertsSettingsComponent implements OnInit, OnDestroy {
-  @Input() settings!: AppSettings;
-  @Output() settingsChange = new EventEmitter<void>();
+  readonly settings = input.required<AppSettings>();
+  readonly patch = output<SettingsPatch>();
 
-  readonly soundOptions = ALARM_SOUND_OPTIONS;
-  readonly modeOptions = ALARM_MODE_OPTIONS;
-  readonly durationOptions = ALARM_DURATION_OPTIONS;
+  protected readonly soundOptions = ALARM_SOUND_OPTIONS;
+  protected readonly modeOptions = ALARM_MODE_OPTIONS;
+  protected readonly durationOptions = ALARM_DURATION_OPTIONS;
 
-  isPreviewing = false;
-  notificationStatus: NotificationStatus = 'unknown';
+  /** Acompanha o arraste do volume; só o valor final vai para o disco. */
+  protected readonly volume = linkedSignal(() => this.settings().alarmVolume);
+  protected readonly isPreviewing = signal(false);
+  private readonly notificationStatus = signal<NotificationStatus>('unknown');
+
+  protected readonly notificationWarning = computed(() => NOTIFICATION_WARNINGS[this.notificationStatus()] ?? null);
+  protected readonly canOpenNotificationSettings = computed(() => this.notificationStatus() !== 'disabledByPolicy');
 
   private preview: HTMLAudioElement | null = null;
-  private readonly onWindowFocus = () => this.refreshNotificationStatus();
 
   ngOnInit(): void {
     this.refreshNotificationStatus();
-    window.addEventListener('focus', this.onWindowFocus);
-  }
-
-  get notificationWarning(): string | null {
-    switch (this.notificationStatus) {
-      case 'disabledForUser':
-        return 'As notificações estão desativadas no sistema';
-      case 'disabledForApplication':
-        return 'As notificações do No Ponto estão desativadas no sistema';
-      case 'disabledByPolicy':
-        return 'As notificações estão bloqueadas pela política da sua organização';
-      default:
-        return null;
-    }
-  }
-
-  get canOpenNotificationSettings(): boolean {
-    return this.notificationStatus !== 'disabledByPolicy';
-  }
-
-  onOpenNotificationSettings(): void {
-    invoke('open_notification_settings').catch(() => {});
-  }
-
-  onChange(): void {
-    this.settingsChange.emit();
-  }
-
-  onAlarmToggle(enabled: boolean): void {
-    this.settings.alarmEnabled = enabled;
-    if (!enabled) this.stopPreview();
-    this.onChange();
-  }
-
-  onVolumeInput(volume: number): void {
-    this.settings.alarmVolume = volume;
-    if (this.preview) this.preview.volume = volume / 100;
-  }
-
-  onVolumeCommit(): void {
-    this.onChange();
-  }
-
-  onSoundChange(): void {
-    this.stopPreview();
-    this.onChange();
-  }
-
-  onTogglePreview(): void {
-    if (this.isPreviewing) {
-      this.stopPreview();
-      return;
-    }
-
-    const audio = new Audio(`assets/sounds/${this.settings.alarmSound}.wav`);
-    audio.volume = this.settings.alarmVolume / 100;
-    audio.onended = () => this.stopPreview();
-
-    this.preview = audio;
-    this.isPreviewing = true;
-
-    audio.play().catch(() => this.stopPreview());
   }
 
   ngOnDestroy(): void {
     this.stopPreview();
-    window.removeEventListener('focus', this.onWindowFocus);
   }
 
-  private async refreshNotificationStatus(): Promise<void> {
+  protected onOpenNotificationSettings(): void {
+    invoke('open_notification_settings').catch(() => {});
+  }
+
+  protected onAlarmToggle(enabled: boolean): void {
+    if (!enabled) this.stopPreview();
+    this.patch.emit({ alarmEnabled: enabled });
+  }
+
+  protected onVolumeInput(volume: number): void {
+    this.volume.set(volume);
+    if (this.preview) this.preview.volume = volume / 100;
+  }
+
+  protected onVolumeCommit(volume: number): void {
+    this.patch.emit({ alarmVolume: volume });
+  }
+
+  protected onSoundChange(sound: string): void {
+    this.stopPreview();
+    this.patch.emit({ alarmSound: sound });
+  }
+
+  protected onTogglePreview(): void {
+    if (this.isPreviewing()) {
+      this.stopPreview();
+      return;
+    }
+
+    const audio = new Audio(`assets/sounds/${this.settings().alarmSound}.wav`);
+    audio.volume = this.volume() / 100;
+    audio.onended = () => this.stopPreview();
+
+    this.preview = audio;
+    this.isPreviewing.set(true);
+
+    audio.play().catch(() => this.stopPreview());
+  }
+
+  protected async refreshNotificationStatus(): Promise<void> {
     try {
-      this.notificationStatus = await invoke<NotificationStatus>('notification_status');
+      this.notificationStatus.set(await invoke<NotificationStatus>('notification_status'));
     } catch {
-      this.notificationStatus = 'unknown';
+      this.notificationStatus.set('unknown');
     }
   }
 
@@ -121,6 +110,6 @@ export class AlertsSettingsComponent implements OnInit, OnDestroy {
       this.preview.onended = null;
       this.preview = null;
     }
-    this.isPreviewing = false;
+    this.isPreviewing.set(false);
   }
 }

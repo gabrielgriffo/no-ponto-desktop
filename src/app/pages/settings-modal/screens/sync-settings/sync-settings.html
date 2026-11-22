@@ -3,22 +3,21 @@
     <div class="setting-header">
       <span class="setting-label">Sincronização automática</span>
       <app-toggle-switch
-        [checked]="settings.autoImportEnabled"
+        [checked]="settings().autoImportEnabled"
         (checkedChange)="onAutoSyncToggle($event)"
-      ></app-toggle-switch>
+      />
     </div>
     <span class="setting-description">
       Importa os registros de ponto do dia em segundo plano
     </span>
 
-    @if (settings.autoImportEnabled) {
+    @if (settings().autoImportEnabled) {
       <div class="setting-content">
         <label class="input-label">Intervalo da sincronização automática</label>
         <app-custom-select
           [options]="intervalOptions"
-          [(value)]="settings.autoImportInterval"
-          (valueChange)="onChange()">
-        </app-custom-select>
+          [value]="settings().autoImportInterval"
+          (valueChange)="patch.emit({ autoImportInterval: $event })" />
       </div>
     }
   </div>
@@ -27,9 +26,9 @@
     <div class="setting-header">
       <span class="setting-label">Importar ao iniciar</span>
       <app-toggle-switch
-        [checked]="settings.importOnStartupEnabled"
-        (checkedChange)="settings.importOnStartupEnabled = $event; onChange()"
-      ></app-toggle-switch>
+        [checked]="settings().importOnStartupEnabled"
+        (checkedChange)="patch.emit({ importOnStartupEnabled: $event })"
+      />
     </div>
     <span class="setting-description">
       Importa os registros de ponto sempre que o aplicativo é aberto
@@ -42,9 +41,9 @@
         <span class="setting-label">Sincronização inteligente</span>
       </div>
       <app-toggle-switch
-        [checked]="settings.smartSyncEnabled"
+        [checked]="settings().smartSyncEnabled"
         (checkedChange)="onSmartSyncToggle($event)"
-      ></app-toggle-switch>
+      />
     </div>
     <span class="setting-description">
       Ajusta a frequência das importações conforme o andamento do expediente

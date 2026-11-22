@@ -1,19 +1,15 @@
-import { Directive, HostListener, ElementRef } from '@angular/core';
+import { Directive, ElementRef, inject } from '@angular/core';
 import { TimeUtilsService } from '../services/time-utils.service';
 
 @Directive({
   selector: '[appTimeInput]',
-  standalone: true
+  host: { '(input)': 'onInput()' },
 })
 export class TimeInputDirective {
+  private readonly el = inject<ElementRef<HTMLInputElement>>(ElementRef);
+  private readonly timeUtils = inject(TimeUtilsService);
 
-  constructor(
-    private el: ElementRef<HTMLInputElement>,
-    private timeUtils: TimeUtilsService
-  ) {}
-
-  @HostListener('input')
-  onInput(): void {
+  protected onInput(): void {
     const input = this.el.nativeElement;
     input.value = this.timeUtils.formatTimeInput(input.value);
   }

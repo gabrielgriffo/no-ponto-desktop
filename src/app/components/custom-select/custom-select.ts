@@ -1,50 +1,43 @@
-import { Component, Input, Output, EventEmitter, HostListener, ElementRef, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, output, signal } from '@angular/core';
 
-export interface SelectOption {
+export interface SelectOption<T = any> {
   label: string;
-  value: any;
+  value: T;
 }
 
+/** Controlado: o valor exibido vem só de `value`; escolher uma opção só emite o pedido. */
 @Component({
   selector: 'app-custom-select',
-  imports: [CommonModule],
   templateUrl: './custom-select.html',
   styleUrl: './custom-select.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:click)': 'onDocumentClick($event)' },
 })
-export class CustomSelect {
-  @Input() options: SelectOption[] = [];
-  @Input() value: any;
-  @Input() placeholder: string = 'Selecione...';
-  @Output() valueChange = new EventEmitter<any>();
+export class CustomSelect<T = any> {
+  readonly options = input<SelectOption<T>[]>([]);
+  readonly value = input<T>();
+  readonly placeholder = input('Selecione...');
+  readonly valueChange = output<T>();
 
-  isOpen: boolean = false;
+  protected readonly isOpen = signal(false);
+  protected readonly displayValue = computed(
+    () => this.options().find(option => option.value === this.value())?.label || this.placeholder()
+  );
 
-  private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  get selectedOption(): SelectOption | undefined {
-    return this.options.find(opt => opt.value === this.value);
+  protected toggleDropdown(): void {
+    this.isOpen.update(open => !open);
   }
 
-  get displayValue(): string {
-    return this.selectedOption?.label || this.placeholder;
+  protected selectOption(option: SelectOption<T>): void {
+    this.isOpen.set(false);
+    if (option.value !== this.value()) this.valueChange.emit(option.value);
   }
 
-  toggleDropdown(): void {
-    this.isOpen = !this.isOpen;
-  }
-
-  selectOption(option: SelectOption): void {
-    this.value = option.value;
-    this.valueChange.emit(this.value);
-    this.isOpen = false;
-  }
-
-  @HostListener('document:click', ['$event'])
-  onClickOutside(event: MouseEvent): void {
-    const clickedInside = this.host.nativeElement.contains(event.target as Node);
-    if (!clickedInside && this.isOpen) {
-      this.isOpen = false;
+  protected onDocumentClick(event: MouseEvent): void {
+    if (this.isOpen() && !this.host.nativeElement.contains(event.target as Node)) {
+      this.isOpen.set(false);
     }
   }
 }

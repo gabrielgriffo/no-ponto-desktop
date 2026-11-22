@@ -1,99 +1,81 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { Update } from '@tauri-apps/plugin-updater';
 import { UpdateService } from '../../../services/update.service';
 import { ToastService } from '../../../services/toast.service';
-import { AppSettings, isNewerVersion } from '../settings.model';
-
-export interface AppInfo {
-  version: string;
-  product_name: string;
-  tauri_version: string;
-  architecture: string;
-  os_platform: string;
-  build_type: string;
-}
+import { AppInfo, AppSettings, SettingsPatch, isNewerVersion } from '../settings.model';
 
 type UpdateState = 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready';
+type CheckResult = 'up-to-date' | 'available' | 'ready' | 'error';
+
+const pad = (n: number) => String(n).padStart(2, '0');
 
 @Component({
   selector: 'app-about-settings',
-  imports: [CommonModule],
   templateUrl: './about-settings.html',
   styleUrl: './about-settings.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AboutSettingsComponent {
-  @Input() appInfo!: AppInfo;
-  @Input() settings!: AppSettings;
+  private readonly updateService = inject(UpdateService);
+  private readonly toastService = inject(ToastService);
 
-  @Output() settingsChange = new EventEmitter<void>();
+  readonly appInfo = input.required<AppInfo>();
+  readonly settings = input.required<AppSettings>();
+  readonly patch = output<SettingsPatch>();
 
-  updateState: UpdateState = 'idle';
-  downloadProgress = 0;
-  pendingUpdate: Update | null = null;
+  // Recriado a cada visita à tela: o que já foi instalado vem do serviço, senão a
+  // tela ofereceria baixar de novo uma atualização que só espera o reinício.
+  protected readonly updateState = signal<UpdateState>(this.updateService.installed() ? 'ready' : 'idle');
+  protected readonly downloadProgress = signal(0);
+  private readonly pendingUpdate = signal<Update | null>(null);
+  private readonly lastResult = signal<CheckResult | null>(this.updateService.installed() ? 'ready' : null);
 
-  private lastResult: 'up-to-date' | 'available' | 'ready' | 'error' | null = null;
+  private readonly isWindows = computed(() => this.appInfo().os_platform.toLowerCase().startsWith('windows'));
 
-  private get isWindows(): boolean {
-    return (this.appInfo?.os_platform ?? '').toLowerCase().startsWith('windows');
-  }
+  protected readonly isUpdateBusy = computed(() => {
+    const state = this.updateState();
+    return state === 'checking' || state === 'downloading' || state === 'ready';
+  });
 
-  get isUpdateBusy(): boolean {
-    return this.updateState === 'checking'
-      || this.updateState === 'downloading'
-      || this.updateState === 'ready';
-  }
-
-  get lastCheckLabel(): string {
-    const raw = this.settings?.lastUpdateCheck;
+  protected readonly lastCheckLabel = computed(() => {
+    const raw = this.settings().lastUpdateCheck;
     if (!raw) return 'Nunca';
 
     const date = new Date(raw);
     if (Number.isNaN(date.getTime())) return 'Nunca';
 
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const dia = `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
-    return `${dia} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-  }
+    const day = `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+    return `${day} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  });
 
-  get canInstall(): boolean {
-    return this.updateState !== 'ready' && this.isUpdateAvailable;
-  }
+  private readonly hasCachedUpdate = computed(() => {
+    const { lastUpdateResult, lastUpdateVersion } = this.settings();
+    return lastUpdateResult === 'available' && isNewerVersion(lastUpdateVersion, this.appInfo().version);
+  });
 
-  get isUpdateAvailable(): boolean {
-    if (this.lastResult) {
-      return this.lastResult === 'available';
-    }
-    return this.hasCachedUpdate;
-  }
+  protected readonly isUpdateAvailable = computed(() => {
+    const result = this.lastResult();
+    return result ? result === 'available' : this.hasCachedUpdate();
+  });
 
-  private get hasCachedUpdate(): boolean {
-    return this.settings?.lastUpdateResult === 'available'
-      && isNewerVersion(this.settings.lastUpdateVersion, this.appInfo?.version ?? '');
-  }
+  protected readonly canInstall = computed(() => !this.isUpdateBusy() && this.isUpdateAvailable());
 
-  private get availableLabel(): string {
-    const version = this.pendingUpdate?.version || this.settings?.lastUpdateVersion;
+  private readonly availableLabel = computed(() => {
+    const version = this.pendingUpdate()?.version || this.settings().lastUpdateVersion;
     return version ? `Versão ${version} disponível` : 'Atualização disponível';
-  }
+  });
 
-  get statusLabel(): string {
-    switch (this.lastResult) {
-      case 'up-to-date':
-        return 'Atualizado';
-      case 'available':
-        return this.availableLabel;
-      case 'ready':
-        return 'Pronto para reiniciar';
-      case 'error':
-        return 'Falha na verificação';
+  protected readonly statusLabel = computed(() => {
+    switch (this.lastResult()) {
+      case 'up-to-date': return 'Atualizado';
+      case 'available': return this.availableLabel();
+      case 'ready': return 'Pronto para reiniciar';
+      case 'error': return 'Falha na verificação';
     }
 
-    if (this.hasCachedUpdate) {
-      return this.availableLabel;
-    }
+    if (this.hasCachedUpdate()) return this.availableLabel();
 
-    switch (this.settings?.lastUpdateResult) {
+    switch (this.settings().lastUpdateResult) {
       case 'up-to-date':
       case 'available':
         return 'Atualizado';
@@ -102,99 +84,83 @@ export class AboutSettingsComponent {
       default:
         return 'Não verificado';
     }
-  }
+  });
 
-  constructor(
-    private updateService: UpdateService,
-    private toastService: ToastService
-  ) {}
-
-  async onCheckForUpdate() {
-    if (this.isUpdateBusy) return;
+  protected async onCheckForUpdate(): Promise<void> {
+    if (this.isUpdateBusy()) return;
 
     if (await this.resolvePendingUpdate(true)) {
-      this.updateState = 'available';
+      this.updateState.set('available');
     }
   }
 
   private async resolvePendingUpdate(notify: boolean): Promise<Update | null> {
-    this.updateState = 'checking';
+    this.updateState.set('checking');
+    const lastUpdateCheck = new Date().toISOString();
 
     try {
       const update = await this.updateService.checkForUpdate();
       this.updateService.available.set(update);
+      this.patch.emit({
+        lastUpdateCheck,
+        lastUpdateResult: update ? 'available' : 'up-to-date',
+        lastUpdateVersion: update?.version ?? '',
+      });
 
-      this.settings.lastUpdateCheck = new Date().toISOString();
-      this.settings.lastUpdateResult = update ? 'available' : 'up-to-date';
-      this.settings.lastUpdateVersion = update?.version ?? '';
-      this.settingsChange.emit();
-
+      this.pendingUpdate.set(update);
       if (update) {
-        this.pendingUpdate = update;
-        this.lastResult = 'available';
-        if (notify) {
-          this.toastService.info(`Versão ${update.version} disponível`);
-        }
+        this.lastResult.set('available');
+        if (notify) this.toastService.info(`Versão ${update.version} disponível`);
       } else {
-        this.updateState = 'up-to-date';
-        this.lastResult = 'up-to-date';
-        if (notify) {
-          this.toastService.success('Você já está na versão mais recente');
-        }
+        this.updateState.set('up-to-date');
+        this.lastResult.set('up-to-date');
+        if (notify) this.toastService.success('Você já está na versão mais recente');
       }
 
       return update;
     } catch (error) {
       console.error('Erro ao verificar atualizações:', error);
+      this.patch.emit({ lastUpdateCheck, lastUpdateResult: 'error', lastUpdateVersion: '' });
 
-      this.settings.lastUpdateCheck = new Date().toISOString();
-      this.settings.lastUpdateResult = 'error';
-      this.settings.lastUpdateVersion = '';
-      this.settingsChange.emit();
-
-      this.pendingUpdate = null;
-      this.lastResult = 'error';
+      this.pendingUpdate.set(null);
+      this.lastResult.set('error');
       this.toastService.error('Não foi possível verificar atualizações');
-      this.updateState = 'idle';
+      this.updateState.set('idle');
       return null;
     }
   }
 
-  async onInstallUpdate() {
-    if (this.updateState === 'downloading' || this.updateState === 'ready' || this.updateService.installing()) {
-      return;
-    }
+  protected async onInstallUpdate(): Promise<void> {
+    if (this.isUpdateBusy() || this.updateService.installing()) return;
 
-    const update = this.pendingUpdate ?? await this.resolvePendingUpdate(false);
-    if (!update) {
-      return;
-    }
+    const update = this.pendingUpdate() ?? (await this.resolvePendingUpdate(false));
+    if (!update) return;
 
-    if (this.isWindows) {
+    if (this.isWindows()) {
       this.toastService.info('O app será fechado para instalar a atualização');
     }
 
-    this.updateState = 'downloading';
-    this.downloadProgress = 0;
+    this.updateState.set('downloading');
+    this.downloadProgress.set(0);
 
     try {
-      await this.updateService.downloadAndInstall(update, (progress) => {
+      await this.updateService.downloadAndInstall(update, progress => {
         if (progress.contentLength) {
-          this.downloadProgress = Math.round((progress.downloaded / progress.contentLength) * 100);
+          this.downloadProgress.set(Math.round((progress.downloaded / progress.contentLength) * 100));
         }
       });
 
-      this.updateState = 'ready';
-      this.lastResult = 'ready';
+      this.updateState.set('ready');
+      this.lastResult.set('ready');
       this.toastService.success('Atualização instalada, reinicie para aplicar');
     } catch (error) {
       console.error('Erro ao baixar/instalar atualização:', error);
       this.toastService.error('Não foi possível baixar a atualização');
-      this.updateState = 'available';
+      this.updateState.set('available');
     }
   }
 
-  async onRelaunch() {
+  protected async onRelaunch(): Promise<void> {
     await this.updateService.relaunch();
   }
 }

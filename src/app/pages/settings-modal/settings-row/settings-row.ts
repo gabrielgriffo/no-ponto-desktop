@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { TooltipDirective } from '../../../directives/tooltip.directive';
 
 /**
@@ -11,15 +11,16 @@ import { TooltipDirective } from '../../../directives/tooltip.directive';
   imports: [TooltipDirective],
   templateUrl: './settings-row.html',
   styleUrl: './settings-row.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsRow {
-  @Input() icon = '';
-  @Input() label = '';
-  @Input() description = '';
-  @Input() value = '';
-  @Input() badge = '';
-  @Input() dot = false;
-  @Input() showValueTooltip = true;
+  readonly icon = input('');
+  readonly label = input('');
+  readonly description = input('');
+  readonly value = input('');
+  readonly badge = input('');
+  readonly dot = input(false);
+  readonly showValueTooltip = input(true);
 
-  @Output() action = new EventEmitter<void>();
+  readonly action = output<void>();
 }

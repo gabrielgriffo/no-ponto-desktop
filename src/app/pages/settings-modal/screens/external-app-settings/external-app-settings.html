@@ -3,12 +3,12 @@
     <div class="setting-header">
       <span class="setting-label">Inicialização automática</span>
       <app-toggle-switch
-        [checked]="settings.externalAppAutostartEnabled"
-        (checkedChange)="settings.externalAppAutostartEnabled = $event; onChange()"
-      ></app-toggle-switch>
+        [checked]="settings().externalAppAutostartEnabled"
+        (checkedChange)="patch.emit({ externalAppAutostartEnabled: $event })"
+      />
     </div>
 
-    @if (settings.externalAppAutostartEnabled) {
+    @if (settings().externalAppAutostartEnabled) {
       <!-- Sem citar cada gatilho: a Sincronização Inteligente já está prevista como
            terceiro, e uma lista nominal ficaria desatualizada a cada um novo. -->
       <span class="setting-description">
@@ -20,24 +20,24 @@
         <button
           type="button"
           class="app-picker-button"
-          [disabled]="isPickingApp"
+          [disabled]="isPickingApp()"
           (click)="onPickExternalApp()">
           <span class="app-picker-label"
-                [appTooltip]="settings.externalApp?.path || ''"
+                [appTooltip]="settings().externalApp?.path || ''"
                 tooltipPosition="top">
-            {{ settings.externalApp?.name || 'Selecionar Aplicativo' }}
+            {{ settings().externalApp?.name || 'Selecionar Aplicativo' }}
           </span>
           <span class="i icon-open"></span>
         </button>
 
-        @if (settings.externalApp) {
+        @if (settings().externalApp) {
           <button
             type="button"
             class="sound-test-button"
             aria-label="Testar agora"
             appTooltip="Testar agora"
             tooltipPosition="top"
-            [disabled]="isTestingApp"
+            [disabled]="isTestingApp()"
             (click)="onTestExternalApp()">
             <span class="i icon-launch"></span>
           </button>

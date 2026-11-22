@@ -1,29 +1,17 @@
 import { Injectable } from '@angular/core';
-import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
+import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class AutostartService {
-
-  /**
-   * Habilita o autostart da aplicação
-   */
-  async enable(): Promise<void> {
-    await enable();
+  enable(): Promise<void> {
+    return enable();
   }
 
-  /**
-   * Verifica se o autostart está habilitado
-   */
-  async isEnabled(): Promise<boolean> {
-    return await isEnabled();
+  isEnabled(): Promise<boolean> {
+    return isEnabled();
   }
 
-  /**
-   * Desabilita o autostart da aplicação
-   */
-  async disable(): Promise<void> {
-    await disable();
+  disable(): Promise<void> {
+    return disable();
   }
 }

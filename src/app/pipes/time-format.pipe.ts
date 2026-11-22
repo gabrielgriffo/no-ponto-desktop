@@ -1,26 +1,14 @@
 import { Pipe, PipeTransform } from '@angular/core';
+import { TimeObject } from '../models/time-object';
 
-@Pipe({
-  name: 'timeFormat',
-  standalone: true,
-  pure: false
-})
+const pad = (value: number) => value.toString().padStart(2, '0');
+
+@Pipe({ name: 'timeFormat' })
 export class TimeFormatPipe implements PipeTransform {
-  transform(time: { hours: number; minutes: number }, format: 'duration' | 'clock' = 'duration'): string {
-    if (!time) {
-      return '';
-    }
-
-    if (format === 'clock') {
-      // Formato HH:MM para horários (ex: 18:54)
-      const h = time.hours.toString().padStart(2, '0');
-      const m = time.minutes.toString().padStart(2, '0');
-      return `${h}:${m}`;
-    } else {
-      // Formato Xh Xm para durações (ex: 7h 50m ou 07h 50m)
-      const h = time.hours.toString().padStart(2, '0');
-      const m = time.minutes.toString().padStart(2, '0');
-      return `${h}h ${m}m`;
-    }
+  transform(time: TimeObject | null | undefined, format: 'duration' | 'clock' = 'duration'): string {
+    if (!time) return '';
+    return format === 'clock'
+      ? `${pad(time.hours)}:${pad(time.minutes)}`
+      : `${pad(time.hours)}h ${pad(time.minutes)}m`;
   }
 }

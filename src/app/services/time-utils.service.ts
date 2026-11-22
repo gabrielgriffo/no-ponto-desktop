@@ -1,11 +1,7 @@
 import { Injectable } from '@angular/core';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class TimeUtilsService {
-  constructor() {}
-
   /**
    * Formata um input de tempo no formato HH:MM
    * @param value Valor atual do input

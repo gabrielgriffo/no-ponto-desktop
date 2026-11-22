@@ -1,14 +1,15 @@
-<div class="toast-container"
-     *ngFor="let toast of toasts; let i = index"
-     [class.exiting]="toast.isExiting"
-     [style.z-index]="getZIndex(i)"
-     [style.bottom.px]="getBottomOffset(i)"
-     [style.filter]="getBlur(i)">
-  <div class="toast" [ngClass]="'toast-' + toast.type"
-       [style.scale]="getScale(i)">
-    <span class="toast-message">{{ toast.message }}</span>
-    <button class="toast-close" (click)="close(toast.id)">
-      <span class="icon-close"></span>
-    </button>
+@for (toast of views(); track toast.id) {
+  <div class="toast-container"
+       [class.exiting]="toast.isExiting"
+       [style.z-index]="toast.zIndex"
+       [style.bottom.px]="toast.bottom"
+       [style.filter]="toast.blur">
+    <div class="toast" [class]="'toast-' + toast.type"
+         [style.scale]="toast.scale">
+      <span class="toast-message">{{ toast.message }}</span>
+      <button class="toast-close" (click)="close(toast.id)">
+        <span class="icon-close"></span>
+      </button>
+    </div>
   </div>
-</div>
+}

@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { invoke } from '@tauri-apps/api/core';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 
@@ -13,6 +14,8 @@ export interface UpdateProgress {
 export class UpdateService {
   readonly available = signal<Update | null>(null);
   readonly installing = signal(false);
+  /** Instalada nesta execução, faltando reiniciar. Sobrevive à troca de telas. */
+  readonly installed = signal(false);
 
   /** Verifica se há uma atualização disponível. Retorna null se já está na última versão. */
   async checkForUpdate(): Promise<Update | null> {
@@ -27,8 +30,14 @@ export class UpdateService {
     this.installing.set(true);
 
     try {
+      // O instalador e o reinício repassam os argumentos desta instância: sem o
+      // marcador, um app iniciado com o sistema voltaria escondido depois de atualizar.
+      await invoke('prepare_update_relaunch').catch(error =>
+        console.error('Erro ao marcar o reinício da atualização:', error)
+      );
       await this.runDownloadAndInstall(update, (progress) => onProgress?.(progress));
       this.available.set(null);
+      this.installed.set(true);
     } finally {
       this.installing.set(false);
     }
