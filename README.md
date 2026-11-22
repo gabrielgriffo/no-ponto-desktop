@@ -164,7 +164,9 @@ não sejam usados no dia seguinte.
 <summary><strong>Alarme</strong></summary>
 
 O alarme toca no momento em que o expediente passa de Em andamento (ou Em intervalo) para Hora
-extra, ou seja, quando o tempo restante chega a zero. Ele toca no máximo uma vez por dia e não toca
+extra, ou seja, no horário de Fim do Expediente. Enquanto a saída para o intervalo não foi
+registrada, esse horário inclui o intervalo padrão: o tempo restante zera antes, porque conta só o
+trabalho que falta, e o alarme espera o fim previsto. Ele toca no máximo uma vez por dia e não toca
 se o monitoramento começar depois que a jornada já foi completada. Com o alarme ligado, o rodapé da
 tela principal mostra o horário do próximo alarme.
 
@@ -218,8 +220,9 @@ O No Ponto pode abrir um aplicativo escolhido por você quando detecta o início
 volta de cada intervalo. A detecção vem das importações automáticas, então a sincronização
 automática precisa estar ligada.
 
-No Windows, o seletor começa na pasta de atalhos do Menu Iniciar e aceita `.exe`, `.lnk`, `.bat` e
-`.cmd`. No Linux, aceita `.desktop`, `.AppImage` e `.sh`. Se o aplicativo já estiver aberto, ele
+No Windows, o seletor começa na pasta de atalhos do Menu Iniciar. `.exe`, `.bat` e `.cmd` são
+executados direto; qualquer outro arquivo (`.lnk`, atalhos `.url` da Steam, documentos) é aberto pelo
+Windows, como num clique duplo. No Linux, aceita `.desktop`, `.AppImage` e `.sh`. Se o aplicativo já estiver aberto, ele
 não é iniciado de novo.
 
 </details>

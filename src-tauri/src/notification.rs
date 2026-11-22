@@ -23,7 +23,7 @@ pub fn notify_workday_end(app: AppHandle, title: String, body: String) -> Result
 }
 
 #[tauri::command]
-pub fn notification_status(app: AppHandle) -> NotificationStatus {
+pub async fn notification_status(app: AppHandle) -> NotificationStatus {
     platform::status(&app)
 }
 

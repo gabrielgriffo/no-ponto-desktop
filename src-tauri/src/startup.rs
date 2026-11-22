@@ -1,4 +1,46 @@
+use serde::{Deserialize, Serialize};
+use tauri::AppHandle;
+
 pub const AUTOSTART_ARG: &str = "--min";
+
+const RELAUNCH_FILE: &str = "relaunch.json";
+
+/// Depois disso o marcador é de uma atualização que não chegou a reiniciar, e a
+/// próxima inicialização com o sistema volta a valer como tal.
+const RELAUNCH_MARKER_TTL_SECS: i64 = 10 * 60;
+
+/// O instalador e o reinício repassam os argumentos da instância atual: sem este
+/// marcador, quem atualizou um app iniciado com o sistema o veria voltar escondido.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RelaunchMarker {
+    written_at: i64,
+}
+
+fn marker_is_fresh(written_at: i64, now: i64) -> bool {
+    (0..=RELAUNCH_MARKER_TTL_SECS).contains(&(now - written_at))
+}
+
+#[tauri::command]
+pub async fn prepare_update_relaunch(app: AppHandle) -> Result<(), String> {
+    let path = crate::storage::app_data_file(&app, RELAUNCH_FILE)?;
+    let marker = RelaunchMarker {
+        written_at: chrono::Utc::now().timestamp(),
+    };
+    crate::storage::write_json_atomic(&path, &marker)
+}
+
+/// Lê e apaga o marcador. Devolve se esta execução é o reinício de uma atualização.
+pub fn take_relaunch_marker(app: &AppHandle) -> bool {
+    let Ok(path) = crate::storage::app_data_file(app, RELAUNCH_FILE) else {
+        return false;
+    };
+    let marker = crate::storage::read_json::<RelaunchMarker>(&path).ok().flatten();
+    if marker.is_some() {
+        let _ = std::fs::remove_file(&path);
+    }
+    marker.is_some_and(|m| marker_is_fresh(m.written_at, chrono::Utc::now().timestamp()))
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct LaunchInfo {
@@ -9,6 +51,12 @@ impl LaunchInfo {
     pub fn from_args<I: IntoIterator<Item = String>>(args: I) -> Self {
         Self {
             autostarted: args.into_iter().any(|arg| arg == AUTOSTART_ARG),
+        }
+    }
+
+    pub fn after_update_relaunch(self, relaunched: bool) -> Self {
+        Self {
+            autostarted: self.autostarted && !relaunched,
         }
     }
 }
@@ -29,6 +77,21 @@ mod tests {
     fn autostart_is_detected_by_the_min_argument() {
         assert!(LaunchInfo::from_args(args(&["noponto.exe", "--min"])).autostarted);
         assert!(!LaunchInfo::from_args(args(&["noponto.exe"])).autostarted);
+    }
+
+    #[test]
+    fn an_update_relaunch_is_not_an_autostart() {
+        let autostarted = LaunchInfo { autostarted: true };
+        assert!(!autostarted.after_update_relaunch(true).autostarted);
+        assert!(autostarted.after_update_relaunch(false).autostarted);
+    }
+
+    #[test]
+    fn a_stale_marker_is_ignored() {
+        assert!(marker_is_fresh(1_000, 1_000));
+        assert!(marker_is_fresh(1_000, 1_000 + RELAUNCH_MARKER_TTL_SECS));
+        assert!(!marker_is_fresh(1_000, 1_001 + RELAUNCH_MARKER_TTL_SECS));
+        assert!(!marker_is_fresh(1_000, 999));
     }
 
     #[test]

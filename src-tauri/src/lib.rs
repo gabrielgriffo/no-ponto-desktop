@@ -1,23 +1,20 @@
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
-use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
-};
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 mod app_info;
-mod auto_close;
 mod auth_state;
+mod auto_close;
 mod auto_sync;
 mod credentials;
 mod device;
 mod external_app;
-mod pontomais;
 mod notification;
+mod pontomais;
 mod settings;
 mod smart_sync;
 mod startup;
+mod storage;
 mod tray;
 mod window;
 mod workday;
@@ -25,22 +22,17 @@ mod workday;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Precisa ser o primeiro plugin: a segunda instância deve sair antes de qualquer
+        // outro plugin inicializar.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            window::show_main(app);
+        }))
         .plugin(
             tauri_plugin_autostart::Builder::new()
                 .args([startup::AUTOSTART_ARG])
                 .app_name("NoPonto")
-                .build()
+                .build(),
         )
-        .manage(Mutex::new(auto_sync::AutoSyncState::new()))
-        .manage(smart_sync::SmartSyncSignal::default())
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            // Quando uma segunda instância é detectada, foca a janela existente
-            if let Some(window) = app.get_webview_window("main") {
-                window.unminimize().ok();
-                window.show().ok();
-                window.set_focus().ok();
-            }
-        }))
         .plugin(
             tauri_plugin_window_state::Builder::new()
                 .with_state_flags(StateFlags::POSITION)
@@ -48,6 +40,11 @@ pub fn run() {
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .manage(Mutex::new(auto_sync::AutoSyncState::default()))
+        .manage(smart_sync::SmartSyncSignal::default())
         .setup(|app| {
             // Precisa do AppHandle para ler a identidade da instalação em disco,
             // por isso fica aqui e não no `.manage()` do builder.
@@ -56,79 +53,23 @@ pub fn run() {
 
             let window = app
                 .get_webview_window("main")
-                .expect("main window not found");
-
-            // Restaura a última posição
+                .ok_or("main window not found")?;
             window.restore_state(StateFlags::POSITION).ok();
 
-            let launch = startup::LaunchInfo::from_args(std::env::args());
+            let launch = startup::LaunchInfo::from_args(std::env::args())
+                .after_update_relaunch(startup::take_relaunch_marker(app.handle()));
             app.manage(launch);
             auto_close::spawn(app.handle().clone(), launch);
+
             let start_minimized_enabled = settings::read_settings(app.handle())
                 .map(|s| s.start_minimized_enabled)
                 .unwrap_or(false);
 
             if !startup::start_hidden(launch, start_minimized_enabled) {
-                window.unminimize().ok();
-                window.show().ok();
-                window.set_focus().ok();
+                window::show_main(app.handle());
             }
 
-            // Configura propriedades da janela
-            window.set_title("No Ponto")?;
-            window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-                width: 393.0,
-                height: 506.0,
-            }))?;
-            window.set_decorations(false)?;
-            window.set_resizable(false)?;
-            window.set_fullscreen(false)?;
-            window.set_maximizable(false)?;
-
-            let open_i = MenuItem::with_id(app, "open", "Abrir No Ponto", true, None::<&str>)?;
-            let separator_i = PredefinedMenuItem::separator(app)?;
-            let quit_i = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open_i, &separator_i, &quit_i])?;
-
-            let tray_icon = tray::icon(app.handle(), None)?;
-            let _tray = TrayIconBuilder::with_id(tray::TRAY_ID)
-                .icon(tray_icon)
-                .tooltip(tray::tooltip(""))
-                .menu(&menu)
-                .show_menu_on_left_click(false)
-                .on_tray_icon_event(|tray, event| {
-                    if let tauri::tray::TrayIconEvent::Click { button, .. } = event {
-                        if button == tauri::tray::MouseButton::Left {
-                            let app = tray.app_handle();
-                            if let Some(window) = app.get_webview_window("main") {
-                                window.unminimize().ok();
-                                window.show().ok();
-                                window.set_focus().ok();
-                            }
-                        }
-                    }
-                })
-                .on_menu_event(|app, event| {
-                    if event.id == "open" {
-                        if let Some(window) = app.get_webview_window("main") {
-                            window.unminimize().ok();
-                            window.show().ok();
-                            window.set_focus().ok();
-                        }
-                    }
-                    if event.id == "quit" {
-                        app.exit(0);
-                    }
-                })
-                .build(app)?;
-
-            // Intercepta o evento de fechar a janela para apenas escondê-la
-            window.on_window_event(|event| {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    // Previne o fechamento padrão
-                    api.prevent_close();
-                }
-            });
+            tray::build(app)?;
 
             Ok(())
         })
@@ -143,12 +84,9 @@ pub fn run() {
             }
             _ => {}
         })
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
-            settings::save_settings,
             settings::load_settings,
+            settings::update_settings,
             app_info::get_app_info,
             pontomais::pontomais_authenticate,
             pontomais::pontomais_ensure_session,
@@ -162,9 +100,9 @@ pub fn run() {
             window::focus_main_window,
             notification::notify_workday_end,
             notification::notification_status,
-            notification::open_notification_settings
+            notification::open_notification_settings,
+            startup::prepare_update_relaunch
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

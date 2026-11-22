@@ -7,14 +7,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri::async_runtime::JoinHandle;
 use tokio::time::{sleep, Duration};
 
+#[derive(Default)]
 pub struct AutoSyncState {
     pub handle: Option<JoinHandle<()>>,
-}
-
-impl AutoSyncState {
-    pub fn new() -> Self {
-        Self { handle: None }
-    }
 }
 
 pub type AutoSyncStateType = Mutex<AutoSyncState>;
@@ -29,7 +24,7 @@ pub async fn configure_auto_sync(
 ) -> Result<(), String> {
     // Uma única trava do abort ao novo handle: soltá-la no meio deixaria duas chamadas
     // simultâneas criarem dois laços, com um deles órfão e impossível de abortar.
-    let mut state = auto_sync_state.lock().unwrap();
+    let mut state = auto_sync_state.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(handle) = state.handle.take() {
         handle.abort();
     }
@@ -104,7 +99,7 @@ async fn perform_sync(app: &AppHandle, report_unauthenticated: bool) -> SyncOutc
     };
 
     let is_authenticated = {
-        pm_state.lock().unwrap().token.is_some()
+        crate::pontomais::lock_session(&pm_state).token.is_some()
     };
 
     if !is_authenticated {
@@ -118,9 +113,7 @@ async fn perform_sync(app: &AppHandle, report_unauthenticated: bool) -> SyncOutc
 
     match fetch_workday_reconnecting(app, &pm_state, &today).await {
         Ok(data) => {
-            if let Err(e) = crate::external_app::maybe_launch(app, &data, &today) {
-                eprintln!("[external_app] {}", e);
-            }
+            crate::external_app::maybe_launch_in_background(app.clone(), data.clone(), today).await;
 
             let _ = app.emit("auto-sync-result", serde_json::json!({
                 "status": "success",

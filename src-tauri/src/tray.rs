@@ -1,5 +1,10 @@
 use serde::Deserialize;
-use tauri::{image::Image, AppHandle};
+use tauri::{
+    image::Image,
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
+    App, AppHandle,
+};
 
 pub const TRAY_ID: &str = "com.gabrielgriffo.noponto.tray";
 
@@ -58,17 +63,47 @@ fn tray_scale_factor(app: &AppHandle) -> f64 {
         .unwrap_or(1.0)
 }
 
-pub fn icon(app: &AppHandle, state: Option<JourneyState>) -> Result<Image<'static>, String> {
-    let bytes = icon_set(state)[size_index(tray_scale_factor(app))];
-    Image::from_bytes(bytes).map_err(|e| e.to_string())
+fn icon(app: &AppHandle, state: Option<JourneyState>) -> tauri::Result<Image<'static>> {
+    Image::from_bytes(icon_set(state)[size_index(tray_scale_factor(app))])
 }
 
-pub fn tooltip(status: &str) -> String {
+fn tooltip(status: &str) -> String {
     if status.is_empty() {
         "No Ponto".to_string()
     } else {
         format!("No Ponto: {status}")
     }
+}
+
+const MENU_OPEN: &str = "open";
+const MENU_QUIT: &str = "quit";
+
+pub fn build(app: &App) -> tauri::Result<()> {
+    let open = MenuItem::with_id(app, MENU_OPEN, "Abrir No Ponto", true, None::<&str>)?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let quit = MenuItem::with_id(app, MENU_QUIT, "Sair", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &separator, &quit])?;
+
+    TrayIconBuilder::with_id(TRAY_ID)
+        .icon(icon(app.handle(), None)?)
+        .tooltip(tooltip(""))
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
+                crate::window::show_main(tray.app_handle());
+            }
+        })
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            MENU_OPEN => {
+                crate::window::show_main(app);
+            }
+            MENU_QUIT => app.exit(0),
+            _ => {}
+        })
+        .build(app)?;
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -80,8 +115,8 @@ pub fn set_tray_status(
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return Ok(());
     };
-    tray.set_icon(Some(icon(&app, state)?))
-        .map_err(|e| e.to_string())?;
+    let icon = icon(&app, state).map_err(|e| e.to_string())?;
+    tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
     tray.set_tooltip(Some(tooltip(&status)))
         .map_err(|e| e.to_string())
 }

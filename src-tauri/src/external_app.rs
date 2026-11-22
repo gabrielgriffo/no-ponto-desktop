@@ -384,6 +384,18 @@ fn wrap_in_terminal(
     })
 }
 
+/// O que o `CreateProcess` do Windows roda direto. O resto (`.lnk`, `.url` da Steam,
+/// documentos) só abre pelo shell, e o seletor aceita qualquer arquivo.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+const WINDOWS_EXECUTABLES: &[&str] = &["exe", "bat", "cmd", "com"];
+
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn opens_through_shell(program: &str) -> bool {
+    !WINDOWS_EXECUTABLES
+        .iter()
+        .any(|extension| has_extension(program, extension))
+}
+
 fn find_in_path(name: &str) -> bool {
     std::env::var_os("PATH").is_some_and(|paths| {
         std::env::split_paths(&paths).any(|dir| dir.join(name).is_file())
@@ -427,7 +439,7 @@ fn process_name(program: &str, args: &[String]) -> Option<String> {
         return file_name(target).map(str::to_string);
     }
 
-    let is_script = [".bat", ".cmd", ".lnk", ".sh"]
+    let is_script = [".bat", ".cmd", ".lnk", ".sh", ".url"]
         .iter()
         .any(|ext| lower.ends_with(ext));
 
@@ -458,7 +470,7 @@ fn is_already_running(target: &ExternalApp) -> bool {
     is_in_process_list(&name, &running_process_names())
 }
 
-pub fn maybe_launch(app: &AppHandle, work_day: &Value, today: &str) -> Result<bool, String> {
+fn maybe_launch(app: &AppHandle, work_day: &Value, today: &str) -> Result<bool, String> {
     let Some(guard) = app.try_state::<LaunchGuard>() else {
         return Ok(false);
     };
@@ -466,7 +478,7 @@ pub fn maybe_launch(app: &AppHandle, work_day: &Value, today: &str) -> Result<bo
     // A trava cobre o ciclo inteiro — verificar, lançar e gravar. No boot os dois
     // gatilhos chegam quase juntos e passariam pela verificação antes de qualquer
     // um gravar, abrindo o aplicativo duas vezes.
-    let mut state = guard.lock().unwrap();
+    let mut state = guard.lock().unwrap_or_else(|e| e.into_inner());
     let period = crate::workday::work_period(work_day);
 
     if state.already_launched(today, period) {
@@ -508,17 +520,22 @@ pub fn maybe_launch(app: &AppHandle, work_day: &Value, today: &str) -> Result<bo
     Ok(true)
 }
 
-#[tauri::command]
-pub fn external_app_maybe_launch(
-    app: AppHandle,
-    work_day: Value,
-    date: String,
-) -> Result<(), String> {
-    if let Err(e) = maybe_launch(&app, &work_day, &date) {
-        eprintln!("[external_app] {}", e);
-    }
+/// `maybe_launch` lista processos, lê atalhos e grava em disco: roda numa thread de
+/// bloqueio para não prender a thread principal nem um worker do runtime.
+pub async fn maybe_launch_in_background(app: AppHandle, work_day: Value, date: String) {
+    let result =
+        tauri::async_runtime::spawn_blocking(move || maybe_launch(&app, &work_day, &date)).await;
 
-    Ok(())
+    match result {
+        Ok(Ok(_)) => {}
+        Ok(Err(e)) => eprintln!("[external_app] {}", e),
+        Err(e) => eprintln!("[external_app] Tarefa de lançamento falhou: {}", e),
+    }
+}
+
+#[tauri::command]
+pub async fn external_app_maybe_launch(app: AppHandle, work_day: Value, date: String) {
+    maybe_launch_in_background(app, work_day, date).await;
 }
 
 /// O `exec` e os `args` salvos vêm da webview; o que roda é sempre recalculado aqui a
@@ -538,7 +555,9 @@ pub async fn external_app_test_launch(app: AppHandle) -> Result<(), String> {
         .external_app
         .ok_or("Nenhum aplicativo foi escolhido.")?;
 
-    launch(&trusted_target(&saved)?)
+    tauri::async_runtime::spawn_blocking(move || launch(&trusted_target(&saved)?))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 pub fn launch(target: &ExternalApp) -> Result<(), String> {
@@ -562,9 +581,10 @@ fn spawn_detached(spec: &LaunchSpec) -> Result<(), String> {
 
     const DETACHED_PROCESS: u32 = 0x0000_0008;
 
-    if has_extension(&spec.program, "lnk") {
-        // Um .lnk não é executável — só o shell sabe resolvê-lo, inclusive
-        // atalhos de apps da Microsoft Store, que não apontam para um arquivo.
+    if opens_through_shell(&spec.program) {
+        // Um .lnk, um .url ou um documento não é executável — só o shell sabe
+        // abri-lo, inclusive atalhos de apps da Microsoft Store, que não apontam
+        // para um arquivo.
         return tauri_plugin_opener::open_path(&spec.program, None::<&str>)
             .map_err(|e| e.to_string());
     }
@@ -758,17 +778,7 @@ fn running_process_names() -> Vec<String> {
     Vec::new()
 }
 
-fn launch_state_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
-
-    fs::create_dir_all(&app_data_dir)
-        .map_err(|e| format!("Failed to create app data directory: {}", e))?;
-
-    Ok(app_data_dir.join("external_app_state.json"))
-}
+const LAUNCH_STATE_FILE: &str = "external_app_state.json";
 
 /// Arquivo ausente ou corrompido cai no padrão "nunca lançou".
 ///
@@ -776,23 +786,14 @@ fn launch_state_path(app: &AppHandle) -> Result<PathBuf, String> {
 /// reescreve o arquivo válido em seguida; o lado oposto travaria o recurso para
 /// sempre sem nenhum sinal para o usuário.
 fn read_launch_state(app: &AppHandle) -> LaunchState {
-    let Ok(path) = launch_state_path(app) else {
-        return LaunchState::default();
-    };
-
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|json| serde_json::from_str(&json).ok())
+    crate::storage::app_data_file(app, LAUNCH_STATE_FILE)
+        .map(|path| crate::storage::read_json_or_default(&path))
         .unwrap_or_default()
 }
 
 fn write_launch_state(app: &AppHandle, state: &LaunchState) -> Result<(), String> {
-    let path = launch_state_path(app)?;
-
-    let json = serde_json::to_string_pretty(state)
-        .map_err(|e| format!("Failed to serialize launch state: {}", e))?;
-
-    fs::write(path, json).map_err(|e| format!("Failed to write launch state: {}", e))
+    let path = crate::storage::app_data_file(app, LAUNCH_STATE_FILE)?;
+    crate::storage::write_json_atomic(&path, state)
 }
 
 #[cfg(test)]
@@ -1047,6 +1048,20 @@ mod tests {
         let wrapped = wrap_in_terminal(spec, |_| panic!("não deveria procurar terminal")).unwrap();
 
         assert_eq!(wrapped.program, "firefox");
+    }
+
+    #[test]
+    fn only_real_executables_skip_the_shell() {
+        assert!(!opens_through_shell(r"C:\Apps\code.exe"));
+        assert!(!opens_through_shell("C:/Apps/run.CMD"));
+        assert!(opens_through_shell(r"C:\Menu\Chrome.lnk"));
+        assert!(opens_through_shell(r"C:\Menu\Jogo.url"));
+        assert!(opens_through_shell(r"C:\Docs\planilha.xlsx"));
+    }
+
+    #[test]
+    fn a_url_shortcut_has_no_process_name() {
+        assert_eq!(process_name(r"C:\Menu\Jogo.url", &[]), None);
     }
 
     #[test]

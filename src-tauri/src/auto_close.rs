@@ -51,7 +51,7 @@ async fn run(app: AppHandle) {
         let Some(state) = app.try_state::<PontoMaisStateType>() else {
             continue;
         };
-        if state.lock().unwrap().token.is_none() {
+        if crate::pontomais::lock_session(&state).token.is_none() {
             continue;
         }
 

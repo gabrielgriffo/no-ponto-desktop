@@ -1,5 +1,6 @@
 use reqwest::{header, Client};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
@@ -28,6 +29,12 @@ impl PontoMaisState {
 
 pub type PontoMaisStateType = Mutex<PontoMaisState>;
 
+/// Nenhum trecho com a trava segura pode deixar a sessão pela metade, então um
+/// panic em outra thread não é motivo para derrubar a integração até reiniciar.
+pub(crate) fn lock_session(state: &PontoMaisStateType) -> std::sync::MutexGuard<'_, PontoMaisState> {
+    state.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 pub(crate) const BASE_URL: &str = "https://api.pontomais.com.br";
 
 /// A sessão morreu e a conta foi desvinculada — o frontend deve atualizar a tela.
@@ -35,7 +42,12 @@ pub(crate) const SESSION_EXPIRED: &str = "SESSION_EXPIRED";
 
 /// A sessão morreu, mas a reconexão ainda pode dar certo. Nada foi apagado.
 pub(crate) const RECONNECT_PENDING: &str = "RECONNECT_PENDING";
+
+/// Não há sessão em memória (o cofre não foi lido ainda). Buscar assim mandaria uma
+/// requisição sem token, e a recusa seria confundida com sessão expirada.
+pub(crate) const NOT_AUTHENTICATED: &str = "NOT_AUTHENTICATED";
 const APP_ORIGIN: &str = "https://app2.pontomais.com.br";
+const APP_REFERER: &str = "https://app2.pontomais.com.br/";
 
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
 
@@ -53,13 +65,12 @@ pub(crate) fn http_client() -> &'static Client {
     &HTTP_CLIENT
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct Credentials {
     pub username: String,
     pub password: String,
 }
 
-#[derive(Serialize, Deserialize)]
 pub struct AuthResponse {
     pub token: String,
     pub client_id: String,
@@ -117,16 +128,7 @@ async fn authenticate(
     let client = http_client();
     let url = format!("{}/api/auth/sign_in", BASE_URL);
 
-    let mut headers = header::HeaderMap::new();
-    headers.insert(
-        "accept",
-        "application/json, text/plain, */*".parse().unwrap(),
-    );
-    headers.insert("api-version", "2".parse().unwrap());
-    headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
-    headers.insert("origin", APP_ORIGIN.parse().unwrap());
-    headers.insert(header::REFERER, format!("{}/", APP_ORIGIN).parse().unwrap());
-    headers.insert(header::USER_AGENT, USER_AGENT.parse().unwrap());
+    let headers = base_headers();
 
     let payload = serde_json::json!({
         "login": username,
@@ -177,7 +179,7 @@ async fn authenticate(
 
     // Salvar no estado; mutex liberado antes do .await seguinte
     {
-        let mut pm_state = state.lock().unwrap();
+        let mut pm_state = lock_session(state);
         pm_state.token = Some(token.clone());
         pm_state.client_id = Some(client_id.clone());
         pm_state.expiry = Some(expiry.clone());
@@ -225,11 +227,27 @@ pub async fn pontomais_authenticate(
         return Err(e);
     }
 
+    // A conta vinculada vai junto com o token: o login guardado é o que a reconexão
+    // combina com a senha do cofre, e gravá-lo depois, noutra escrita, podia deixar
+    // o login de uma conta com a senha de outra.
+    let login = credentials.username.trim().to_string();
+    let saved = crate::settings::modify_settings(&app, |settings| {
+        settings.pontomais_login = login.clone();
+        settings.is_pontomais_logged_in = true;
+        Ok(())
+    });
+    let settings = match saved {
+        Ok(settings) => settings,
+        Err(e) => {
+            clear_memory_session(&state);
+            crate::credentials::delete_all();
+            return Err(format!("Não foi possível salvar a conta: {}", e));
+        }
+    };
+
     // Com a Reconexão Automática desligada a entrada é apagada, não ignorada: quem
     // desliga a chave e conecta de novo não pode ficar com a senha da vez anterior.
-    let keep_password = crate::settings::read_settings(&app)
-        .map(|s| s.auto_reconnect_enabled)
-        .unwrap_or(false);
+    let keep_password = settings.auto_reconnect_enabled;
 
     let stored = if keep_password {
         crate::credentials::save_password(&credentials.password)
@@ -249,7 +267,7 @@ pub async fn pontomais_authenticate(
 }
 
 fn clear_memory_session(state: &PontoMaisStateType) {
-    let mut pm_state = state.lock().unwrap();
+    let mut pm_state = lock_session(state);
     pm_state.token = None;
     pm_state.client_id = None;
     pm_state.expiry = None;
@@ -275,13 +293,19 @@ pub async fn pontomais_ensure_session(
     app: AppHandle,
     state: tauri::State<'_, PontoMaisStateType>,
 ) -> Result<SessionStatus, String> {
+    // Sessão viva em memória é mais nova que o cofre (uma reconexão pode não ter
+    // conseguido gravar o token novo): relê-lo trocaria o token bom pelo morto.
+    if lock_session(&state).token.is_some() {
+        return Ok(SessionStatus::Connected);
+    }
+
     let Some(stored) = crate::credentials::get_token()? else {
         return Ok(SessionStatus::SignedOut);
     };
 
     // Mutex liberado antes do .await
     {
-        let mut pm_state = state.lock().unwrap();
+        let mut pm_state = lock_session(&state);
         pm_state.token = Some(stored.token);
         pm_state.client_id = Some(stored.client_id);
         pm_state.expiry = Some(stored.expiry);
@@ -313,9 +337,13 @@ pub async fn pontomais_clear_session(
     app: AppHandle,
     state: tauri::State<'_, PontoMaisStateType>,
 ) -> Result<(), String> {
+    // Uma reconexão em andamento gravaria o token novo depois desta limpeza e a conta
+    // voltaria sozinha na próxima abertura.
+    let _reconnecting = RECONNECT_LOCK.lock().await;
+
     // Mutex liberado antes do .await
     let headers = {
-        let pm_state = state.lock().unwrap();
+        let pm_state = lock_session(&state);
         pm_state.token.as_ref().map(|_| build_headers(&pm_state))
     };
 
@@ -342,18 +370,22 @@ pub async fn pontomais_clear_session(
     Ok(())
 }
 
-pub(crate) fn build_headers(state: &PontoMaisState) -> header::HeaderMap {
-    let mut headers = header::HeaderMap::new();
+/// Headers fixos que apresentam a requisição como o cliente web.
+fn base_headers() -> header::HeaderMap {
+    use header::HeaderValue;
 
-    headers.insert(
-        "accept",
-        "application/json, text/plain, */*".parse().unwrap(),
-    );
-    headers.insert("api-version", "2".parse().unwrap());
-    headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
-    headers.insert("origin", APP_ORIGIN.parse().unwrap());
-    headers.insert(header::REFERER, format!("{}/", APP_ORIGIN).parse().unwrap());
-    headers.insert(header::USER_AGENT, USER_AGENT.parse().unwrap());
+    let mut headers = header::HeaderMap::with_capacity(12);
+    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json, text/plain, */*"));
+    headers.insert("api-version", HeaderValue::from_static("2"));
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert(header::ORIGIN, HeaderValue::from_static(APP_ORIGIN));
+    headers.insert(header::REFERER, HeaderValue::from_static(APP_REFERER));
+    headers.insert(header::USER_AGENT, HeaderValue::from_static(USER_AGENT));
+    headers
+}
+
+pub(crate) fn build_headers(state: &PontoMaisState) -> header::HeaderMap {
+    let mut headers = base_headers();
 
     insert_dynamic(&mut headers, "uid", state.username.as_deref());
     insert_dynamic(&mut headers, "uuid", Some(&state.uuid));
@@ -391,7 +423,7 @@ pub async fn fetch_workday(
     );
     // Mutex liberado antes do .await
     let headers = {
-        let pm_state = state.lock().unwrap();
+        let pm_state = lock_session(state);
         build_headers(&pm_state)
     };
     let response = client
@@ -432,6 +464,20 @@ fn interpret_workday_response(
 static RECONNECT_LOCK: LazyLock<tokio::sync::Mutex<()>> =
     LazyLock::new(|| tokio::sync::Mutex::new(()));
 
+/// Conta as tentativas de reconexão. Quem esperou na trava compara o valor de antes
+/// e de depois para saber que outra tentativa acabou de acontecer.
+static RECONNECT_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+/// O que devolver quando outra tarefa tentou reconectar enquanto esta esperava e a
+/// sessão continua morta: tentar de novo na hora gastaria a segunda chance da senha.
+fn outcome_after_concurrent_attempt(has_token: bool) -> String {
+    if has_token {
+        RECONNECT_PENDING.to_string()
+    } else {
+        SESSION_EXPIRED.to_string()
+    }
+}
+
 /// Resultado de uma tentativa de reconexão.
 enum ReconnectOutcome {
     /// Token novo em mãos; quem chamou pode repetir a requisição.
@@ -448,6 +494,8 @@ enum ReconnectOutcome {
 /// Só é chamada quando a API já disse que a sessão morreu, então não existe caminho
 /// em que ela reautentique por cima de uma sessão válida.
 async fn reconnect(app: &AppHandle, state: &PontoMaisStateType) -> ReconnectOutcome {
+    RECONNECT_EPOCH.fetch_add(1, Ordering::SeqCst);
+
     // Configuração ilegível (ex.: lida no meio de uma gravação) não é o mesmo que
     // reconexão desligada: apagar o cofre aqui puniria quem não errou nada.
     let settings = match crate::settings::read_settings(app) {
@@ -460,11 +508,17 @@ async fn reconnect(app: &AppHandle, state: &PontoMaisStateType) -> ReconnectOutc
     let enabled = settings.auto_reconnect_enabled;
     let login = settings.pontomais_login;
 
+    // Cofre indisponível (no Linux o serviço de segredos pode ainda estar subindo) não
+    // é o mesmo que senha ausente: desvincular aqui faria digitar de novo uma senha
+    // que continua guardada.
     let password = if enabled {
-        crate::credentials::get_password().unwrap_or_else(|e| {
-            eprintln!("[pontomais] Falha ao ler a senha do cofre: {}", e);
-            None
-        })
+        match crate::credentials::get_password() {
+            Ok(password) => password,
+            Err(e) => {
+                eprintln!("[pontomais] Reconexão adiada: cofre ilegível: {}", e);
+                return ReconnectOutcome::Failed;
+            }
+        }
     } else {
         None
     };
@@ -514,11 +568,12 @@ fn sign_out(app: &AppHandle, state: &PontoMaisStateType) {
     crate::credentials::delete_all();
     crate::auth_state::reset(app);
 
-    if let Ok(mut settings) = crate::settings::read_settings(app) {
+    let saved = crate::settings::modify_settings(app, |settings| {
         settings.is_pontomais_logged_in = false;
-        if let Err(e) = crate::settings::write_settings(app, &settings) {
-            eprintln!("[pontomais] Falha ao registrar a desconexão nas settings: {}", e);
-        }
+        Ok(())
+    });
+    if let Err(e) = saved {
+        eprintln!("[pontomais] Falha ao registrar a desconexão nas settings: {}", e);
     }
 
     crate::window::bring_to_front(app);
@@ -533,6 +588,11 @@ pub async fn fetch_workday_reconnecting(
     state: &PontoMaisStateType,
     date: &str,
 ) -> Result<serde_json::Value, String> {
+    if lock_session(state).token.is_none() {
+        return Err(NOT_AUTHENTICATED.to_string());
+    }
+
+    let epoch = RECONNECT_EPOCH.load(Ordering::SeqCst);
     let first = fetch_workday(state, date).await;
 
     let Err(error) = first else {
@@ -547,9 +607,18 @@ pub async fn fetch_workday_reconnecting(
     // as duas reconectam e uma única senha recusada conta como duas falhas.
     let _guard = RECONNECT_LOCK.lock().await;
 
+    let attempted_meanwhile = RECONNECT_EPOCH.load(Ordering::SeqCst) != epoch;
+    if attempted_meanwhile && lock_session(state).token.is_none() {
+        return Err(SESSION_EXPIRED.to_string());
+    }
+
     let retry = fetch_workday(state, date).await;
     if !matches!(&retry, Err(e) if e == SESSION_EXPIRED) {
         return retry;
+    }
+
+    if attempted_meanwhile {
+        return Err(outcome_after_concurrent_attempt(lock_session(state).token.is_some()));
     }
 
     match reconnect(app, state).await {
@@ -622,6 +691,12 @@ mod tests {
         assert!(headers.get("uid").is_none());
         assert_eq!(headers.get("access-token").unwrap(), "abc");
         assert_eq!(headers.get("uuid").unwrap(), "uuid-1");
+    }
+
+    #[test]
+    fn a_failed_concurrent_attempt_does_not_reconnect_again() {
+        assert_eq!(outcome_after_concurrent_attempt(true), RECONNECT_PENDING);
+        assert_eq!(outcome_after_concurrent_attempt(false), SESSION_EXPIRED);
     }
 
     #[test]

@@ -1,9 +1,8 @@
 use crate::pontomais::{build_headers, http_client, PontoMaisState, BASE_URL};
+use crate::storage;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use uuid::Uuid;
 
 /// Identidade desta instalação perante a API do Ponto Mais.
@@ -31,24 +30,11 @@ const PLATFORM: u8 = 4;
 const DEVICE_MODEL: &str = "Chrome";
 const PLATFORM_VERSION: &str = "148";
 
-fn state_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
-
-    fs::create_dir_all(&app_data_dir)
-        .map_err(|e| format!("Failed to create app data directory: {}", e))?;
-
-    Ok(app_data_dir.join("device.json"))
-}
+const STATE_FILE: &str = "device.json";
 
 fn read_state(app: &AppHandle) -> Option<DeviceState> {
-    let path = state_path(app).ok()?;
-
-    let state: DeviceState = fs::read_to_string(path)
-        .ok()
-        .and_then(|json| serde_json::from_str(&json).ok())?;
+    let path = storage::app_data_file(app, STATE_FILE).ok()?;
+    let state: DeviceState = storage::read_json(&path).ok().flatten()?;
 
     // Um arquivo sem uuid é indistinguível de arquivo ausente: gerar um novo é o
     // único caminho, e é melhor que enviar string vazia no header.
@@ -60,12 +46,8 @@ fn read_state(app: &AppHandle) -> Option<DeviceState> {
 }
 
 fn write_state(app: &AppHandle, state: &DeviceState) -> Result<(), String> {
-    let path = state_path(app)?;
-
-    let json = serde_json::to_string_pretty(state)
-        .map_err(|e| format!("Failed to serialize device state: {}", e))?;
-
-    fs::write(path, json).map_err(|e| format!("Failed to write device state: {}", e))
+    let path = storage::app_data_file(app, STATE_FILE)?;
+    storage::write_json_atomic(&path, state)
 }
 
 /// Carrega a identidade da instalação, criando-a na primeira execução.
@@ -97,7 +79,7 @@ pub fn load_or_create(app: &AppHandle) -> DeviceState {
 /// falhar aqui não pode derrubar um login que deu certo.
 pub async fn register(app: &AppHandle, state: &crate::pontomais::PontoMaisStateType) -> bool {
     let (headers, uuid, login) = {
-        let pm_state = state.lock().unwrap();
+        let pm_state = crate::pontomais::lock_session(state);
 
         if pm_state.token.is_none() {
             return true;

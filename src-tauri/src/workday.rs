@@ -45,7 +45,7 @@ pub fn worked_minutes(cards: &[&Value]) -> Option<u32> {
     }
     times.sort_unstable();
 
-    Some(times.chunks_exact(2).map(|pair| pair[1] - pair[0]).sum())
+    Some(times.as_chunks::<2>().0.iter().map(|[start, end]| end - start).sum())
 }
 
 pub fn is_started(cards: &[&Value]) -> bool {
@@ -55,7 +55,7 @@ pub fn is_started(cards: &[&Value]) -> bool {
 /// Contagem ímpar significa par aberto: o usuário está dentro do expediente
 /// agora, e nada mais precisa ser consultado.
 pub fn is_ended(cards: &[&Value], expected_minutes: u32) -> bool {
-    if cards.is_empty() || cards.len() % 2 != 0 {
+    if cards.is_empty() || !cards.len().is_multiple_of(2) {
         return false;
     }
 
