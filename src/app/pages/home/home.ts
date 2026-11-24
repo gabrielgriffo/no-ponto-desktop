@@ -673,7 +673,7 @@ export class Home implements OnInit, OnDestroy {
         this.scheduleStartupImportRetry(STARTUP_IMPORT_MAX_RETRIES);
       } else {
         console.error('Erro ao importar:', error);
-        this.toastService.error('Erro ao importar horários', 3000);
+        this.toastService.error('Erro ao importar horários. Tente novamente em instantes.', 3000);
       }
 
       return null;

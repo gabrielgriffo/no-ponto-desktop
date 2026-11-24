@@ -15,7 +15,7 @@ export interface SelectOption<T = any> {
 export class CustomSelect<T = any> {
   readonly options = input<SelectOption<T>[]>([]);
   readonly value = input<T>();
-  readonly placeholder = input('Selecione...');
+  readonly placeholder = input('Selecione…');
   readonly valueChange = output<T>();
 
   protected readonly isOpen = signal(false);

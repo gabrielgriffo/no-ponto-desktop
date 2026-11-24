@@ -58,7 +58,7 @@ export class AboutSettingsComponent {
 
   protected readonly statusLabel = computed(() => {
     const version = this.newVersion();
-    if (this.installing()) return 'Instalando...';
+    if (this.installing()) return 'Instalando…';
     if (this.ready()) return `Versão ${this.ready()?.version} pronta para instalar`;
     if (this.downloading()) return `Baixando a versão ${version}`;
     if (this.downloadFailed()) return 'Falha ao baixar a atualização';

@@ -60,7 +60,9 @@
   border-radius: var(--radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
   z-index: 1000;
-  overflow: hidden;
+  max-height: 200px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   animation: slideDown 0.15s ease;
 }
 

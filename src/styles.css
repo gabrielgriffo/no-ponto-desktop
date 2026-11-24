@@ -13,6 +13,30 @@
   outline: none;
 }
 
+@property --state {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #22A447;
+}
+
+@property --state-soft {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #43B263;
+}
+
+@property --state-deep {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0E7A33;
+}
+
+@property --state-tint {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #E4F4E9;
+}
+
 /* Global Styles */
 @font-face {
   font-family: 'DM Sans';

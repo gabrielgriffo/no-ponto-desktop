@@ -64,6 +64,8 @@
 .about-value {
   font-weight: 400;
   color: var(--gray-medium);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .about-value.is-available {

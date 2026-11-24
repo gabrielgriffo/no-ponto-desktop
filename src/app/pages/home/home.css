@@ -6,6 +6,7 @@
   --accent-color: var(--state);
   --accent-color-light: var(--state-soft);
   --accent-tint: var(--state-tint);
+  transition: --state 0.35s ease, --state-soft 0.35s ease, --state-deep 0.35s ease, --state-tint 0.35s ease;
 }
 
 :host([data-state="pausado"]) {
@@ -303,7 +304,6 @@ input:focus {
   gap: 0;
   padding: 20px 0 26px;
   background: radial-gradient(ellipse 80% 85% at 80% 100%, var(--state-deep) -40%, var(--state) 100%);
-  transition: background 0.35s ease;
 }
 
 .metrics-container .metric-label {

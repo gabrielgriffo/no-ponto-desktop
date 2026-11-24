@@ -56,7 +56,7 @@
 
     <div class="update-section">
       <button class="app-picker-button update-button" [disabled]="isUpdateBusy()" (click)="onCheckForUpdate()">
-        {{ checking() ? 'Verificando...' : 'Verificar atualizações' }}
+        {{ checking() ? 'Verificando…' : 'Verificar atualizações' }}
       </button>
 
       @if (ready() && !installing()) {
