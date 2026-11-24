@@ -51,7 +51,7 @@
     <section class="progress-section">
       <div class="progress-content">
         <div class="progress-bar">
-          <div class="progress-fill" [class]="isWorkDayComplete() || isOnBreak() ? 'progress-solid-green' : 'animated'" [style.width.%]="progressPercentage()"></div>
+          <div class="progress-fill" [style.width.%]="progressPercentage()"></div>
         </div>
         @if (isMonitoring()) {
           <span class="progress-percentage">{{ progressLabel() }}%</span>

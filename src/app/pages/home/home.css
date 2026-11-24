@@ -115,21 +115,6 @@
   flex-direction: column;
 }
 
-.divider {
-  margin: 0;
-  align-self: center;
-  width: 120%;
-  border-top: 0 solid transparent;
-  border-image-source: repeating-linear-gradient(
-    to right,
-    var(--border-gray) 0,
-    var(--border-gray) 5px,
-    transparent 5px,
-    transparent 10px
-  );
-  border-image-slice: 1;
-}
-
 .time-actions {
   background-color: var(--bg-white);
   padding: 22px 20px 22px;
@@ -158,13 +143,6 @@
   font-weight: 500;
   color: var(--gray-medium);
   transition: color var(--transition-default);
-}
-
-.time-value {
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--text-dark);
-  letter-spacing: -0.5px;
 }
 
 .time-input {
@@ -424,21 +402,10 @@ input:focus {
   color: #fff;
 }
 
-.gray {
-  color: var(--border-gray);
-}
-
 .progress-section {
   padding: 0 20px;
   background-color: transparent;
   border-radius: var(--radius);
-}
-
-.progress-title {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--gray-medium);
-  margin-bottom: 3px;
 }
 
 .progress-percentage {
@@ -472,16 +439,12 @@ input:focus {
   background: #fff;
 }
 
-.animated {
-  animation: progress-stripes 6s linear infinite;
-}
-
 @keyframes progress-stripes {
   from {
-    background-position: 0 0;
+    transform: translateX(0);
   }
   to {
-    background-position: 30px 0;
+    transform: translateX(30px);
   }
 }
 
@@ -537,8 +500,16 @@ input:focus {
 }
 
 .period-bar.period-green {
+  position: relative;
+  overflow: hidden;
   border-radius: 99px;
   transition: width 0.3s ease;
+}
+
+.period-bar.period-green::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 -30px;
   background: linear-gradient(
     -45deg,
     var(--state) 25%,
@@ -552,12 +523,12 @@ input:focus {
   background-size: 15px 15px;
 }
 
-.period-bar.period-solid-green {
-  background: var(--state);
+.period-bar.period-green.animated::before {
+  animation: progress-stripes 6s linear infinite;
 }
 
-.progress-fill.progress-solid-green {
-  background: #fff;
+.period-bar.period-solid-green {
+  background: var(--state);
 }
 
 .period-label {
@@ -592,12 +563,6 @@ input:focus {
   background: var(--border-gray-light);
 }
 
-.status-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--gray-medium);
-}
-
 .status-value {
   font-size: 12px;
   font-weight: 500;
@@ -620,10 +585,6 @@ input:focus {
   color: var(--error);
 }
 
-.status-value.warning {
-  color: #ffa700;
-}
-
 .status-value.info {
   color: #007aff;
 }
@@ -632,20 +593,8 @@ input:focus {
   color: #1e90ff;
 }
 
-.status-value.inactive {
-  color: #9e9e9e;
-}
-
 .status-value.disabled {
   color: var(--opt-disabled);
-}
-
-.status-value.syncing {
-  color: #6c5ce7;
-}
-
-.status-value.pending {
-  color: #ffcc00;
 }
 
 
