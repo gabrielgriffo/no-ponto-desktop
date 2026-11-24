@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { closedDayState, isWorkdayReopened, shouldRingAlarm } from './alarm.service';
+import { alarmSoundUrl, closedDayState, isWorkdayReopened, shouldRingAlarm } from './alarm.service';
+
+describe('alarmSoundUrl', () => {
+  it('aponta para o arquivo Opus do som escolhido', () => {
+    expect(alarmSoundUrl('dois-toques')).toBe('assets/sounds/dois-toques.ogg');
+  });
+});
 
 describe('closedDayState', () => {
   it('café antes do almoço é pausa, não encerramento', () => {

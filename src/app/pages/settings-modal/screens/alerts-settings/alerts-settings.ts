@@ -10,6 +10,7 @@ import {
   AppSettings,
   SettingsPatch,
 } from '../../settings.model';
+import { alarmSoundUrl } from '../../../../services/alarm.service';
 
 type NotificationStatus =
   | 'enabled'
@@ -85,7 +86,7 @@ export class AlertsSettingsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const audio = new Audio(`assets/sounds/${this.settings().alarmSound}.wav`);
+    const audio = new Audio(alarmSoundUrl(this.settings().alarmSound));
     audio.volume = this.volume() / 100;
     audio.onended = () => this.stopPreview();
 

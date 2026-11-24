@@ -14,6 +14,10 @@ export interface AlarmOptions {
 
 export const SNOOZE_MINUTES = 10;
 
+export function alarmSoundUrl(sound: string): string {
+  return `assets/sounds/${sound}.ogg`;
+}
+
 export function shouldRingAlarm(previous: JourneyState | null, current: JourneyState): boolean {
   return (previous === 'andamento' || previous === 'pausado') && current === 'extra';
 }
@@ -66,7 +70,7 @@ export class AlarmService {
   ring(options: AlarmOptions): void {
     this.dismiss();
 
-    const audio = new Audio(`assets/sounds/${options.sound}.wav`);
+    const audio = new Audio(alarmSoundUrl(options.sound));
     audio.volume = Math.min(1, Math.max(0, options.volume / 100));
     audio.loop = options.mode === 'continuous';
     audio.onended = () => this.silence();
