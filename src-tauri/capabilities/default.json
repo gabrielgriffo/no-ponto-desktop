@@ -8,6 +8,24 @@
     "core:event:allow-unlisten",
     "core:resources:allow-close",
     "core:window:allow-minimize",
-    "core:window:allow-close"
+    "core:window:allow-close",
+    "allow-load-settings",
+    "allow-update-settings",
+    "allow-get-app-info",
+    "allow-pontomais-authenticate",
+    "allow-pontomais-ensure-session",
+    "allow-pontomais-clear-session",
+    "allow-pontomais-current-workday",
+    "allow-configure-auto-sync",
+    "allow-pick-external-app",
+    "allow-external-app-maybe-launch",
+    "allow-external-app-test-launch",
+    "allow-set-tray-status",
+    "allow-focus-main-window",
+    "allow-main-window-ready",
+    "allow-notify-workday-end",
+    "allow-notification-status",
+    "allow-open-notification-settings",
+    "allow-prepare-update-relaunch"
   ]
 }

@@ -106,3 +106,39 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    fn registered_commands() -> BTreeSet<String> {
+        let source = include_str!("lib.rs");
+        let start = source.find("generate_handler![").expect("generate_handler") + "generate_handler![".len();
+        let end = start + source[start..].find(']').expect("fim do generate_handler");
+        source[start..end]
+            .split(',')
+            .filter_map(|entry| entry.trim().rsplit("::").next())
+            .filter(|name| !name.is_empty())
+            .map(str::to_string)
+            .collect()
+    }
+
+    fn quoted_names(text: &str) -> BTreeSet<String> {
+        text.split('"').skip(1).step_by(2).map(str::to_string).collect()
+    }
+
+    #[test]
+    fn every_registered_command_has_a_permission_and_is_allowed() {
+        let registered = registered_commands();
+        assert_eq!(registered.len(), 18);
+
+        let manifest = quoted_names(include_str!("../build.rs"));
+        let capability = quoted_names(include_str!("../capabilities/default.json"));
+
+        for command in &registered {
+            assert!(manifest.contains(command), "{} fora do AppManifest", command);
+            let permission = format!("allow-{}", command.replace('_', "-"));
+            assert!(capability.contains(&permission), "{} fora da capability", permission);
+        }
+    }
+}
