@@ -384,8 +384,6 @@ fn wrap_in_terminal(
     })
 }
 
-/// O que o `CreateProcess` do Windows roda direto. O resto (`.lnk`, `.url` da Steam,
-/// documentos) só abre pelo shell, e o seletor aceita qualquer arquivo.
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 const WINDOWS_EXECUTABLES: &[&str] = &["exe", "bat", "cmd", "com"];
 
@@ -520,8 +518,6 @@ fn maybe_launch(app: &AppHandle, work_day: &Value, today: &str) -> Result<bool, 
     Ok(true)
 }
 
-/// `maybe_launch` lista processos, lê atalhos e grava em disco: roda numa thread de
-/// bloqueio para não prender a thread principal nem um worker do runtime.
 pub async fn maybe_launch_in_background(app: AppHandle, work_day: Value, date: String) {
     let result =
         tauri::async_runtime::spawn_blocking(move || maybe_launch(&app, &work_day, &date)).await;
@@ -582,9 +578,8 @@ fn spawn_detached(spec: &LaunchSpec) -> Result<(), String> {
     const DETACHED_PROCESS: u32 = 0x0000_0008;
 
     if opens_through_shell(&spec.program) {
-        // Um .lnk, um .url ou um documento não é executável — só o shell sabe
-        // abri-lo, inclusive atalhos de apps da Microsoft Store, que não apontam
-        // para um arquivo.
+        // Um .lnk não é executável — só o shell sabe resolvê-lo, inclusive
+        // atalhos de apps da Microsoft Store, que não apontam para um arquivo.
         return tauri_plugin_opener::open_path(&spec.program, None::<&str>)
             .map_err(|e| e.to_string());
     }

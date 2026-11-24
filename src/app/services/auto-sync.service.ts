@@ -8,16 +8,11 @@ interface AutoSyncConfig {
   smart: boolean;
 }
 
-/**
- * Dono do laço de sincronização no frontend. Guarda a última configuração aplicada
- * ao Rust: reconfigurar reinicia o laço, que busca na hora, então só se aplica o que
- * mudou. Sem conta conectada o laço fica desligado.
- */
 @Injectable({ providedIn: 'root' })
 export class AutoSyncService {
   private applied: string | null = null;
 
-  async apply(settings: AppSettings, loggedIn: boolean): Promise<void> {
+  async apply(settings: AppSettings, loggedIn: boolean, launchOnFirstSync = true): Promise<void> {
     const config: AutoSyncConfig = {
       enabled: settings.autoImportEnabled && loggedIn,
       intervalMins: settings.autoImportInterval,
@@ -26,7 +21,7 @@ export class AutoSyncService {
     const key = JSON.stringify(config);
     if (key === this.applied) return;
 
-    await invoke('configure_auto_sync', { ...config });
+    await invoke('configure_auto_sync', { ...config, launchOnFirstSync });
     this.applied = key;
   }
 }

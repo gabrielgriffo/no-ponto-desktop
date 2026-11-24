@@ -22,8 +22,6 @@ mod workday;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        // Precisa ser o primeiro plugin: a segunda instância deve sair antes de qualquer
-        // outro plugin inicializar.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             window::show_main(app);
         }))

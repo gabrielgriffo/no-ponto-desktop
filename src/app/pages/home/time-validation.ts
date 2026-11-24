@@ -12,7 +12,6 @@ interface TimeError {
 
 const GENERIC_ERROR = 'Horários informados com erro';
 
-/** -1 para vazio ou fora do formato HH:MM. */
 export function timeToMinutes(time: string): number {
   if (!time || time.length !== 5) return -1;
   const [hours, minutes] = time.split(':').map(Number);
@@ -24,10 +23,6 @@ function result(errors: TimeError[], message: string | null): TimeValidation {
   return { fields: [...new Set(errors.map(error => error.field))], message };
 }
 
-/**
- * Formato inválido é checado antes da ordem: comparar horários malformados só
- * produziria mensagens confusas.
- */
 export function validateTimes(checkIn: string, checkOut: string, checkIn2: string): TimeValidation {
   const checkInMinutes = timeToMinutes(checkIn);
   const checkOutMinutes = timeToMinutes(checkOut);

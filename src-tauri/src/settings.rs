@@ -48,7 +48,20 @@ pub const DEFAULT_ALARM_DURATION_SECONDS: u32 = 30;
 
 pub const DEFAULT_AUTO_CLOSE_TIME: u32 = 660;
 
+pub const AUTO_IMPORT_INTERVALS: [u32; 4] = [30, 60, 120, 180];
+pub const DEFAULT_AUTO_IMPORT_INTERVAL: u32 = 30;
+
 impl Settings {
+    pub fn normalized(mut self) -> Self {
+        if !AUTO_IMPORT_INTERVALS.contains(&self.auto_import_interval) {
+            self.auto_import_interval = AUTO_IMPORT_INTERVALS
+                .into_iter()
+                .find(|&interval| interval >= self.auto_import_interval)
+                .unwrap_or(AUTO_IMPORT_INTERVALS[AUTO_IMPORT_INTERVALS.len() - 1]);
+        }
+        self
+    }
+
     pub fn expected_workday_minutes(&self) -> u32 {
         if self.expected_workday_minutes == 0 {
             DEFAULT_EXPECTED_WORKDAY_MINUTES
@@ -63,7 +76,7 @@ impl Default for Settings {
         Settings {
             smart_sync_enabled: false,
             auto_import_enabled: false,
-            auto_import_interval: 10,
+            auto_import_interval: DEFAULT_AUTO_IMPORT_INTERVAL,
             import_on_startup_enabled: false,
             alarm_enabled: false,
             alarm_sound: DEFAULT_ALARM_SOUND.to_string(),
@@ -91,9 +104,6 @@ impl Default for Settings {
 
 const SETTINGS_FILE: &str = "settings.json";
 
-// Serializa as escritas: o frontend, a desvinculação da conta e a verificação de
-// atualização gravam no mesmo arquivo, e um ler-alterar-gravar sem trava desfaria
-// a alteração de quem gravou no meio.
 static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Lê as configurações do disco. Existe separado do comando para que tarefas
@@ -101,11 +111,11 @@ static WRITE_LOCK: Mutex<()> = Mutex::new(());
 /// pedir os dados ao frontend.
 pub fn read_settings(app: &AppHandle) -> Result<Settings, String> {
     let path = storage::app_data_file(app, SETTINGS_FILE)?;
-    Ok(storage::read_json(&path)?.unwrap_or_default())
+    Ok(storage::read_json::<Settings>(&path)?
+        .unwrap_or_default()
+        .normalized())
 }
 
-/// Ler, alterar e gravar sob a mesma trava. Um arquivo ilegível é tratado como o
-/// padrão aqui, e não como erro: senão nenhuma alteração conseguiria consertá-lo.
 pub fn modify_settings(
     app: &AppHandle,
     change: impl FnOnce(&mut Settings) -> Result<(), String>,
@@ -113,19 +123,18 @@ pub fn modify_settings(
     let _guard = WRITE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let path = storage::app_data_file(app, SETTINGS_FILE)?;
 
-    let mut settings = storage::read_json(&path).unwrap_or_else(|e| {
+    let mut settings = storage::read_json::<Settings>(&path).unwrap_or_else(|e| {
         eprintln!("[settings] {}; partindo do padrão", e);
         None
     })
-    .unwrap_or_default();
+    .unwrap_or_default()
+    .normalized();
 
     change(&mut settings)?;
     storage::write_json_atomic(&path, &settings)?;
     Ok(settings)
 }
 
-/// Aplica só os campos presentes em `patch`. Chave desconhecida é erro, para que um
-/// nome errado no frontend não vire uma alteração ignorada em silêncio.
 pub fn apply_patch(settings: &Settings, patch: Map<String, Value>) -> Result<Settings, String> {
     let mut value = serde_json::to_value(settings).map_err(|e| e.to_string())?;
     let fields = value
@@ -150,7 +159,7 @@ pub async fn load_settings(app: AppHandle) -> Result<Settings, String> {
 #[tauri::command]
 pub async fn update_settings(app: AppHandle, patch: Map<String, Value>) -> Result<Settings, String> {
     modify_settings(&app, |settings| {
-        *settings = apply_patch(settings, patch)?;
+        *settings = apply_patch(settings, patch)?.normalized();
         Ok(())
     })
 }
@@ -176,6 +185,17 @@ mod tests {
         assert!(updated.alarm_enabled);
         assert_eq!(updated.alarm_volume, 40);
         assert_eq!(updated.pontomais_login, "user@example.com");
+    }
+
+    #[test]
+    fn old_sync_intervals_move_to_the_closest_option() {
+        let with = |minutes| Settings { auto_import_interval: minutes, ..Settings::default() }.normalized();
+        assert_eq!(with(10).auto_import_interval, 30);
+        assert_eq!(with(15).auto_import_interval, 30);
+        assert_eq!(with(45).auto_import_interval, 60);
+        assert_eq!(with(120).auto_import_interval, 120);
+        assert_eq!(with(500).auto_import_interval, 180);
+        assert_eq!(Settings::default().auto_import_interval, 30);
     }
 
     #[test]

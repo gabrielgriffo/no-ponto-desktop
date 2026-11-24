@@ -1,9 +1,3 @@
-//! Arquivos JSON no diretório de dados do app.
-//!
-//! Toda gravação passa por um arquivo temporário seguido de `rename`, que é atômico
-//! no mesmo volume: uma queda de energia ou um leitor concorrente nunca vê um JSON
-//! pela metade. Sem isso, uma leitura no meio de uma gravação das configurações
-//! podia ser tomada como arquivo corrompido.
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -23,7 +17,6 @@ pub fn app_data_file(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
     Ok(dir.join(name))
 }
 
-/// `Ok(None)` quando o arquivo não existe; erro quando existe e não pôde ser lido.
 pub fn read_json<T: DeserializeOwned>(path: &Path) -> Result<Option<T>, String> {
     let json = match fs::read_to_string(path) {
         Ok(json) => json,
@@ -36,7 +29,6 @@ pub fn read_json<T: DeserializeOwned>(path: &Path) -> Result<Option<T>, String> 
         .map_err(|e| format!("Failed to parse {}: {}", path.display(), e))
 }
 
-/// Para estados em que arquivo ausente ou corrompido vale o mesmo que o padrão.
 pub fn read_json_or_default<T: DeserializeOwned + Default>(path: &Path) -> T {
     read_json(path).ok().flatten().unwrap_or_default()
 }

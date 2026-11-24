@@ -65,8 +65,8 @@ ficam nas configurações.
   jornada e a duração de cada período, atualizados a cada segundo.
 - **Importação com um clique.** Os registros do dia vêm direto da sua conta do PontoMais. Também dá
   para digitar os horários à mão e acompanhar sem conta conectada.
-- **Sincronização automática.** Busca os registros em segundo plano a cada 10, 15 ou 30 minutos, ou
-  a cada hora, e pode importar uma vez sempre que o aplicativo abre.
+- **Sincronização automática.** Busca os registros em segundo plano a cada 30 minutos, 1, 2 ou 3
+  horas, e pode importar uma vez sempre que o aplicativo abre.
 - **Sincronização inteligente.** Alternativa à automática: busca com frequência até a primeira
   batida do dia e espaça as buscas depois dela, gastando menos requisições sem atrasar a detecção
   do início do expediente.
@@ -231,9 +231,12 @@ não é iniciado de novo.
 <summary><strong>Atualizações</strong></summary>
 
 Ao abrir, o aplicativo consulta em silêncio as releases públicas deste repositório no GitHub e
-guarda o resultado. Quando há uma versão nova, o botão Atualizar aparece no cabeçalho, ao lado das
-configurações, e instala com um clique. A tela Sobre mostra a última verificação, permite verificar
-de novo e também oferece a instalação; o aplicativo fecha e reabre para concluir. Os pacotes de atualização são assinados, e o aplicativo recusa qualquer pacote cuja
+guarda o resultado. Quando há uma versão nova, ela é baixada em segundo plano; depois do download,
+o botão Atualizar aparece no cabeçalho, ao lado das configurações, e instala com um clique. A tela
+Sobre mostra a última verificação, o andamento do download, permite verificar de novo e também
+oferece a instalação. No Windows, a instalação mostra só uma barra de progresso, não pede permissão
+de administrador (o aplicativo é instalado para o usuário) e reabre o aplicativo no fim. Os pacotes
+de atualização são assinados, e o aplicativo recusa qualquer pacote cuja
 assinatura não confira com a chave pública embutida nele.
 
 A consulta é uma requisição HTTPS comum, então o GitHub vê o endereço de onde ela partiu, como

@@ -8,7 +8,8 @@
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
     "updater:allow-check",
-    "updater:allow-download-and-install",
+    "updater:allow-download",
+    "updater:allow-install",
     "process:allow-restart"
   ]
 }

@@ -55,29 +55,29 @@
     </div>
 
     <div class="update-section">
-      <button class="app-picker-button update-button" (click)="onCheckForUpdate()">
-        {{ updateState() === 'checking' ? 'Verificando...' : 'Verificar atualizações' }}
+      <button class="app-picker-button update-button" [disabled]="isUpdateBusy()" (click)="onCheckForUpdate()">
+        {{ checking() ? 'Verificando...' : 'Verificar atualizações' }}
       </button>
 
-      @if (canInstall()) {
-        <button class="app-picker-button update-button" (click)="onInstallUpdate()">
-          Baixar e instalar
+      @if (ready() && !installing()) {
+        <button class="app-picker-button update-button" (click)="onInstall()">
+          Instalar e reiniciar
         </button>
       }
 
-      @if (updateState() === 'ready') {
-        <button class="app-picker-button update-button" (click)="onRelaunch()">
-          Reiniciar agora
+      @if (downloadFailed() && !downloading()) {
+        <button class="app-picker-button update-button" (click)="onRetryDownload()">
+          Baixar novamente
         </button>
       }
     </div>
   </div>
 
-  @if (updateState() === 'downloading') {
+  @if (downloading()) {
     <div class="download">
-      <span class="download-label">{{ downloadProgress() }}%</span>
+      <span class="download-label">{{ progress() }}%</span>
       <div class="progress-bar">
-        <div class="progress-bar-fill" [style.width.%]="downloadProgress()"></div>
+        <div class="progress-bar-fill" [style.width.%]="progress()"></div>
       </div>
     </div>
   }

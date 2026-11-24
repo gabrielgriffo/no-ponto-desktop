@@ -39,7 +39,6 @@ export class AlertsSettingsComponent implements OnInit, OnDestroy {
   protected readonly modeOptions = ALARM_MODE_OPTIONS;
   protected readonly durationOptions = ALARM_DURATION_OPTIONS;
 
-  /** Acompanha o arraste do volume; só o valor final vai para o disco. */
   protected readonly volume = linkedSignal(() => this.settings().alarmVolume);
   protected readonly isPreviewing = signal(false);
   private readonly notificationStatus = signal<NotificationStatus>('unknown');

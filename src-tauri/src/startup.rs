@@ -5,12 +5,8 @@ pub const AUTOSTART_ARG: &str = "--min";
 
 const RELAUNCH_FILE: &str = "relaunch.json";
 
-/// Depois disso o marcador é de uma atualização que não chegou a reiniciar, e a
-/// próxima inicialização com o sistema volta a valer como tal.
 const RELAUNCH_MARKER_TTL_SECS: i64 = 10 * 60;
 
-/// O instalador e o reinício repassam os argumentos da instância atual: sem este
-/// marcador, quem atualizou um app iniciado com o sistema o veria voltar escondido.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RelaunchMarker {
@@ -30,7 +26,6 @@ pub async fn prepare_update_relaunch(app: AppHandle) -> Result<(), String> {
     crate::storage::write_json_atomic(&path, &marker)
 }
 
-/// Lê e apaga o marcador. Devolve se esta execução é o reinício de uma atualização.
 pub fn take_relaunch_marker(app: &AppHandle) -> bool {
     let Ok(path) = crate::storage::app_data_file(app, RELAUNCH_FILE) else {
         return false;

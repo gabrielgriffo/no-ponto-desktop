@@ -14,19 +14,15 @@ export class UpdateButton {
   private readonly updateService = inject(UpdateService);
   private readonly toastService = inject(ToastService);
 
-  protected readonly update = this.updateService.available;
+  protected readonly update = this.updateService.ready;
   protected readonly isInstalling = this.updateService.installing;
 
   protected async onClick(): Promise<void> {
-    const update = this.update();
-    if (!update || this.isInstalling()) return;
-
     try {
-      await this.updateService.downloadAndInstall(update);
-      await this.updateService.relaunch();
+      await this.updateService.install();
     } catch (error) {
-      console.error('Erro ao baixar/instalar atualização:', error);
-      this.toastService.error('Não foi possível baixar a atualização');
+      console.error('Erro ao instalar a atualização:', error);
+      this.toastService.error('Não foi possível instalar a atualização');
     }
   }
 }

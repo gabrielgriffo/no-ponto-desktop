@@ -29,8 +29,6 @@ impl PontoMaisState {
 
 pub type PontoMaisStateType = Mutex<PontoMaisState>;
 
-/// Nenhum trecho com a trava segura pode deixar a sessão pela metade, então um
-/// panic em outra thread não é motivo para derrubar a integração até reiniciar.
 pub(crate) fn lock_session(state: &PontoMaisStateType) -> std::sync::MutexGuard<'_, PontoMaisState> {
     state.lock().unwrap_or_else(|e| e.into_inner())
 }
@@ -43,8 +41,6 @@ pub(crate) const SESSION_EXPIRED: &str = "SESSION_EXPIRED";
 /// A sessão morreu, mas a reconexão ainda pode dar certo. Nada foi apagado.
 pub(crate) const RECONNECT_PENDING: &str = "RECONNECT_PENDING";
 
-/// Não há sessão em memória (o cofre não foi lido ainda). Buscar assim mandaria uma
-/// requisição sem token, e a recusa seria confundida com sessão expirada.
 pub(crate) const NOT_AUTHENTICATED: &str = "NOT_AUTHENTICATED";
 const APP_ORIGIN: &str = "https://app2.pontomais.com.br";
 const APP_REFERER: &str = "https://app2.pontomais.com.br/";
@@ -227,9 +223,6 @@ pub async fn pontomais_authenticate(
         return Err(e);
     }
 
-    // A conta vinculada vai junto com o token: o login guardado é o que a reconexão
-    // combina com a senha do cofre, e gravá-lo depois, noutra escrita, podia deixar
-    // o login de uma conta com a senha de outra.
     let login = credentials.username.trim().to_string();
     let saved = crate::settings::modify_settings(&app, |settings| {
         settings.pontomais_login = login.clone();
@@ -293,8 +286,6 @@ pub async fn pontomais_ensure_session(
     app: AppHandle,
     state: tauri::State<'_, PontoMaisStateType>,
 ) -> Result<SessionStatus, String> {
-    // Sessão viva em memória é mais nova que o cofre (uma reconexão pode não ter
-    // conseguido gravar o token novo): relê-lo trocaria o token bom pelo morto.
     if lock_session(&state).token.is_some() {
         return Ok(SessionStatus::Connected);
     }
@@ -337,8 +328,6 @@ pub async fn pontomais_clear_session(
     app: AppHandle,
     state: tauri::State<'_, PontoMaisStateType>,
 ) -> Result<(), String> {
-    // Uma reconexão em andamento gravaria o token novo depois desta limpeza e a conta
-    // voltaria sozinha na próxima abertura.
     let _reconnecting = RECONNECT_LOCK.lock().await;
 
     // Mutex liberado antes do .await
@@ -370,7 +359,6 @@ pub async fn pontomais_clear_session(
     Ok(())
 }
 
-/// Headers fixos que apresentam a requisição como o cliente web.
 fn base_headers() -> header::HeaderMap {
     use header::HeaderValue;
 
@@ -464,12 +452,8 @@ fn interpret_workday_response(
 static RECONNECT_LOCK: LazyLock<tokio::sync::Mutex<()>> =
     LazyLock::new(|| tokio::sync::Mutex::new(()));
 
-/// Conta as tentativas de reconexão. Quem esperou na trava compara o valor de antes
-/// e de depois para saber que outra tentativa acabou de acontecer.
 static RECONNECT_EPOCH: AtomicU64 = AtomicU64::new(0);
 
-/// O que devolver quando outra tarefa tentou reconectar enquanto esta esperava e a
-/// sessão continua morta: tentar de novo na hora gastaria a segunda chance da senha.
 fn outcome_after_concurrent_attempt(has_token: bool) -> String {
     if has_token {
         RECONNECT_PENDING.to_string()
@@ -508,9 +492,6 @@ async fn reconnect(app: &AppHandle, state: &PontoMaisStateType) -> ReconnectOutc
     let enabled = settings.auto_reconnect_enabled;
     let login = settings.pontomais_login;
 
-    // Cofre indisponível (no Linux o serviço de segredos pode ainda estar subindo) não
-    // é o mesmo que senha ausente: desvincular aqui faria digitar de novo uma senha
-    // que continua guardada.
     let password = if enabled {
         match crate::credentials::get_password() {
             Ok(password) => password,

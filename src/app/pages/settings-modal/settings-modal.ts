@@ -164,7 +164,6 @@ export class SettingsModal {
   }
 
   protected onEscape(): void {
-    // Sair no meio do login faria a home conferir a sessão antes de o token existir.
     if (!this.isOpen() || this.isLoggingIn()) return;
 
     if (this.screenStack().length) {
@@ -200,8 +199,7 @@ export class SettingsModal {
         console.error('Erro ao consultar a inicialização com o sistema:', error);
       }
 
-      // O Rust diz se há conta vinculada; nem token nem senha passam por aqui. Cofre
-      // ilegível não é conta desconectada: o estado salvo continua valendo.
+      // O Rust diz se há conta vinculada; nem token nem senha passam por aqui.
       try {
         const connected = (await this.pontoMaisService.ensureSession()) === 'connected';
         if (connected !== loaded.isPontomaisLoggedIn) reconcile.isPontomaisLoggedIn = connected;
@@ -228,7 +226,6 @@ export class SettingsModal {
     }
   }
 
-  /** Alteração vinda de uma tela: aplica efeitos no sistema antes de gravar. */
   protected async applyPatch(patch: SettingsPatch): Promise<boolean> {
     if (patch.autostartEnabled !== undefined) {
       patch = { ...patch, autostartEnabled: await this.syncAutostart(patch.autostartEnabled) };
@@ -249,7 +246,6 @@ export class SettingsModal {
     return true;
   }
 
-  /** Devolve o estado real depois da tentativa. Falhar aqui não impede o resto de ser salvo. */
   private async syncAutostart(wanted: boolean): Promise<boolean> {
     let current: boolean;
     try {
@@ -277,7 +273,7 @@ export class SettingsModal {
 
   private async applyAutoSync(): Promise<void> {
     try {
-      await this.autoSync.apply(this.settings(), this.settings().isPontomaisLoggedIn);
+      await this.autoSync.apply(this.settings(), this.settings().isPontomaisLoggedIn, false);
     } catch (error) {
       console.error('Erro ao configurar a sincronização:', error);
     }
@@ -294,14 +290,15 @@ export class SettingsModal {
     this.isLoggingIn.set(true);
 
     try {
-      // O Rust autentica e grava junto o token, a conta vinculada nas configurações e,
-      // se a Reconexão Automática estiver ligada, a senha. Aqui não sobra credencial.
+      // O Rust autentica, grava o token e — se a Reconexão Automática estiver ligada —
+      // a senha. Aqui não sobra credencial nenhuma.
       await this.pontoMaisService.authenticate({ username: login, password });
 
       this.loginDraft.set(login);
       this.passwordDraft.set('');
 
-      // Sem toast de sucesso: a tela troca o formulário pela conta conectada.
+      // Sem toast de sucesso: a tela troca o formulário pela conta conectada,
+      // o que já comunica o resultado.
       await this.store.load();
       await this.applyAutoSync();
     } catch (error) {
@@ -318,7 +315,9 @@ export class SettingsModal {
     this.isLoggingOut.set(true);
 
     try {
-      // Isolado: uma falha ao revogar na API não pode deixar a conta presa como conectada.
+      // Revoga o token na API, zera a sessão do Rust e apaga o cofre — tudo do lado
+      // de lá. Isolado num try próprio: uma falha aqui não pode abortar o logout
+      // local, senão a conta ficaria presa como conectada.
       try {
         await this.pontoMaisService.clearSession();
       } catch (error) {

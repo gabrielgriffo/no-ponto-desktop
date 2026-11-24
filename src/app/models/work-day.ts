@@ -5,7 +5,6 @@ function cardMinutes(card: TimeCard): number {
   return hours * 60 + minutes;
 }
 
-/** Batidas `disabled` foram revogadas no PontoMais e ficam de fora, como no Rust. */
 export function validTimeCards(workDay: WorkDaysResponse | null): TimeCard[] {
   return (workDay?.work_days?.[0]?.time_cards ?? [])
     .filter(card => !card.disabled)
@@ -17,7 +16,7 @@ export function hasTimeCards(workDay: WorkDaysResponse | null): boolean {
 }
 
 /**
- * Data no fuso local, no formato aceito pela API (YYYY-MM-DD).
+ * Data de hoje no fuso local, no formato aceito pela API (YYYY-MM-DD).
  * Não usar `toISOString()`: ele converte para UTC e, em UTC-3, a partir das 21h
  * já retorna o dia seguinte — divergindo do `Local::now()` usado no auto-sync.
  */

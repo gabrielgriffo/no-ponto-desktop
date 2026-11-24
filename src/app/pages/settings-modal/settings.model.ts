@@ -40,7 +40,6 @@ export interface AppSettings {
   autoReconnectEnabled: boolean;
 }
 
-/// Espelha a struct `AppInfo` do Rust (`src-tauri/src/app_info.rs`).
 export interface AppInfo {
   version: string;
   product_name: string;
@@ -79,11 +78,12 @@ export const DEFAULT_ALARM_DURATION_SECONDS = 30;
 
 export const DEFAULT_AUTO_CLOSE_TIME = 660;
 
-/// Mesmos valores do `impl Default for Settings` do Rust, usados até a primeira leitura.
+export const DEFAULT_AUTO_IMPORT_INTERVAL = 30;
+
 export const DEFAULT_SETTINGS: AppSettings = {
   smartSyncEnabled: false,
   autoImportEnabled: false,
-  autoImportInterval: 10,
+  autoImportInterval: DEFAULT_AUTO_IMPORT_INTERVAL,
   importOnStartupEnabled: false,
   alarmEnabled: false,
   alarmSound: DEFAULT_ALARM_SOUND,
@@ -164,10 +164,10 @@ export const BREAK_OPTIONS: SelectOption[] = [
 ];
 
 export const INTERVAL_OPTIONS: SelectOption[] = [
-  { value: 10, label: '10 minutos' },
-  { value: 15, label: '15 minutos' },
   { value: 30, label: '30 minutos' },
   { value: 60, label: '1 hora' },
+  { value: 120, label: '2 horas' },
+  { value: 180, label: '3 horas' },
 ];
 
 /** `480` → `"8h"`, `528` → `"8h48"`. Formato curto, para caber na linha da raiz. */

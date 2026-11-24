@@ -14,11 +14,26 @@ pub struct AutoSyncState {
 
 pub type AutoSyncStateType = Mutex<AutoSyncState>;
 
+struct LaunchGate {
+    next: bool,
+}
+
+impl LaunchGate {
+    fn new(launch_on_first_sync: bool) -> Self {
+        Self { next: launch_on_first_sync }
+    }
+
+    fn allow(&mut self) -> bool {
+        std::mem::replace(&mut self.next, true)
+    }
+}
+
 #[tauri::command]
 pub async fn configure_auto_sync(
     enabled: bool,
     interval_mins: u32,
     smart: Option<bool>,
+    launch_on_first_sync: Option<bool>,
     app: AppHandle,
     auto_sync_state: tauri::State<'_, AutoSyncStateType>,
 ) -> Result<(), String> {
@@ -29,10 +44,11 @@ pub async fn configure_auto_sync(
         handle.abort();
     }
 
+    let gate = LaunchGate::new(launch_on_first_sync.unwrap_or(true));
     state.handle = if smart.unwrap_or(false) {
-        Some(tauri::async_runtime::spawn(run_smart_loop(app)))
+        Some(tauri::async_runtime::spawn(run_smart_loop(app, gate)))
     } else if enabled && interval_mins > 0 {
-        Some(tauri::async_runtime::spawn(run_sync_loop(app, interval_mins)))
+        Some(tauri::async_runtime::spawn(run_sync_loop(app, interval_mins, gate)))
     } else {
         None
     };
@@ -40,9 +56,9 @@ pub async fn configure_auto_sync(
     Ok(())
 }
 
-async fn run_sync_loop(app: AppHandle, interval_mins: u32) {
+async fn run_sync_loop(app: AppHandle, interval_mins: u32, mut gate: LaunchGate) {
     // Sincroniza imediatamente ao iniciar o loop
-    perform_sync(&app, true).await;
+    perform_sync(&app, true, gate.allow()).await;
 
     let base_secs = (interval_mins as u64) * 60;
 
@@ -50,11 +66,11 @@ async fn run_sync_loop(app: AppHandle, interval_mins: u32) {
         let jitter: i64 = rand::thread_rng().gen_range(-30..=30);
         let wait_secs = ((base_secs as i64) + jitter).max(30) as u64;
         sleep(Duration::from_secs(wait_secs)).await;
-        perform_sync(&app, true).await;
+        perform_sync(&app, true, gate.allow()).await;
     }
 }
 
-async fn run_smart_loop(app: AppHandle) {
+async fn run_smart_loop(app: AppHandle, mut gate: LaunchGate) {
     let mut schedule = Schedule::new();
     let mut was_authenticated = true;
 
@@ -66,7 +82,7 @@ async fn run_smart_loop(app: AppHandle) {
         let now = Local::now().naive_local();
         if schedule.is_due(now) {
             let jitter = rand::thread_rng().gen_range(-JITTER_SECS..=JITTER_SECS);
-            match perform_sync(&app, was_authenticated).await {
+            match perform_sync(&app, was_authenticated, gate.allow()).await {
                 SyncOutcome::Unauthenticated => was_authenticated = false,
                 SyncOutcome::Success(work_day) => {
                     was_authenticated = true;
@@ -92,7 +108,7 @@ enum SyncOutcome {
     Failed,
 }
 
-async fn perform_sync(app: &AppHandle, report_unauthenticated: bool) -> SyncOutcome {
+async fn perform_sync(app: &AppHandle, report_unauthenticated: bool, allow_launch: bool) -> SyncOutcome {
     let pm_state = match app.try_state::<PontoMaisStateType>() {
         Some(s) => s,
         None => return SyncOutcome::Unauthenticated,
@@ -113,7 +129,9 @@ async fn perform_sync(app: &AppHandle, report_unauthenticated: bool) -> SyncOutc
 
     match fetch_workday_reconnecting(app, &pm_state, &today).await {
         Ok(data) => {
-            crate::external_app::maybe_launch_in_background(app.clone(), data.clone(), today).await;
+            if allow_launch {
+                crate::external_app::maybe_launch_in_background(app.clone(), data.clone(), today).await;
+            }
 
             let _ = app.emit("auto-sync-result", serde_json::json!({
                 "status": "success",
@@ -129,5 +147,25 @@ async fn perform_sync(app: &AppHandle, report_unauthenticated: bool) -> SyncOutc
             }));
             SyncOutcome::Failed
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LaunchGate;
+
+    #[test]
+    fn a_settings_change_does_not_launch_on_the_first_sync() {
+        let mut gate = LaunchGate::new(false);
+        assert!(!gate.allow());
+        assert!(gate.allow());
+        assert!(gate.allow());
+    }
+
+    #[test]
+    fn the_startup_sync_may_launch_right_away() {
+        let mut gate = LaunchGate::new(true);
+        assert!(gate.allow());
+        assert!(gate.allow());
     }
 }

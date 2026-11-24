@@ -5,7 +5,6 @@ export interface SelectOption<T = any> {
   value: T;
 }
 
-/** Controlado: o valor exibido vem só de `value`; escolher uma opção só emite o pedido. */
 @Component({
   selector: 'app-custom-select',
   templateUrl: './custom-select.html',

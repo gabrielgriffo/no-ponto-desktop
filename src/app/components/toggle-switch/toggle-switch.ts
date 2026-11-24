@@ -1,10 +1,5 @@
 import { ChangeDetectionStrategy, Component, afterNextRender, input, output, signal } from '@angular/core';
 
-/**
- * Controlado: a posição vem só de `checked`. O clique emite o pedido de mudança e o
- * checkbox volta ao valor atual até o pai confirmar, para que uma gravação recusada
- * não deixe na tela uma configuração que não foi salva.
- */
 @Component({
   selector: 'app-toggle-switch',
   templateUrl: './toggle-switch.html',

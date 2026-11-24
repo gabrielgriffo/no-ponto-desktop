@@ -21,7 +21,6 @@ pub fn bring_to_front(app: &AppHandle) {
     }
 }
 
-/// Mostra a janela a pedido do próprio usuário (bandeja, segunda instância).
 pub fn show_main(app: &AppHandle) -> Option<WebviewWindow> {
     let window = app.get_webview_window(MAIN_WINDOW)?;
     window.unminimize().ok();

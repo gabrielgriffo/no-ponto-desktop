@@ -6,16 +6,10 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
 
-# Só o job que publica escreve na release. O build roda o código de todas as
-# dependências (npm e build.rs), então não recebe a chave de assinatura nem
-# permissão de escrita.
 permissions:
   contents: read
 
 jobs:
-  # ─────────────────────────────────────────────
-  # Testes: nenhuma versão chega ao updater sem passar por eles
-  # ─────────────────────────────────────────────
 
   test:
     runs-on: ubuntu-22.04
@@ -59,7 +53,6 @@ jobs:
       - name: Frontend tests
         run: npm test
 
-      # O `generate_context!` do Tauri exige o frontend compilado
       - name: Build frontend
         run: npm run build
 
@@ -317,13 +310,6 @@ jobs:
 
           echo "All versions match."
 
-      # ─────────────────────────────────────────────
-      # Build (sem assinar)
-      #
-      # Os artefatos do updater são os próprios instaladores; a assinatura
-      # (.sig) é feita no job seguinte, longe do código das dependências.
-      # ─────────────────────────────────────────────
-
       - name: Build
         shell: bash
         run: npx tauri build --ci --config '{"bundle":{"createUpdaterArtifacts":false}}'
@@ -339,8 +325,6 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage \
             src-tauri/target/release/bundle/deb/*.deb \
             src-tauri/target/release/bundle/rpm/*.rpm; do
-            # O GitHub troca espaço por ponto no nome do asset ("No Ponto" → "No.Ponto");
-            # renomear aqui mantém iguais o arquivo, o .sig e a URL do latest.json.
             cp "$file" "dist-bundles/$(basename "$file" | tr ' ' '.')"
           done
           ls -la dist-bundles
@@ -351,13 +335,6 @@ jobs:
           name: bundles-${{ matrix.platform }}
           path: dist-bundles/
           if-no-files-found: error
-
-  # ─────────────────────────────────────────────
-  # Assinar e publicar
-  #
-  # Não instala as dependências do projeto: só a CLI do Tauri, em versão fixa,
-  # vê a chave privada.
-  # ─────────────────────────────────────────────
 
   publish-release:
     needs: build
@@ -393,9 +370,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           for file in bundles/*; do
-            # `signer sign` não lê TAURI_SIGNING_PRIVATE_KEY (só TAURI_PRIVATE_KEY), então
-            # a chave vai pelos flags. A senha vai sempre, mesmo vazia: sem ela a CLI pede
-            # a senha no terminal; vazia é o mesmo que o `tauri build` usa no CI.
             npx --yes @tauri-apps/cli@2.9.6 signer sign               --private-key "$TAURI_SIGNING_PRIVATE_KEY"               --password="$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"               "$file"
           done
           ls -la bundles
@@ -426,8 +400,6 @@ jobs:
           const msi = entry(".msi");
           const appimage = entry(".AppImage");
 
-          // Mesmas chaves que o tauri-action gerava: a genérica de cada sistema
-          // aponta para o MSI e para o AppImage.
           const latest = {
             version,
             notes: "",

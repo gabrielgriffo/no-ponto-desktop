@@ -64,8 +64,6 @@ const IDLE_METRICS: WorkTimeResult = {
 const toMinutes = (time: TimeObject) => time.hours * 60 + time.minutes;
 const percentOf = (time: TimeObject, total: number) => Math.min((toMinutes(time) / total) * 100, 100);
 
-// O relógio roda a cada segundo, mas as métricas só mudam de minuto em minuto: sem
-// esta igualdade, cada tique repintaria a tela inteira à toa.
 const sameMetrics = (a: WorkTimeResult, b: WorkTimeResult) =>
   a.lunchHourAdded === b.lunchHourAdded &&
   (['firstPeriod', 'secondPeriod', 'workedTime', 'remainingTime', 'endTime'] as const).every(
@@ -203,8 +201,6 @@ export class Home implements OnInit, OnDestroy {
 
     const state = this.journeyState();
     if (state === 'extra' || state === 'terminou') return null;
-    // Jornada cumprida antes do intervalo: o fim calculado já passou e o alarme só
-    // tocaria numa volta que talvez nem aconteça.
     if (toMinutes(this.metrics().workedTime) >= this.journeyMinutes()) return null;
     return this.metrics().endTime;
   });
@@ -265,7 +261,6 @@ export class Home implements OnInit, OnDestroy {
     this.autoSyncUnlisten?.();
   }
 
-  /** Tira o foco de botões quando a janela volta a aparecer ou o mouse se move. */
   private listenForFocusRemoval(): void {
     const removeFocus = () => {
       const active = document.activeElement as HTMLElement | null;
@@ -306,8 +301,11 @@ export class Home implements OnInit, OnDestroy {
       const settings = this.settings();
       await this.autoSync.apply(settings, true);
 
-      // Reaproveita o feedback visual e o guard de isImporting do botão. Pula a espera
-      // pela sessão pois já estamos dentro dela (evita deadlock com sessionRestorePromise).
+      // Importar horários automaticamente ao iniciar, se habilitado.
+      // Chama onImportClick diretamente para reaproveitar o feedback visual
+      // (spinner/toast) e o guard de isImporting, evitando clique duplicado
+      // enquanto a importação automática está em andamento. Pula a espera pela
+      // sessão pois já estamos dentro dela (evita deadlock com sessionRestorePromise).
       if (settings.importOnStartupEnabled) {
         const workDay = await this.onImportClick(true);
 
@@ -322,7 +320,8 @@ export class Home implements OnInit, OnDestroy {
     } catch (error) {
       console.error('Erro ao restaurar sessão:', error);
       // Não deu para ler o cofre. A conta continua vinculada — a próxima busca dirá se
-      // a sessão vale —, mas o usuário precisa saber que o app subiu sem sessão.
+      // a sessão vale —, mas o usuário precisa saber que o app subiu sem sessão em vez
+      // de descobrir sozinho quando a importação não trouxer nada.
       this.toastService.error('Não foi possível restaurar a sessão. Tente importar novamente.', 5000);
     }
   }
@@ -415,8 +414,6 @@ export class Home implements OnInit, OnDestroy {
 
   private updateWorkTime(): void {
     if (this.isMonitoring() && this.monitoringDate !== todayLocalDate()) {
-      // As batidas importadas são de ontem: digitar hoje os mesmos horários não pode
-      // trazer de volta a saída final daquele dia.
       this.importedInputs = '';
       this.importedCheckOut2 = '';
       this.importedExtras = [];
@@ -503,7 +500,6 @@ export class Home implements OnInit, OnDestroy {
     this.errorTimer = undefined;
   }
 
-  /** Devolve se os horários digitados são válidos. */
   private validateTimeInputs(): boolean {
     const { fields, message } = validateTimes(
       this.checkInInput().nativeElement.value,
@@ -630,11 +626,6 @@ export class Home implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Sem sessão em memória o Rust recusa a busca (`NOT_AUTHENTICATED`) em vez de
-   * mandá-la sem token. Isso acontece quando o cofre não pôde ser lido na abertura:
-   * aqui ele é lido de novo uma vez antes de desistir.
-   */
   private async fetchWorkDay(date: string): Promise<WorkDaysResponse> {
     try {
       return await this.pontoMaisService.getCurrentWorkDay(date);
@@ -669,8 +660,7 @@ export class Home implements OnInit, OnDestroy {
   private async checkForUpdateSilently(): Promise<void> {
     let patch;
     try {
-      const update = await this.updateService.checkForUpdate();
-      this.updateService.available.set(update);
+      const update = await this.updateService.check();
       patch = {
         lastUpdateResult: update ? 'available' : 'up-to-date',
         lastUpdateVersion: update?.version ?? '',
@@ -689,7 +679,7 @@ export class Home implements OnInit, OnDestroy {
 
   protected async onCloseSettingsModal(): Promise<void> {
     this.showSettingsModal.set(false);
-    // Usuário pode ter feito login ou logout no modal
+    // Recarregar estado após fechar configurações (usuário pode ter alterado auto-sync ou feito logout)
     try {
       this.isPontomaisLoggedIn.set((await this.pontoMaisService.ensureSession()) === 'connected');
     } catch (error) {
@@ -701,12 +691,13 @@ export class Home implements OnInit, OnDestroy {
       this.cancelStartupImportRetry();
     }
 
-    // Se a sessão só subiu agora (cofre ilegível na abertura), o laço ainda não existe.
     await this.autoSync.apply(this.settings(), this.isPontomaisLoggedIn()).catch(error =>
       console.error('Erro ao configurar a sincronização:', error)
     );
 
-    // Jornada e intervalo mudam o tempo restante e o fim do expediente.
+    // Jornada e intervalo mudam o tempo restante e o fim do expediente: sem
+    // recalcular aqui, as métricas ficariam nos valores antigos até a próxima
+    // batida.
     if (this.isMonitoring()) {
       this.updateWorkTime();
     }
