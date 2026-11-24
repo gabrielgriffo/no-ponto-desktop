@@ -4,6 +4,7 @@ import {
   ElementRef,
   OnDestroy,
   OnInit,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -228,6 +229,10 @@ export class Home implements OnInit, OnDestroy {
   private readonly removeFocusListeners: (() => void)[] = [];
 
   constructor() {
+    afterNextRender(() => {
+      invoke('main_window_ready').catch(() => {});
+    });
+
     effect(() => {
       const status = this.trayStatusLabel();
       const state = this.isMonitoring() ? this.journeyState() : null;

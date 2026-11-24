@@ -43,6 +43,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .manage(Mutex::new(auto_sync::AutoSyncState::default()))
         .manage(smart_sync::SmartSyncSignal::default())
+        .manage(window::PendingShow::default())
         .setup(|app| {
             // Precisa do AppHandle para ler a identidade da instalação em disco,
             // por isso fica aqui e não no `.manage()` do builder.
@@ -64,7 +65,7 @@ pub fn run() {
                 .unwrap_or(false);
 
             if !startup::start_hidden(launch, start_minimized_enabled) {
-                window::show_main(app.handle());
+                window::show_when_ready(app.handle());
             }
 
             tray::build(app)?;
@@ -96,6 +97,7 @@ pub fn run() {
             external_app::external_app_test_launch,
             tray::set_tray_status,
             window::focus_main_window,
+            window::main_window_ready,
             notification::notify_workday_end,
             notification::notification_status,
             notification::open_notification_settings,
