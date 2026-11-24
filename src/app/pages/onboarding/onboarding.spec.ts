@@ -39,7 +39,10 @@ describe('Onboarding', () => {
     await TestBed.inject(SettingsStore).load();
   });
 
-  afterEach(() => clearMocks());
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    clearMocks();
+  });
 
   async function render() {
     const fixture = TestBed.createComponent(Onboarding);
