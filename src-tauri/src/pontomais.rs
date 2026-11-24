@@ -67,6 +67,7 @@ static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(30))
+        .pool_idle_timeout(Duration::from_secs(20))
         .redirect(reqwest::redirect::Policy::none())
         .https_only(true)
         .build()
@@ -437,16 +438,31 @@ pub async fn fetch_workday(
         let pm_state = lock_session(state);
         build_headers(&pm_state)
     };
-    let response = client
-        .get(&url)
-        .headers(headers)
-        .send()
+    let response = send_retrying_once(|| client.get(&url).headers(headers.clone()).send())
         .await
         .map_err(|e| e.to_string())?;
 
     let status = response.status();
     let body: Option<serde_json::Value> = response.json().await.ok();
     interpret_workday_response(status, body)
+}
+
+fn is_transient_send_error(error: &reqwest::Error) -> bool {
+    !error.is_timeout() && (error.is_connect() || error.is_request())
+}
+
+async fn send_retrying_once<T, F, Fut>(mut send: F) -> Result<T, reqwest::Error>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, reqwest::Error>>,
+{
+    match send().await {
+        Err(error) if is_transient_send_error(&error) => {
+            eprintln!("[pontomais] Falha de conexão, repetindo a busca: {}", error);
+            send().await
+        }
+        result => result,
+    }
 }
 
 // Um erro com corpo JSON não pode virar "dia sem batidas": o fechamento
@@ -792,6 +808,46 @@ mod tests {
             backoff.record(now);
         }
         assert_eq!(backoff.wait(), RECONNECT_BACKOFF_MAX);
+    }
+
+    fn closed_port_request(client: &Client) -> impl std::future::Future<Output = Result<u32, reqwest::Error>> {
+        let request = client.get("http://127.0.0.1:9/").send();
+        async move { request.await.map(|_| 0) }
+    }
+
+    #[test]
+    fn a_dropped_connection_is_retried_once() {
+        let client = Client::new();
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+
+        let result = tauri::async_runtime::block_on(send_retrying_once(|| {
+            let first = calls.fetch_add(1, Ordering::SeqCst) == 0;
+            let failing = closed_port_request(&client);
+            async move {
+                if first {
+                    failing.await
+                } else {
+                    Ok(7)
+                }
+            }
+        }));
+
+        assert_eq!(result.unwrap(), 7);
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn a_connection_that_keeps_failing_is_not_retried_forever() {
+        let client = Client::new();
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+
+        let result = tauri::async_runtime::block_on(send_retrying_once(|| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            closed_port_request(&client)
+        }));
+
+        assert!(result.unwrap_err().is_connect());
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
     }
 
     #[test]
