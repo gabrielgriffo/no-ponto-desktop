@@ -1,11 +1,9 @@
 import { bootstrapApplication } from "@angular/platform-browser";
 import { App } from "./app/app";
 import { appConfig } from "./app/app.config";
+import { installAppBehavior } from "./app/browser-shortcuts";
 
-document.addEventListener('contextmenu', (event) => {
-  event.preventDefault();
-  return false;
-});
+installAppBehavior(document);
 
 bootstrapApplication(App, appConfig).catch((err) =>
   console.error(err),
