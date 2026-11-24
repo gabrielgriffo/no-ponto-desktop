@@ -1,2 +1,9 @@
-<router-outlet />
+@switch (onboarding.status()) {
+  @case ('active') {
+    <app-onboarding />
+  }
+  @case ('off') {
+    <router-outlet />
+  }
+}
 <app-toast />

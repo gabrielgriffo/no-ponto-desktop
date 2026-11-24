@@ -21,6 +21,29 @@ describe('TimeCalculationService', () => {
     expect(result.lunchHourAdded).toBe(true);
   });
 
+  it('em pausa depois da quarta batida, o fim acompanha o relógio', () => {
+    vi.setSystemTime(at(18, 0));
+    const result = service.calculateWorkTime('08:00', '12:00', '13:00', '16:00', 480, 60);
+
+    expect(hhmm(result.workedTime)).toBe('07:00');
+    expect(hhmm(result.endTime)).toBe('19:00');
+  });
+
+  it('logo depois da quarta batida, o fim ainda é a batida mais o restante', () => {
+    vi.setSystemTime(at(16, 0));
+    const result = service.calculateWorkTime('08:00', '12:00', '13:00', '16:00', 480, 60);
+
+    expect(hhmm(result.endTime)).toBe('17:00');
+  });
+
+  it('com seis batidas em pausa, o fim também acompanha o relógio', () => {
+    vi.setSystemTime(at(18, 0));
+    const result = service.calculateWorkTime('08:00', '10:00', '10:15', '12:00', 480, 60, ['13:00', '15:00']);
+
+    expect(hhmm(result.workedTime)).toBe('05:45');
+    expect(hhmm(result.endTime)).toBe('20:15');
+  });
+
   it('no intervalo, o fim considera a volta prevista', () => {
     vi.setSystemTime(at(12, 30));
     const result = service.calculateWorkTime('08:00', '12:00', '', '', 480, 60);

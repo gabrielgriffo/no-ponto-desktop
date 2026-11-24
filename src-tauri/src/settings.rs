@@ -34,6 +34,7 @@ pub struct Settings {
     pub pontomais_login: String,
     pub is_pontomais_logged_in: bool,
     pub auto_reconnect_enabled: bool,
+    pub onboarding_state: String,
 }
 
 /// Jornada padrão: 8 horas.
@@ -69,7 +70,13 @@ impl Settings {
             self.expected_workday_minutes
         }
     }
+
+    pub fn starts_minimized(&self) -> bool {
+        self.start_minimized_enabled && self.onboarding_state != ONBOARDING_PENDING
+    }
 }
+
+pub const ONBOARDING_PENDING: &str = "pending";
 
 impl Default for Settings {
     fn default() -> Self {
@@ -98,6 +105,7 @@ impl Default for Settings {
             pontomais_login: String::new(),
             is_pontomais_logged_in: false,
             auto_reconnect_enabled: false,
+            onboarding_state: String::new(),
         }
     }
 }
@@ -210,6 +218,30 @@ mod tests {
     fn unknown_field_is_rejected() {
         let result = apply_patch(&Settings::default(), patch(json!({ "alarmEnabld": true })));
         assert!(result.unwrap_err().contains("alarmEnabld"));
+    }
+
+    #[test]
+    fn settings_saved_before_the_onboarding_existed_have_no_onboarding_state() {
+        let old: Settings = serde_json::from_str(r#"{ "isPontomaisLoggedIn": true }"#).unwrap();
+        assert_eq!(old.onboarding_state, "");
+
+        let updated = apply_patch(&old, patch(json!({ "onboardingState": "done" }))).unwrap();
+        assert_eq!(updated.onboarding_state, "done");
+        assert!(updated.is_pontomais_logged_in);
+    }
+
+    #[test]
+    fn a_pending_onboarding_never_starts_minimized() {
+        let with = |state: &str, minimized: bool| Settings {
+            onboarding_state: state.to_string(),
+            start_minimized_enabled: minimized,
+            ..Settings::default()
+        };
+
+        assert!(with("done", true).starts_minimized());
+        assert!(!with("done", false).starts_minimized());
+        assert!(!with("pending", true).starts_minimized());
+        assert!(with("", true).starts_minimized());
     }
 
     #[test]

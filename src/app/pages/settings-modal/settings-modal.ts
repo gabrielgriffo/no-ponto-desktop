@@ -21,15 +21,9 @@ import { WorkdaySettingsComponent } from './screens/workday-settings/workday-set
 import { AlertsSettingsComponent } from './screens/alerts-settings/alerts-settings';
 import { StartupSettingsComponent } from './screens/startup-settings/startup-settings';
 import { ExternalAppSettingsComponent } from './screens/external-app-settings/external-app-settings';
-import { ToastService } from '../../services/toast.service';
-import { PontoMaisService } from '../../services/pontomais.service';
-import { AutostartService } from '../../services/autostart.service';
-import { SettingsStore } from '../../services/settings.store';
-import { AutoSyncService } from '../../services/auto-sync.service';
+import { SettingsActionsService } from '../../services/settings-actions.service';
 import {
-  ALARM_SOUND_OPTIONS,
   AppInfo,
-  DEFAULT_ALARM_SOUND,
   INTERVAL_OPTIONS,
   SettingsPatch,
   formatWorkday,
@@ -83,18 +77,14 @@ const EMPTY_APP_INFO: AppInfo = {
   host: { '(document:keydown.escape)': 'onEscape()' },
 })
 export class SettingsModal {
-  private readonly toastService = inject(ToastService);
-  private readonly pontoMaisService = inject(PontoMaisService);
-  private readonly autostartService = inject(AutostartService);
-  private readonly store = inject(SettingsStore);
-  private readonly autoSync = inject(AutoSyncService);
+  private readonly actions = inject(SettingsActionsService);
 
   readonly isOpen = input(false);
   readonly close = output<void>();
 
   private readonly modalContainer = viewChild<ElementRef<HTMLDivElement>>('modalContainer');
 
-  protected readonly settings = this.store.settings;
+  protected readonly settings = this.actions.settings;
   protected readonly appInfo = signal(EMPTY_APP_INFO);
   protected readonly settingsLoaded = signal(false);
   protected readonly isLoggingIn = signal(false);
@@ -185,32 +175,7 @@ export class SettingsModal {
 
   private async loadSettings(): Promise<void> {
     try {
-      const loaded = await this.store.load();
-      const reconcile: SettingsPatch = {};
-
-      if (!ALARM_SOUND_OPTIONS.some(option => option.value === loaded.alarmSound)) {
-        reconcile.alarmSound = DEFAULT_ALARM_SOUND;
-      }
-
-      try {
-        const autostart = await this.autostartService.isEnabled();
-        if (autostart !== loaded.autostartEnabled) reconcile.autostartEnabled = autostart;
-      } catch (error) {
-        console.error('Erro ao consultar a inicialização com o sistema:', error);
-      }
-
-      // O Rust diz se há conta vinculada; nem token nem senha passam por aqui.
-      try {
-        const connected = (await this.pontoMaisService.ensureSession()) === 'connected';
-        if (connected !== loaded.isPontomaisLoggedIn) reconcile.isPontomaisLoggedIn = connected;
-      } catch (error) {
-        console.error('Erro ao restaurar sessão no modal:', error);
-      }
-
-      if (Object.keys(reconcile).length) {
-        await this.persist(reconcile);
-      }
-
+      await this.actions.loadAndReconcile();
       this.loginDraft.set(this.settings().pontomaisLogin);
       this.passwordDraft.set('');
     } catch (error) {
@@ -226,85 +191,19 @@ export class SettingsModal {
     }
   }
 
-  protected async applyPatch(patch: SettingsPatch): Promise<boolean> {
-    if (patch.autostartEnabled !== undefined) {
-      patch = { ...patch, autostartEnabled: await this.syncAutostart(patch.autostartEnabled) };
-    }
-    return this.persist(patch);
-  }
-
-  private async persist(patch: SettingsPatch): Promise<boolean> {
-    try {
-      await this.store.update(patch);
-    } catch (error) {
-      console.error('Erro ao salvar configurações:', error);
-      this.toastService.error('Não foi possível salvar as configurações');
-      return false;
-    }
-
-    await this.applyAutoSync();
-    return true;
-  }
-
-  private async syncAutostart(wanted: boolean): Promise<boolean> {
-    let current: boolean;
-    try {
-      current = await this.autostartService.isEnabled();
-    } catch (error) {
-      console.error('Erro ao consultar a inicialização com o sistema:', error);
-      return wanted;
-    }
-
-    if (wanted === current) return current;
-
-    try {
-      if (wanted) {
-        await this.autostartService.enable();
-      } else {
-        await this.autostartService.disable();
-      }
-      return wanted;
-    } catch (error) {
-      console.error('Erro ao alterar a inicialização com o sistema:', error);
-      this.toastService.error('Não foi possível alterar a inicialização com o sistema');
-      return current;
-    }
-  }
-
-  private async applyAutoSync(): Promise<void> {
-    try {
-      await this.autoSync.apply(this.settings(), this.settings().isPontomaisLoggedIn, false);
-    } catch (error) {
-      console.error('Erro ao configurar a sincronização:', error);
-    }
+  protected applyPatch(patch: SettingsPatch): Promise<boolean> {
+    return this.actions.applyPatch(patch);
   }
 
   protected async onSaveCredentials(): Promise<void> {
     const login = this.loginDraft().trim();
-    const password = this.passwordDraft();
-    if (!login || !password) {
-      this.toastService.error('Preencha login e senha', 3000);
-      return;
-    }
-
     this.isLoggingIn.set(true);
 
     try {
-      // O Rust autentica, grava o token e — se a Reconexão Automática estiver ligada —
-      // a senha. Aqui não sobra credencial nenhuma.
-      await this.pontoMaisService.authenticate({ username: login, password });
-
-      this.loginDraft.set(login);
-      this.passwordDraft.set('');
-
-      // Sem toast de sucesso: a tela troca o formulário pela conta conectada,
-      // o que já comunica o resultado.
-      await this.store.load();
-      await this.applyAutoSync();
-    } catch (error) {
-      console.error('Erro ao fazer login:', error);
-      const message = typeof error === 'string' ? error : 'Erro ao fazer login. Verifique suas credenciais.';
-      this.toastService.error(message);
+      if (await this.actions.authenticate(login, this.passwordDraft())) {
+        this.loginDraft.set(login);
+        this.passwordDraft.set('');
+      }
     } finally {
       this.isLoggingIn.set(false);
     }
@@ -315,20 +214,8 @@ export class SettingsModal {
     this.isLoggingOut.set(true);
 
     try {
-      // Revoga o token na API, zera a sessão do Rust e apaga o cofre — tudo do lado
-      // de lá. Isolado num try próprio: uma falha aqui não pode abortar o logout
-      // local, senão a conta ficaria presa como conectada.
-      try {
-        await this.pontoMaisService.clearSession();
-      } catch (error) {
-        console.error('Erro ao encerrar sessão no PontoMais:', error);
-      }
-
       this.passwordDraft.set('');
-
-      if (await this.persist({ isPontomaisLoggedIn: false })) {
-        this.toastService.success('Conta desconectada');
-      }
+      await this.actions.logout();
     } finally {
       this.isLoggingOut.set(false);
     }

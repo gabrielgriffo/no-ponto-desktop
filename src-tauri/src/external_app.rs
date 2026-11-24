@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 
 /// Aplicativo externo escolhido pelo usuário.
@@ -433,9 +433,7 @@ fn process_name(program: &str, args: &[String]) -> Option<String> {
 
     // `env VAR=valor programa` é comum em Exec de .desktop
     if file_name(program) == Some("env") {
-        program = args
-            .iter()
-            .find(|arg| !arg.starts_with('-') && !arg.contains('='))?;
+        program = env_target(args)?;
     }
 
     let name = file_name(program)?;
@@ -456,11 +454,48 @@ fn process_name(program: &str, args: &[String]) -> Option<String> {
         .iter()
         .any(|ext| lower.ends_with(ext));
 
-    if is_script || WRAPPERS.contains(&stem) {
+    let opened_by_shell = cfg!(target_os = "windows")
+        && Path::new(program).extension().is_some()
+        && opens_through_shell(program);
+
+    if is_script || opened_by_shell || WRAPPERS.contains(&stem) {
         return None;
     }
 
     Some(name.to_string())
+}
+
+const ENV_OPTIONS_WITH_VALUE: &[&str] = &["-u", "--unset", "-C", "--chdir", "-S", "--split-string"];
+
+fn env_target(args: &[String]) -> Option<&String> {
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        if ENV_OPTIONS_WITH_VALUE.contains(&arg.as_str()) {
+            args.next();
+        } else if !arg.starts_with('-') && !arg.contains('=') {
+            return Some(arg);
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn is_script_file(program: &str) -> bool {
+    use std::io::Read;
+
+    let path = if program.contains('/') {
+        Some(PathBuf::from(program))
+    } else {
+        std::env::var_os("PATH").and_then(|paths| {
+            std::env::split_paths(&paths)
+                .map(|dir| dir.join(program))
+                .find(|candidate| candidate.is_file())
+        })
+    };
+
+    let mut header = [0u8; 2];
+    path.and_then(|path| fs::File::open(path).ok())
+        .is_some_and(|mut file| file.read_exact(&mut header).is_ok() && &header == b"#!")
 }
 
 fn is_in_process_list(name: &str, running: &[String]) -> bool {
@@ -470,7 +505,17 @@ fn is_in_process_list(name: &str, running: &[String]) -> bool {
 fn detected_process_name(target: &ExternalApp) -> Option<String> {
     let spec = launch_spec(target).ok()?;
     let (program, args) = executable_behind(&spec.program, &spec.args)?;
-    process_name(&program, &args)
+    let name = process_name(&program, &args)?;
+
+    #[cfg(target_os = "linux")]
+    {
+        let launched = if file_name(&program) == Some("env") { env_target(&args)? } else { &program };
+        if is_script_file(launched) {
+            return None;
+        }
+    }
+
+    Some(name)
 }
 
 fn is_already_running(target: &ExternalApp) -> bool {
@@ -535,14 +580,22 @@ fn maybe_launch(app: &AppHandle, work_day: &Value, today: &str) -> Result<bool, 
     Ok(true)
 }
 
-pub async fn maybe_launch_in_background(app: AppHandle, work_day: Value, date: String) {
-    let result =
-        tauri::async_runtime::spawn_blocking(move || maybe_launch(&app, &work_day, &date)).await;
+pub const LAUNCH_ERROR_EVENT: &str = "external-app-error";
 
-    match result {
-        Ok(Ok(_)) => {}
-        Ok(Err(e)) => eprintln!("[external_app] {}", e),
-        Err(e) => eprintln!("[external_app] Tarefa de lançamento falhou: {}", e),
+pub async fn maybe_launch_in_background(app: AppHandle, work_day: Value, date: String) {
+    let handle = app.clone();
+    let result =
+        tauri::async_runtime::spawn_blocking(move || maybe_launch(&handle, &work_day, &date)).await;
+
+    let error = match result {
+        Ok(Ok(_)) => return,
+        Ok(Err(e)) => e,
+        Err(e) => format!("Tarefa de lançamento falhou: {}", e),
+    };
+
+    eprintln!("[external_app] {}", error);
+    if let Err(e) = app.emit(LAUNCH_ERROR_EVENT, &error) {
+        eprintln!("[external_app] Falha ao avisar o erro de lançamento: {}", e);
     }
 }
 
@@ -1169,6 +1222,40 @@ mod tests {
         );
         assert_eq!(process_name(r"C:\scripts\iniciar.bat", &[]), None);
         assert_eq!(process_name(r"C:\Windows\System32\cmd.exe", &[]), None);
+    }
+
+    #[test]
+    fn env_options_with_a_value_are_not_taken_as_the_program() {
+        let args = vec!["-u".to_string(), "FOO".to_string(), "/usr/bin/gedit".to_string()];
+        assert_eq!(process_name("/usr/bin/env", &args).as_deref(), Some("gedit"));
+
+        let args = vec!["--chdir".to_string(), "/tmp".to_string(), "BAR=1".to_string(), "/opt/app/run".to_string()];
+        assert_eq!(process_name("/usr/bin/env", &args).as_deref(), Some("run"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn documents_opened_by_the_shell_have_no_process_name() {
+        assert_eq!(process_name(r"C:\Docs\planilha.xlsx", &[]), None);
+        assert_eq!(process_name(r"C:\Docs\relatorio.pdf", &[]), None);
+        assert_eq!(process_name(r"C:\Apps\Ferramenta.appref-ms", &[]), None);
+        assert_eq!(process_name(r"C:\Apps\app.exe", &[]).as_deref(), Some("app.exe"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_shell_script_without_extension_is_detected_as_script() {
+        let dir = std::env::temp_dir().join(format!("noponto-script-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("google-chrome-stable");
+        std::fs::write(&script, "#!/bin/bash\nexec /opt/google/chrome/chrome \"$@\"\n").unwrap();
+        let binary = dir.join("binario");
+        std::fs::write(&binary, [0x7f, b'E', b'L', b'F']).unwrap();
+
+        assert!(is_script_file(script.to_str().unwrap()));
+        assert!(!is_script_file(binary.to_str().unwrap()));
+        assert!(!is_script_file(dir.join("inexistente").to_str().unwrap()));
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

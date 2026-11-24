@@ -1,0 +1,145 @@
+<header class="header" data-tauri-drag-region="deep">
+  <div class="logo">
+    <div class="i icon-app"></div>
+    <span class="logo-text" role="img" aria-label="No Ponto"></span>
+  </div>
+  <div class="window-buttons">
+    <button type="button" class="window-button minimize" aria-label="Minimizar" (click)="minimize()">
+      <span class="icon-minimize"></span>
+    </button>
+    <button type="button" class="window-button close" aria-label="Fechar" (click)="close()">
+      <span class="icon-close"></span>
+    </button>
+  </div>
+</header>
+
+<main class="setup">
+  <div class="progress-head">
+    <div class="progress-text">
+      <span class="eyebrow">Configuração inicial · etapa {{ stepNumber() }} de {{ steps().length }}</span>
+      <button type="button" class="skip-all" (click)="askSkip('all')" [disabled]="finishing() || isLoggingIn()">
+        Pular tudo
+      </button>
+    </div>
+    <div
+      class="bar"
+      role="progressbar"
+      aria-label="Progresso da configuração"
+      [attr.aria-valuenow]="stepNumber()"
+      aria-valuemin="0"
+      [attr.aria-valuemax]="steps().length">
+      <span [style.transform]="'scaleX(' + stepNumber() / steps().length + ')'"></span>
+    </div>
+  </div>
+
+  @if (loaded()) {
+    @switch (step()) {
+      @case ('conta') {
+        <section class="pane" aria-live="polite">
+          <div class="pane-head">
+            <h1>{{ text().title }}</h1>
+            <p>{{ text().description }}</p>
+          </div>
+          <div class="pane-body">
+            <app-integration-settings
+              [isLoggedIn]="loggedIn()"
+              [account]="settings().pontomaisLogin"
+              [(login)]="loginDraft"
+              [(password)]="passwordDraft"
+              [isLoggingIn]="isLoggingIn()"
+              [isLoggingOut]="isLoggingOut()"
+              [autoReconnect]="settings().autoReconnectEnabled"
+              (saveCredentials)="onSaveCredentials()"
+              (logout)="onLogout()"
+              (autoReconnectChange)="applyPatch({ autoReconnectEnabled: $event })" />
+          </div>
+        </section>
+      }
+      @case ('sincronizacao') {
+        <section class="pane" aria-live="polite">
+          <div class="pane-head">
+            <h1>{{ text().title }}</h1>
+            <p>{{ text().description }}</p>
+          </div>
+          <div class="pane-body">
+            <app-sync-settings [settings]="settings()" (patch)="applyPatch($event)" />
+          </div>
+        </section>
+      }
+      @case ('avisos') {
+        <section class="pane" aria-live="polite">
+          <div class="pane-head">
+            <h1>{{ text().title }}</h1>
+            <p>{{ text().description }}</p>
+          </div>
+          <div class="pane-body">
+            <app-alerts-settings [settings]="settings()" (patch)="applyPatch($event)" />
+          </div>
+        </section>
+      }
+      @case ('app-externo') {
+        <section class="pane" aria-live="polite">
+          <div class="pane-head">
+            <h1>{{ text().title }}</h1>
+            <p>{{ text().description }}</p>
+          </div>
+          <div class="pane-body">
+            <app-external-app-settings [settings]="settings()" (patch)="applyPatch($event)" />
+          </div>
+        </section>
+      }
+      @case ('inicializacao') {
+        <section class="pane" aria-live="polite">
+          <div class="pane-head">
+            <h1>{{ text().title }}</h1>
+            <p>{{ text().description }}</p>
+          </div>
+          <div class="pane-body">
+            <app-startup-settings [settings]="settings()" (patch)="applyPatch($event)" />
+          </div>
+        </section>
+      }
+    }
+  }
+
+  <footer class="pane-foot">
+    @if (canGoBack()) {
+      <button type="button" class="btn-ghost" (click)="back()" [disabled]="isLoggingIn() || finishing()">Voltar</button>
+    }
+    <span class="grow"></span>
+    <button type="button" class="btn-ghost skip-step" (click)="skipStep()" [disabled]="isLoggingIn() || isLoggingOut() || finishing()">
+      Pular
+    </button>
+    <button
+      type="button"
+      class="btn-primary"
+      (click)="next()"
+      [disabled]="needsAccount() || isLoggingOut() || finishing()">
+      {{ isLast() ? 'Começar a usar' : 'Continuar' }}
+    </button>
+  </footer>
+</main>
+
+@if (skipImpact(); as impact) {
+  <div class="overlay" (click)="$event.target === $event.currentTarget && cancelSkip()">
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="skip-title" aria-describedby="skip-desc">
+      <h2 id="skip-title">{{ impact.title }}</h2>
+      <div id="skip-desc" class="dialog-body">
+        <p>{{ impact.intro }}</p>
+        @if (impact.features.length) {
+          <ul>
+            @for (feature of impact.features; track feature) {
+              <li>{{ feature }}</li>
+            }
+          </ul>
+        }
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn-ghost" (click)="cancelSkip()">Voltar</button>
+        <button #skipConfirm type="button" class="btn-primary" (click)="confirmSkipStep()">
+          {{ confirmSkip() === 'all' ? 'Pular tudo' : 'Pular mesmo assim' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

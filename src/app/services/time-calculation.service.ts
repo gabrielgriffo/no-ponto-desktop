@@ -153,7 +153,7 @@ export class TimeCalculationService {
       let accumulated = 0;
       endTimeMinutes = last.open
         ? Math.max(last.start, currentMinutes) + remainingMinutes
-        : times[times.length - 1] + remainingMinutes;
+        : Math.max(times[times.length - 1], currentMinutes) + remainingMinutes;
 
       for (const period of periods) {
         if (accumulated + period.length >= targetJourneyMinutes) {
@@ -173,7 +173,7 @@ export class TimeCalculationService {
       if (totalWorkedMinutes >= targetJourneyMinutes) {
         endTimeMinutes = this.completedJourneyEnd(checkInMinutes, checkIn2Minutes, firstPeriod, targetJourneyMinutes);
       } else {
-        endTimeMinutes = checkOut2Minutes + remainingMinutes;
+        endTimeMinutes = Math.max(checkOut2Minutes, currentMinutes) + remainingMinutes;
       }
     }
     // Cenário C: Todos os 3 horários preenchidos (entrada, saída e retorno)

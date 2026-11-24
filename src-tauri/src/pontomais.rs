@@ -650,6 +650,24 @@ fn sign_out(app: &AppHandle, state: &PontoMaisStateType) {
 ///
 /// É o único ponto onde a reconexão acontece — a busca manual e o laço de
 /// sincronização passam os dois por aqui, então a regra não existe em duplicata.
+fn missing_session_error(attempted_meanwhile: bool) -> String {
+    if attempted_meanwhile {
+        SESSION_EXPIRED.to_string()
+    } else {
+        NOT_AUTHENTICATED.to_string()
+    }
+}
+
+fn worth_retrying(attempted_meanwhile: bool, token_before: &Option<String>, token_now: &Option<String>) -> bool {
+    attempted_meanwhile || token_before != token_now
+}
+
+fn validate_date(date: &str) -> Result<(), String> {
+    chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+        .map(|_| ())
+        .map_err(|_| format!("Data inválida: {}", date))
+}
+
 pub async fn fetch_workday_reconnecting(
     app: &AppHandle,
     state: &PontoMaisStateType,
@@ -660,6 +678,7 @@ pub async fn fetch_workday_reconnecting(
     }
 
     let epoch = RECONNECT_EPOCH.load(Ordering::SeqCst);
+    let token_before = lock_session(state).token.clone();
     let first = fetch_workday(state, date).await;
 
     let Err(error) = first else {
@@ -675,13 +694,16 @@ pub async fn fetch_workday_reconnecting(
     let _guard = RECONNECT_LOCK.lock().await;
 
     let attempted_meanwhile = RECONNECT_EPOCH.load(Ordering::SeqCst) != epoch;
-    if attempted_meanwhile && lock_session(state).token.is_none() {
-        return Err(SESSION_EXPIRED.to_string());
+    let token_now = lock_session(state).token.clone();
+    if token_now.is_none() {
+        return Err(missing_session_error(attempted_meanwhile));
     }
 
-    let retry = fetch_workday(state, date).await;
-    if !matches!(&retry, Err(e) if e == SESSION_EXPIRED) {
-        return retry;
+    if worth_retrying(attempted_meanwhile, &token_before, &token_now) {
+        let retry = fetch_workday(state, date).await;
+        if !matches!(&retry, Err(e) if e == SESSION_EXPIRED) {
+            return retry;
+        }
     }
 
     if attempted_meanwhile {
@@ -723,6 +745,7 @@ pub async fn pontomais_current_workday(
     state: tauri::State<'_, PontoMaisStateType>,
     date: String,
 ) -> Result<serde_json::Value, String> {
+    validate_date(&date)?;
     fetch_workday_reconnecting(&app, &state, &date).await
 }
 
@@ -848,6 +871,30 @@ mod tests {
 
         assert!(result.unwrap_err().is_connect());
         assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn a_logout_during_the_fetch_does_not_reconnect() {
+        assert_eq!(missing_session_error(false), NOT_AUTHENTICATED);
+        assert_eq!(missing_session_error(true), SESSION_EXPIRED);
+    }
+
+    #[test]
+    fn the_same_dead_token_is_not_retried() {
+        let old = Some("a".to_string());
+        let new = Some("b".to_string());
+
+        assert!(!worth_retrying(false, &old, &old));
+        assert!(worth_retrying(false, &old, &new));
+        assert!(worth_retrying(true, &old, &old));
+    }
+
+    #[test]
+    fn only_calendar_dates_reach_the_url() {
+        assert!(validate_date("2026-11-24").is_ok());
+        assert!(validate_date("2026-02-30").is_err());
+        assert!(validate_date("2026-11-24&attributes=x").is_err());
+        assert!(validate_date("").is_err());
     }
 
     #[test]

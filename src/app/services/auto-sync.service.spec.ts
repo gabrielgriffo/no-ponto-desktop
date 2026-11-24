@@ -61,6 +61,17 @@ describe('AutoSyncService', () => {
     expect(order).toEqual([false, true]);
   });
 
+  it('depois do reset a mesma configuração é aplicada de novo, liberando a primeira busca', async () => {
+    await service.apply(smart, true, false);
+    await service.reset();
+    await service.apply(smart, true);
+
+    expect(calls).toEqual([
+      { enabled: false, intervalMins: 30, smart: true, launchOnFirstSync: false },
+      { enabled: false, intervalMins: 30, smart: true, launchOnFirstSync: true },
+    ]);
+  });
+
   it('uma falha não conta como aplicada e a próxima chamada tenta de novo', async () => {
     fail = true;
     await expect(service.apply(smart, true)).rejects.toBe('erro');

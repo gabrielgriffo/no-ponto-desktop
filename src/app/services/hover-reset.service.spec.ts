@@ -41,6 +41,43 @@ describe('HoverResetService', () => {
     expect(clicks).toBe(0);
   });
 
+  it('o primeiro toque no cabeçalho começa a arrastar a janela', () => {
+    const header = document.createElement('header');
+    header.setAttribute('data-tauri-drag-region', 'deep');
+    document.body.appendChild(header);
+    document.elementFromPoint = vi.fn(() => header);
+    let dragged = 0;
+    service.startDragging = () => {
+      dragged++;
+      return Promise.resolve();
+    };
+
+    service.arm();
+    shield()!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+
+    expect(dragged).toBe(1);
+    expect(shield()).toBeNull();
+  });
+
+  it('um botão dentro do cabeçalho recebe o clique em vez de arrastar', () => {
+    const header = document.createElement('header');
+    header.setAttribute('data-tauri-drag-region', 'deep');
+    header.appendChild(button);
+    document.body.appendChild(header);
+    let dragged = 0;
+    service.startDragging = () => {
+      dragged++;
+      return Promise.resolve();
+    };
+
+    service.arm();
+    shield()!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    button.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+
+    expect(dragged).toBe(0);
+    expect(clicks).toBe(1);
+  });
+
   it('mover o ponteiro só remove o escudo', () => {
     service.arm();
     window.dispatchEvent(new MouseEvent('pointermove'));

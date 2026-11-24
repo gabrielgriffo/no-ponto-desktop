@@ -61,7 +61,7 @@ pub fn run() {
             auto_close::spawn(app.handle().clone(), launch);
 
             let start_minimized_enabled = settings::read_settings(app.handle())
-                .map(|s| s.start_minimized_enabled)
+                .map(|s| s.starts_minimized())
                 .unwrap_or(false);
 
             if !startup::start_hidden(launch, start_minimized_enabled) {

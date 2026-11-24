@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
 
   test:
@@ -438,4 +442,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+        run: |
+          current=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
+          newest=$(printf '%s\n%s\n' "${current#v}" "${GITHUB_REF_NAME#v}" | sort -V | tail -n 1)
+          latest_flag=--latest
+          if [ -n "$current" ] && [ "$newest" != "${GITHUB_REF_NAME#v}" ]; then
+            latest_flag=--latest=false
+          fi
+          gh release edit "$GITHUB_REF_NAME" --draft=false "$latest_flag"

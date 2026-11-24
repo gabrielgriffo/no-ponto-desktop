@@ -223,9 +223,12 @@ export class Home implements OnInit, OnDestroy {
   private sessionRestoreRetryTimer?: ReturnType<typeof setTimeout>;
   private updateCheckRetryTimer?: ReturnType<typeof setTimeout>;
   private pendingSyncPayload: AutoSyncPayload | null = null;
+  private launchExternalAppAfterImport = false;
+  private externalAppErrorShownOn = '';
   private sessionRestorePromise?: Promise<void>;
   private autoSyncUnlisten?: UnlistenFn;
   private sessionExpiredUnlisten?: UnlistenFn;
+  private externalAppErrorUnlisten?: UnlistenFn;
   private readonly removeFocusListeners: (() => void)[] = [];
 
   constructor() {
@@ -260,6 +263,9 @@ export class Home implements OnInit, OnDestroy {
       this.onAutoSyncResult(event.payload)
     );
     this.sessionExpiredUnlisten = await listen('session-expired', () => this.handleSessionExpired());
+    this.externalAppErrorUnlisten = await listen<string>('external-app-error', event =>
+      this.onExternalAppError(event.payload)
+    );
 
     // onImportClick aguarda essa promise antes de executar
     this.sessionRestorePromise = this.restoreSessionFromStorage();
@@ -278,6 +284,14 @@ export class Home implements OnInit, OnDestroy {
     this.removeFocusListeners.forEach(remove => remove());
     this.autoSyncUnlisten?.();
     this.sessionExpiredUnlisten?.();
+    this.externalAppErrorUnlisten?.();
+  }
+
+  private onExternalAppError(message: string): void {
+    const today = todayLocalDate();
+    if (this.externalAppErrorShownOn === today) return;
+    this.externalAppErrorShownOn = today;
+    this.toastService.error(`Não foi possível abrir o aplicativo externo. ${message}`, 6000);
   }
 
   private listenForFocusRemoval(): void {
@@ -298,7 +312,10 @@ export class Home implements OnInit, OnDestroy {
       setTimeout(() => (canRemoveFocus = true), 500);
     };
 
-    const onFocusOut = () => setTimeout(() => this.applyPendingSync());
+    const onFocusOut = (event: FocusEvent) => {
+      if ((event.relatedTarget as Element | null)?.closest?.('[data-confirms-times]')) return;
+      setTimeout(() => this.applyPendingSync());
+    };
 
     document.addEventListener('visibilitychange', onVisibilityChange);
     document.addEventListener('mousemove', onMouseMove, { passive: true });
@@ -311,6 +328,7 @@ export class Home implements OnInit, OnDestroy {
   }
 
   private isEditingTimes(): boolean {
+    if (!document.hasFocus() || document.hidden) return false;
     const active = document.activeElement;
     return [this.checkInInput(), this.checkOutInput(), this.checkIn2Input()].some(
       input => input.nativeElement === active
@@ -345,6 +363,10 @@ export class Home implements OnInit, OnDestroy {
       // enquanto a importação automática está em andamento. Pula a espera pela
       // sessão pois já estamos dentro dela (evita deadlock com sessionRestorePromise).
       if (settings.importOnStartupEnabled && !this.isSyncEnabled()) {
+        if (this.isImporting()) {
+          this.launchExternalAppAfterImport = true;
+          return;
+        }
         const workDay = await this.onImportClick(true);
 
         if (workDay) {
@@ -406,7 +428,7 @@ export class Home implements OnInit, OnDestroy {
       const workDay = await this.fetchWorkDay(date);
 
       if (hasTimeCards(workDay) && isTodayLocal(date)) {
-        this.applyImportedCards(workDay);
+        this.onAutoSyncResult({ status: 'success', data: workDay, date });
         await invoke('external_app_maybe_launch', { workDay, date });
         return;
       }
@@ -583,6 +605,7 @@ export class Home implements OnInit, OnDestroy {
   }
 
   protected onStartMonitoringClick(): void {
+    this.pendingSyncPayload = null;
     if (!this.validateTimeInputs()) {
       this.stopMonitoring();
       return;
@@ -659,6 +682,11 @@ export class Home implements OnInit, OnDestroy {
         this.toastService.error('Nenhum registro encontrado para hoje', 3000);
       } else {
         this.cancelStartupImportRetry();
+      }
+
+      if (this.launchExternalAppAfterImport) {
+        this.launchExternalAppAfterImport = false;
+        invoke('external_app_maybe_launch', { workDay, date }).catch(() => {});
       }
 
       return workDay;

@@ -24,6 +24,14 @@ export class AutoSyncService {
     return run;
   }
 
+  reset(): Promise<void> {
+    const run = this.queue.then(() => {
+      this.applied = null;
+    });
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
   private async configure(config: AutoSyncConfig, launchOnFirstSync: boolean): Promise<void> {
     const key = JSON.stringify(config);
     if (key === this.applied) return;

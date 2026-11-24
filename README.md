@@ -53,10 +53,10 @@ ficam nas configurações.
 ## Interface
 
 <table>
-<tr><th>Tela principal</th><th>Fim do expediente</th></tr>
-<tr><td><img src="docs/screenshots/tela-principal.png" width="320" alt="Tela principal em verde, no meio do expediente: 2h28 restantes, 5h32 trabalhadas, fim previsto às 17:00, com as batidas 08:00, 12:00 e 13:00"></td><td><img src="docs/screenshots/alarme.png" width="320" alt="Tela em roxo, com a jornada completa, e o aviso Expediente concluído com os botões Adiar 10 min e Entendi"></td></tr>
-<tr><th>Configurações</th><th>Alarme e notificações</th></tr>
-<tr><td><img src="docs/screenshots/configuracoes.png" width="320" alt="Menu de configurações com Conta, Sincronização, Expediente, Alarme e notificações, Inicialização, Aplicativo externo e Sobre"></td><td><img src="docs/screenshots/alarme-e-notificacoes.png" width="320" alt="Tela de alarme e notificações com som, volume, modo do alarme, duração e a opção de notificação do sistema"></td></tr>
+<tr><th>Tela principal</th><th>Em intervalo</th><th>Fim do expediente</th></tr>
+<tr><td><img src="docs/screenshots/tela-principal.png" width="260" alt="Tela principal em verde, no meio do expediente: 2h28 restantes, 5h32 trabalhadas, fim previsto às 17:00, com as batidas 08:00, 12:00 e 13:00"></td><td><img src="docs/screenshots/intervalo.png" width="260" alt="Tela em cinza, no intervalo: 4h00 trabalhadas, 4h00 restantes, fim previsto às 17:00, com as batidas 08:00 e 12:00 e o próximo alarme às 17:00"></td><td><img src="docs/screenshots/alarme.png" width="260" alt="Tela em roxo, com a jornada completa, e o aviso Expediente concluído com os botões Adiar 10 min e Entendi"></td></tr>
+<tr><th>Sincronização</th><th>Configurações</th><th>Alarme e notificações</th></tr>
+<tr><td><img src="docs/screenshots/sincronizacao.png" width="260" alt="Tela de sincronização com as opções Sincronização automática, Importar ao iniciar e Sincronização inteligente"></td><td><img src="docs/screenshots/configuracoes.png" width="260" alt="Menu de configurações com Conta, Sincronização, Expediente, Alarme e notificações, Inicialização, Aplicativo externo e Sobre"></td><td><img src="docs/screenshots/alarme-e-notificacoes.png" width="260" alt="Tela de alarme e notificações com som, volume, modo do alarme, duração e a opção de notificação do sistema"></td></tr>
 </table>
 
 ## Recursos

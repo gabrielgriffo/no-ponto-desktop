@@ -64,16 +64,34 @@ const PLATFORM_VERSION: &str = CHROME_MAJOR;
 const STATE_FILE: &str = "device.json";
 
 fn read_state(app: &AppHandle) -> Option<DeviceState> {
-    let path = storage::app_data_file(app, STATE_FILE).ok()?;
-    let state: DeviceState = storage::read_json(&path).ok().flatten()?;
-
-    // Um arquivo sem uuid é indistinguível de arquivo ausente: gerar um novo é o
-    // único caminho, e é melhor que enviar string vazia no header.
-    if state.uuid.is_empty() {
-        return None;
+    match stored_state(app) {
+        Stored::Found(state) => Some(state),
+        Stored::Absent | Stored::Unreadable => None,
     }
+}
 
-    Some(state)
+enum Stored {
+    Found(DeviceState),
+    Absent,
+    Unreadable,
+}
+
+fn stored_state(app: &AppHandle) -> Stored {
+    match storage::app_data_file(app, STATE_FILE) {
+        Ok(path) => classify(std::fs::read_to_string(path)),
+        Err(_) => Stored::Unreadable,
+    }
+}
+
+fn classify(read: std::io::Result<String>) -> Stored {
+    match read {
+        Ok(json) => match serde_json::from_str::<DeviceState>(&json) {
+            Ok(state) if !state.uuid.is_empty() => Stored::Found(state),
+            _ => Stored::Absent,
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Stored::Absent,
+        Err(_) => Stored::Unreadable,
+    }
 }
 
 fn write_state(app: &AppHandle, state: &DeviceState) -> Result<(), String> {
@@ -86,14 +104,21 @@ fn write_state(app: &AppHandle, state: &DeviceState) -> Result<(), String> {
 /// Arquivo ausente ou corrompido gera um uuid novo: o custo é perder uma sessão
 /// uma vez, enquanto abortar deixaria o app sem conseguir montar os headers.
 pub fn load_or_create(app: &AppHandle) -> DeviceState {
-    if let Some(state) = read_state(app) {
-        return state;
-    }
+    let unreadable = match stored_state(app) {
+        Stored::Found(state) => return state,
+        Stored::Absent => false,
+        Stored::Unreadable => true,
+    };
 
     let state = DeviceState {
         uuid: Uuid::new_v4().to_string(),
         registered_for: Vec::new(),
     };
+
+    if unreadable {
+        eprintln!("[device] Identidade do dispositivo ilegível agora; usando uma temporária sem sobrescrever");
+        return state;
+    }
 
     if let Err(e) = write_state(app, &state) {
         // Sem persistir, o uuid vale só para esta execução — é o comportamento
@@ -231,6 +256,22 @@ mod tests {
 
         assert!(!other.is_registered_for("u2", "a"));
         assert!(other.is_registered_for("u2", "b"));
+    }
+
+    #[test]
+    fn a_transient_read_error_does_not_count_as_a_missing_identity() {
+        let locked = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "em uso");
+        assert!(matches!(classify(Err(locked)), Stored::Unreadable));
+
+        let missing = std::io::Error::new(std::io::ErrorKind::NotFound, "ausente");
+        assert!(matches!(classify(Err(missing)), Stored::Absent));
+    }
+
+    #[test]
+    fn a_corrupt_or_empty_identity_is_regenerated() {
+        assert!(matches!(classify(Ok("{ trunc".to_string())), Stored::Absent));
+        assert!(matches!(classify(Ok(r#"{"uuid":""}"#.to_string())), Stored::Absent));
+        assert!(matches!(classify(Ok(r#"{"uuid":"u1"}"#.to_string())), Stored::Found(_)));
     }
 
     #[test]

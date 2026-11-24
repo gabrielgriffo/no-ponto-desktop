@@ -10,6 +10,7 @@
 
 use crate::storage;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 use tauri::AppHandle;
 
@@ -19,6 +20,12 @@ pub const MAX_FAILED_ATTEMPTS: u32 = 2;
 const STATE_FILE: &str = "auth_state.json";
 
 static LOCK: Mutex<()> = Mutex::new(());
+
+static FAILED_IN_MEMORY: AtomicU32 = AtomicU32::new(0);
+
+fn next_failure_count(on_disk: u32, in_memory: u32) -> u32 {
+    on_disk.max(in_memory).saturating_add(1)
+}
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -47,7 +54,8 @@ fn write(app: &AppHandle, state: &AuthState) {
 pub fn record_failure(app: &AppHandle) -> bool {
     let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut state = read(app);
-    state.failed_attempts = state.failed_attempts.saturating_add(1);
+    state.failed_attempts = next_failure_count(state.failed_attempts, FAILED_IN_MEMORY.load(Ordering::SeqCst));
+    FAILED_IN_MEMORY.store(state.failed_attempts, Ordering::SeqCst);
     let reached = state.failed_attempts >= MAX_FAILED_ATTEMPTS;
     write(app, &state);
     reached
@@ -55,5 +63,23 @@ pub fn record_failure(app: &AppHandle) -> bool {
 
 pub fn reset(app: &AppHandle) {
     let _guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    FAILED_IN_MEMORY.store(0, Ordering::SeqCst);
     write(app, &AuthState::default());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_count_lost_on_disk_is_kept_in_memory() {
+        assert_eq!(next_failure_count(0, 1), 2);
+        assert!(next_failure_count(0, 1) >= MAX_FAILED_ATTEMPTS);
+    }
+
+    #[test]
+    fn the_disk_count_still_wins_after_a_restart() {
+        assert_eq!(next_failure_count(1, 0), 2);
+        assert_eq!(next_failure_count(0, 0), 1);
+    }
 }

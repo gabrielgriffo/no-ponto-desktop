@@ -38,7 +38,10 @@ export interface AppSettings {
   pontomaisLogin: string;
   isPontomaisLoggedIn: boolean;
   autoReconnectEnabled: boolean;
+  onboardingState: OnboardingState;
 }
+
+export type OnboardingState = '' | 'pending' | 'done';
 
 export interface AppInfo {
   version: string;
@@ -105,6 +108,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pontomaisLogin: '',
   isPontomaisLoggedIn: false,
   autoReconnectEnabled: false,
+  onboardingState: '',
 };
 
 export type SettingsPatch = Partial<AppSettings>;
