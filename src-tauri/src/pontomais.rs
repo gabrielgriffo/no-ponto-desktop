@@ -2,8 +2,8 @@ use reqwest::{header, Client};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
-use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub struct PontoMaisState {
     pub token: Option<String>,
@@ -45,7 +45,21 @@ pub(crate) const NOT_AUTHENTICATED: &str = "NOT_AUTHENTICATED";
 const APP_ORIGIN: &str = "https://app2.pontomais.com.br";
 const APP_REFERER: &str = "https://app2.pontomais.com.br/";
 
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
+macro_rules! chrome_major {
+    () => {
+        "148"
+    };
+}
+
+pub(crate) const CHROME_MAJOR: &str = chrome_major!();
+
+pub(crate) const USER_AGENT: &str = concat!(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/",
+    chrome_major!(),
+    ".0.0.0 Safari/537.36"
+);
+
+pub(crate) const SESSION_EXPIRED_EVENT: &str = "session-expired";
 
 // Sem timeout, um servidor que aceita a conexão e não responde prenderia o laço de
 // sincronização e o fechamento automático até reiniciar o app.
@@ -53,6 +67,8 @@ static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none())
+        .https_only(true)
         .build()
         .unwrap_or_default()
 });
@@ -255,6 +271,7 @@ pub async fn pontomais_authenticate(
     }
 
     crate::auth_state::reset(&app);
+    reset_reconnect_backoff();
 
     Ok(())
 }
@@ -288,6 +305,11 @@ pub async fn pontomais_ensure_session(
 ) -> Result<SessionStatus, String> {
     if lock_session(&state).token.is_some() {
         return Ok(SessionStatus::Connected);
+    }
+
+    if matches!(crate::settings::read_settings(&app), Ok(settings) if !settings.is_pontomais_logged_in) {
+        crate::credentials::delete_all();
+        return Ok(SessionStatus::SignedOut);
     }
 
     let Some(stored) = crate::credentials::get_token()? else {
@@ -355,6 +377,7 @@ pub async fn pontomais_clear_session(
     // faria a próxima abertura reconectar sozinha uma conta que o usuário desligou.
     crate::credentials::delete_all();
     crate::auth_state::reset(&app);
+    reset_reconnect_backoff();
 
     Ok(())
 }
@@ -453,6 +476,49 @@ static RECONNECT_LOCK: LazyLock<tokio::sync::Mutex<()>> =
     LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 static RECONNECT_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+const RECONNECT_BACKOFF_BASE: Duration = Duration::from_secs(5 * 60);
+const RECONNECT_BACKOFF_MAX: Duration = Duration::from_secs(60 * 60);
+
+#[derive(Debug, Default)]
+struct ReconnectBackoff {
+    failures: u32,
+    last: Option<Instant>,
+}
+
+impl ReconnectBackoff {
+    fn wait(&self) -> Duration {
+        let doublings = self.failures.saturating_sub(1).min(16);
+        RECONNECT_BACKOFF_BASE
+            .saturating_mul(1 << doublings)
+            .min(RECONNECT_BACKOFF_MAX)
+    }
+
+    fn allows(&self, now: Instant) -> bool {
+        match self.last {
+            None => true,
+            Some(last) => now.saturating_duration_since(last) >= self.wait(),
+        }
+    }
+
+    fn record(&mut self, now: Instant) {
+        self.failures = self.failures.saturating_add(1);
+        self.last = Some(now);
+    }
+}
+
+static RECONNECT_BACKOFF: Mutex<ReconnectBackoff> = Mutex::new(ReconnectBackoff {
+    failures: 0,
+    last: None,
+});
+
+fn lock_backoff() -> std::sync::MutexGuard<'static, ReconnectBackoff> {
+    RECONNECT_BACKOFF.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn reset_reconnect_backoff() {
+    *lock_backoff() = ReconnectBackoff::default();
+}
 
 fn outcome_after_concurrent_attempt(has_token: bool) -> String {
     if has_token {
@@ -557,6 +623,10 @@ fn sign_out(app: &AppHandle, state: &PontoMaisStateType) {
         eprintln!("[pontomais] Falha ao registrar a desconexão nas settings: {}", e);
     }
 
+    if let Err(e) = app.emit(SESSION_EXPIRED_EVENT, ()) {
+        eprintln!("[pontomais] Falha ao avisar a desconexão: {}", e);
+    }
+
     crate::window::bring_to_front(app);
 }
 
@@ -602,17 +672,32 @@ pub async fn fetch_workday_reconnecting(
         return Err(outcome_after_concurrent_attempt(lock_session(state).token.is_some()));
     }
 
+    if !lock_backoff().allows(Instant::now()) {
+        return Err(RECONNECT_PENDING.to_string());
+    }
+
     match reconnect(app, state).await {
-        // Um token recém-emitido recusado não desvinculou nada: a conta segue salva.
         ReconnectOutcome::Reconnected => match fetch_workday(state, date).await {
-            Err(e) if e == SESSION_EXPIRED => Err(RECONNECT_PENDING.to_string()),
-            other => other,
+            Err(e) if e == SESSION_EXPIRED => {
+                lock_backoff().record(Instant::now());
+                Err(RECONNECT_PENDING.to_string())
+            }
+            other => {
+                reset_reconnect_backoff();
+                other
+            }
         },
         // A conta caiu: o frontend precisa refletir isso na tela.
-        ReconnectOutcome::Wiped => Err(SESSION_EXPIRED.to_string()),
+        ReconnectOutcome::Wiped => {
+            reset_reconnect_backoff();
+            Err(SESSION_EXPIRED.to_string())
+        }
         // Nada foi apagado — avisar "sessão expirada" faria a tela desconectar uma
         // conta que ainda pode voltar sozinha na próxima tentativa.
-        ReconnectOutcome::Failed => Err(RECONNECT_PENDING.to_string()),
+        ReconnectOutcome::Failed => {
+            lock_backoff().record(Instant::now());
+            Err(RECONNECT_PENDING.to_string())
+        }
     }
 }
 
@@ -678,6 +763,40 @@ mod tests {
     fn a_failed_concurrent_attempt_does_not_reconnect_again() {
         assert_eq!(outcome_after_concurrent_attempt(true), RECONNECT_PENDING);
         assert_eq!(outcome_after_concurrent_attempt(false), SESSION_EXPIRED);
+    }
+
+    #[test]
+    fn backoff_blocks_a_second_reconnect_right_after_a_failure() {
+        let start = Instant::now();
+        let mut backoff = ReconnectBackoff::default();
+        assert!(backoff.allows(start));
+
+        backoff.record(start);
+        assert!(!backoff.allows(start + Duration::from_secs(30)));
+        assert!(!backoff.allows(start + Duration::from_secs(4 * 60 + 59)));
+        assert!(backoff.allows(start + RECONNECT_BACKOFF_BASE));
+    }
+
+    #[test]
+    fn backoff_doubles_on_repeated_failures_up_to_the_cap() {
+        let mut backoff = ReconnectBackoff::default();
+        let now = Instant::now();
+
+        backoff.record(now);
+        assert_eq!(backoff.wait(), Duration::from_secs(5 * 60));
+        backoff.record(now);
+        assert_eq!(backoff.wait(), Duration::from_secs(10 * 60));
+        backoff.record(now);
+        assert_eq!(backoff.wait(), Duration::from_secs(20 * 60));
+        for _ in 0..40 {
+            backoff.record(now);
+        }
+        assert_eq!(backoff.wait(), RECONNECT_BACKOFF_MAX);
+    }
+
+    #[test]
+    fn user_agent_carries_the_chrome_major_version() {
+        assert!(USER_AGENT.contains(&format!("Chrome/{}.0.0.0", CHROME_MAJOR)));
     }
 
     #[test]

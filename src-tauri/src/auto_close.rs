@@ -10,8 +10,20 @@ const TICK: Duration = Duration::from_secs(60);
 // um login no PontoMais, e a segunda chance da senha não pode durar só um minuto.
 const RECONNECT_RETRY: chrono::Duration = chrono::Duration::minutes(5);
 
+const EMPTY_DAY_CONFIRMATION: chrono::Duration = chrono::Duration::minutes(10);
+
 pub fn is_due(now_minutes: u32, limit_minutes: u32, decided_today: bool) -> bool {
     !decided_today && now_minutes >= limit_minutes
+}
+
+fn confirms_empty_day(first_empty: &mut Option<DateTime<Local>>, now: DateTime<Local>) -> bool {
+    match *first_empty {
+        Some(since) if since.date_naive() == now.date_naive() => now - since >= EMPTY_DAY_CONFIRMATION,
+        _ => {
+            *first_empty = Some(now);
+            false
+        }
+    }
 }
 
 pub fn spawn(app: AppHandle, launch: LaunchInfo) {
@@ -23,6 +35,7 @@ pub fn spawn(app: AppHandle, launch: LaunchInfo) {
 async fn run(app: AppHandle) {
     let mut decided_on: Option<NaiveDate> = None;
     let mut reconnect_after: Option<DateTime<Local>> = None;
+    let mut first_empty: Option<DateTime<Local>> = None;
 
     loop {
         sleep(TICK).await;
@@ -60,7 +73,7 @@ async fn run(app: AppHandle) {
             Ok(work_day) => {
                 if crate::workday::is_started(&crate::workday::valid_cards(&work_day)) {
                     decided_on = Some(today);
-                } else {
+                } else if confirms_empty_day(&mut first_empty, now) {
                     app.exit(0);
                     return;
                 }
@@ -77,7 +90,29 @@ async fn run(app: AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::is_due;
+    use super::*;
+    use chrono::TimeZone;
+
+    fn at(hour: u32, minute: u32) -> DateTime<Local> {
+        Local.with_ymd_and_hms(2026, 11, 23, hour, minute, 0).unwrap()
+    }
+
+    #[test]
+    fn a_single_empty_check_does_not_close_the_app() {
+        let mut first_empty = None;
+
+        assert!(!confirms_empty_day(&mut first_empty, at(11, 0)));
+        assert!(!confirms_empty_day(&mut first_empty, at(11, 9)));
+        assert!(confirms_empty_day(&mut first_empty, at(11, 10)));
+    }
+
+    #[test]
+    fn an_empty_check_from_another_day_starts_over() {
+        let mut first_empty = Some(Local.with_ymd_and_hms(2026, 11, 22, 11, 0, 0).unwrap());
+
+        assert!(!confirms_empty_day(&mut first_empty, at(11, 30)));
+        assert_eq!(first_empty, Some(at(11, 30)));
+    }
 
     #[test]
     fn waits_until_the_limit_time() {

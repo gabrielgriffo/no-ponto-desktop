@@ -62,10 +62,8 @@ pub fn is_ended(cards: &[&Value], expected_minutes: u32) -> bool {
     matches!(worked_minutes(cards), Some(worked) if worked >= expected_minutes)
 }
 
-pub fn should_launch(work_day: &Value, expected_minutes: u32) -> bool {
-    let cards = valid_cards(work_day);
-
-    is_started(&cards) && !is_ended(&cards, expected_minutes)
+pub fn should_launch(work_day: &Value) -> bool {
+    !valid_cards(work_day).len().is_multiple_of(2)
 }
 
 pub fn work_period(work_day: &Value) -> usize {
@@ -96,14 +94,14 @@ mod tests {
     #[test]
     fn no_cards_means_not_started() {
         let day = enabled(&[]);
-        assert!(!should_launch(&day, EIGHT_HOURS));
+        assert!(!should_launch(&day));
         assert!(!is_started(&valid_cards(&day)));
     }
 
     #[test]
     fn missing_payload_means_not_started() {
-        assert!(!should_launch(&json!({}), EIGHT_HOURS));
-        assert!(!should_launch(&json!({ "work_days": [] }), EIGHT_HOURS));
+        assert!(!should_launch(&json!({})));
+        assert!(!should_launch(&json!({ "work_days": [] })));
     }
 
     #[test]
@@ -117,7 +115,7 @@ mod tests {
             let cards = valid_cards(&day);
 
             assert!(!is_ended(&cards, EIGHT_HOURS), "{:?}", times);
-            assert!(should_launch(&day, EIGHT_HOURS), "{:?}", times);
+            assert!(should_launch(&day), "{:?}", times);
         }
     }
 
@@ -127,7 +125,7 @@ mod tests {
         let cards = valid_cards(&day);
 
         assert_eq!(worked_minutes(&cards[..4]), Some(540));
-        assert!(should_launch(&day, EIGHT_HOURS));
+        assert!(should_launch(&day));
     }
 
     #[test]
@@ -137,7 +135,13 @@ mod tests {
 
         assert_eq!(worked_minutes(&cards), Some(420));
         assert!(!is_ended(&cards, EIGHT_HOURS));
-        assert!(should_launch(&day, EIGHT_HOURS));
+        assert!(!should_launch(&day));
+    }
+
+    #[test]
+    fn break_before_the_return_does_not_launch() {
+        assert!(!should_launch(&enabled(&["08:00", "12:00"])));
+        assert!(should_launch(&enabled(&["08:00", "12:00", "13:00"])));
     }
 
     #[test]
@@ -147,13 +151,13 @@ mod tests {
 
         assert_eq!(worked_minutes(&cards), Some(480));
         assert!(is_ended(&cards, EIGHT_HOURS));
-        assert!(!should_launch(&day, EIGHT_HOURS));
+        assert!(!should_launch(&day));
     }
 
     #[test]
     fn straight_shift_without_lunch_is_ended() {
         let day = enabled(&["08:00", "16:00"]);
-        assert!(!should_launch(&day, EIGHT_HOURS));
+        assert!(!should_launch(&day));
     }
 
     #[test]
@@ -166,9 +170,9 @@ mod tests {
     }
 
     #[test]
-    fn six_cards_below_the_workday_still_launch() {
+    fn six_cards_below_the_workday_do_not_launch_during_the_break() {
         let day = enabled(&["08:00", "10:00", "10:15", "12:00", "13:00", "15:00"]);
-        assert!(should_launch(&day, EIGHT_HOURS));
+        assert!(!should_launch(&day));
     }
 
     #[test]
@@ -194,7 +198,7 @@ mod tests {
         assert_eq!(cards.len(), 4);
         assert_eq!(worked_minutes(&cards), Some(480));
         assert!(is_ended(&cards, EIGHT_HOURS));
-        assert!(!should_launch(&day, EIGHT_HOURS));
+        assert!(!should_launch(&day));
     }
 
     #[test]
@@ -242,7 +246,7 @@ mod tests {
 
             assert_eq!(worked_minutes(&cards), None, "{}", time);
             assert!(!is_ended(&cards, EIGHT_HOURS), "{}", time);
-            assert!(should_launch(&day, EIGHT_HOURS), "{}", time);
+            assert!(!should_launch(&day), "{}", time);
         }
     }
 }

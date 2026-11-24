@@ -1,6 +1,6 @@
-use crate::pontomais::{build_headers, http_client, PontoMaisState, BASE_URL};
+use crate::pontomais::{build_headers, http_client, PontoMaisState, BASE_URL, CHROME_MAJOR};
 use crate::storage;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::AppHandle;
 use uuid::Uuid;
@@ -18,9 +18,40 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase", default)]
 pub struct DeviceState {
     pub uuid: String,
-    /// Login para o qual este uuid já foi registrado na API. O registro é feito
-    /// por conta, então trocar de usuário exige registrar de novo.
-    pub registered_for: Option<String>,
+    #[serde(deserialize_with = "logins_from_old_or_new_format")]
+    pub registered_for: Vec<String>,
+}
+
+impl DeviceState {
+    fn is_registered_for(&self, uuid: &str, login: &str) -> bool {
+        self.uuid == uuid && self.registered_for.iter().any(|registered| registered == login)
+    }
+
+    fn with_registration(previous: Option<DeviceState>, uuid: String, login: String) -> DeviceState {
+        let mut registered_for = previous
+            .filter(|state| state.uuid == uuid)
+            .map(|state| state.registered_for)
+            .unwrap_or_default();
+        if !registered_for.contains(&login) {
+            registered_for.push(login);
+        }
+        DeviceState { uuid, registered_for }
+    }
+}
+
+fn logins_from_old_or_new_format<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Logins {
+        One(String),
+        Many(Vec<String>),
+    }
+
+    Ok(match Option::<Logins>::deserialize(deserializer)? {
+        None => Vec::new(),
+        Some(Logins::One(login)) => vec![login],
+        Some(Logins::Many(logins)) => logins,
+    })
 }
 
 /// Valores que o app web envia ao se registrar. Todo o resto da requisição já se
@@ -28,7 +59,7 @@ pub struct DeviceState {
 /// seria a única anomalia num payload que a API valida.
 const PLATFORM: u8 = 4;
 const DEVICE_MODEL: &str = "Chrome";
-const PLATFORM_VERSION: &str = "148";
+const PLATFORM_VERSION: &str = CHROME_MAJOR;
 
 const STATE_FILE: &str = "device.json";
 
@@ -61,7 +92,7 @@ pub fn load_or_create(app: &AppHandle) -> DeviceState {
 
     let state = DeviceState {
         uuid: Uuid::new_v4().to_string(),
-        registered_for: None,
+        registered_for: Vec::new(),
     };
 
     if let Err(e) = write_state(app, &state) {
@@ -99,10 +130,8 @@ pub async fn register(app: &AppHandle, state: &crate::pontomais::PontoMaisStateT
     // Já registrado para esta conta: repetir só geraria um cadastro duplicado
     // do mesmo aparelho a cada login.
     let device_state = read_state(app);
-    if let Some(existing) = &device_state {
-        if existing.registered_for.as_deref() == Some(login.as_str()) && existing.uuid == uuid {
-            return true;
-        }
+    if device_state.as_ref().is_some_and(|existing| existing.is_registered_for(&uuid, &login)) {
+        return true;
     }
 
     let url = format!("{}/api/users/devices", BASE_URL);
@@ -123,10 +152,7 @@ pub async fn register(app: &AppHandle, state: &crate::pontomais::PontoMaisStateT
 
     match response {
         Ok(response) if response.status().is_success() => {
-            let new_state = DeviceState {
-                uuid,
-                registered_for: Some(login),
-            };
+            let new_state = DeviceState::with_registration(device_state, uuid, login);
 
             if let Err(e) = write_state(app, &new_state) {
                 // O registro no servidor valeu; perder a marca local só custa uma
@@ -168,4 +194,47 @@ pub fn reset_register_failure() {
 /// Inicializa o estado da sessão com a identidade persistida desta instalação.
 pub fn init_pontomais_state(app: &AppHandle) -> PontoMaisState {
     PontoMaisState::new(load_or_create(app).uuid)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn old_single_login_format_is_still_read() {
+        let state: DeviceState = serde_json::from_str(r#"{"uuid":"u1","registeredFor":"a@x.com"}"#).unwrap();
+        assert_eq!(state.registered_for, vec!["a@x.com".to_string()]);
+
+        let state: DeviceState = serde_json::from_str(r#"{"uuid":"u1","registeredFor":null}"#).unwrap();
+        assert!(state.registered_for.is_empty());
+
+        let state: DeviceState = serde_json::from_str(r#"{"uuid":"u1"}"#).unwrap();
+        assert!(state.registered_for.is_empty());
+    }
+
+    #[test]
+    fn switching_accounts_keeps_every_registration() {
+        let a = DeviceState::with_registration(None, "u1".into(), "a".into());
+        let b = DeviceState::with_registration(Some(a), "u1".into(), "b".into());
+
+        assert!(b.is_registered_for("u1", "a"));
+        assert!(b.is_registered_for("u1", "b"));
+
+        let again = DeviceState::with_registration(Some(b), "u1".into(), "a".into());
+        assert_eq!(again.registered_for, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn a_new_uuid_starts_a_new_list() {
+        let a = DeviceState::with_registration(None, "u1".into(), "a".into());
+        let other = DeviceState::with_registration(Some(a), "u2".into(), "b".into());
+
+        assert!(!other.is_registered_for("u2", "a"));
+        assert!(other.is_registered_for("u2", "b"));
+    }
+
+    #[test]
+    fn platform_version_follows_the_user_agent() {
+        assert!(crate::pontomais::USER_AGENT.contains(&format!("Chrome/{}.", PLATFORM_VERSION)));
+    }
 }

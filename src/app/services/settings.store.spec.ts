@@ -43,6 +43,36 @@ describe('SettingsStore', () => {
     expect(store.settings().pontomaisLogin).toBe('gravado-por-outro');
   });
 
+  it('respostas que chegariam fora de ordem terminam no estado da última gravação', async () => {
+    mockIPC(async (cmd, args) => {
+      const { patch } = args as { patch: { alarmVolume: number } };
+      calls.push({ cmd, args });
+      if (patch.alarmVolume === 10) await new Promise(resolve => setTimeout(resolve, 20));
+      return { ...DEFAULT_SETTINGS, alarmVolume: patch.alarmVolume };
+    });
+
+    const first = store.update({ alarmVolume: 10 });
+    const second = store.update({ alarmVolume: 20 });
+    await Promise.all([first, second]);
+
+    expect(calls.map(call => (call.args as { patch: { alarmVolume: number } }).patch.alarmVolume)).toEqual([10, 20]);
+    expect(store.settings().alarmVolume).toBe(20);
+  });
+
+  it('uma gravação que falha não trava as seguintes', async () => {
+    let attempt = 0;
+    respond(() => {
+      attempt++;
+      if (attempt === 1) throw 'erro';
+      return { ...DEFAULT_SETTINGS, alarmVolume: 50 };
+    });
+
+    await expect(store.update({ alarmVolume: 1 })).rejects.toBe('erro');
+    await store.update({ alarmVolume: 50 });
+
+    expect(store.settings().alarmVolume).toBe(50);
+  });
+
   it('falha ao gravar não altera o estado', async () => {
     respond(() => {
       throw 'erro';

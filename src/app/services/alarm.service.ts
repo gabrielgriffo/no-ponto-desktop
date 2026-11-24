@@ -18,8 +18,22 @@ export function shouldRingAlarm(previous: JourneyState | null, current: JourneyS
   return (previous === 'andamento' || previous === 'pausado') && current === 'extra';
 }
 
-export function isWorkdayReopened(previous: JourneyState | null, current: JourneyState): boolean {
-  return previous === 'extra' && (current === 'andamento' || current === 'pausado');
+export function isWorkdayReopened(
+  previous: JourneyState | null,
+  current: JourneyState,
+  workedMinutes: number,
+  targetMinutes: number
+): boolean {
+  return previous === 'extra' && (current === 'andamento' || current === 'pausado') && workedMinutes < targetMinutes;
+}
+
+export function closedDayState(
+  cardCount: number,
+  workedMinutes: number,
+  journeyMinutes: number
+): 'terminou' | 'pausado' | null {
+  if (cardCount === 0 || cardCount % 2 !== 0) return null;
+  return workedMinutes >= journeyMinutes ? 'terminou' : 'pausado';
 }
 
 export function formatJourney(minutes: number): string {

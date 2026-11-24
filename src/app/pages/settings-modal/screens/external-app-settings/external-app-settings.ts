@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, input, output, signal } fro
 import { invoke } from '@tauri-apps/api/core';
 import { ToggleSwitch } from '../../../../components/toggle-switch/toggle-switch';
 import { ToastService } from '../../../../services/toast.service';
+import { SettingsStore } from '../../../../services/settings.store';
 import { TooltipDirective } from '../../../../directives/tooltip.directive';
 import { AppSettings, ExternalApp, SettingsPatch } from '../../settings.model';
 
@@ -13,6 +14,7 @@ import { AppSettings, ExternalApp, SettingsPatch } from '../../settings.model';
 })
 export class ExternalAppSettingsComponent {
   private readonly toastService = inject(ToastService);
+  private readonly store = inject(SettingsStore);
 
   readonly settings = input.required<AppSettings>();
   readonly patch = output<SettingsPatch>();
@@ -30,7 +32,7 @@ export class ExternalAppSettingsComponent {
       const app = await invoke<ExternalApp | null>('pick_external_app');
 
       // null = usuário cancelou; a seleção anterior continua valendo
-      if (app) this.patch.emit({ externalApp: app });
+      if (app) await this.store.load();
     } catch (error) {
       console.error('Erro ao selecionar aplicativo:', error);
       // O Rust já devolve mensagens prontas para o usuário

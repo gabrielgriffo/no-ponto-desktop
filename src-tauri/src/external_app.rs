@@ -40,12 +40,21 @@ struct LaunchSpec {
 pub struct LaunchState {
     last_launch_date: Option<String>,
     last_launch_period: Option<usize>,
+    last_launch_pid: Option<u32>,
 }
 
 impl LaunchState {
     fn already_launched(&self, date: &str, period: usize) -> bool {
         self.last_launch_date.as_deref() == Some(date)
             && self.last_launch_period.is_none_or(|launched| launched >= period)
+    }
+
+    fn launched_today_still_open(&self, date: &str, is_alive: impl Fn(u32) -> bool) -> bool {
+        if self.last_launch_date.as_deref() != Some(date) {
+            return false;
+        }
+
+        self.last_launch_pid.is_none_or(is_alive)
     }
 }
 
@@ -98,15 +107,21 @@ pub async fn pick_external_app(app: AppHandle) -> Result<Option<ExternalApp>, St
         .await
         .map_err(|_| "O seletor de aplicativos foi encerrado inesperadamente.".to_string())?;
 
-    match picked {
-        Some(file_path) => {
-            let path = file_path
-                .into_path()
-                .map_err(|e| format!("Caminho inválido: {}", e))?;
-            resolve_external_app(&path).map(Some)
-        }
-        None => Ok(None),
-    }
+    let Some(file_path) = picked else {
+        return Ok(None);
+    };
+
+    let path = file_path
+        .into_path()
+        .map_err(|e| format!("Caminho inválido: {}", e))?;
+    let chosen = resolve_external_app(&path)?;
+
+    crate::settings::modify_settings(&app, |settings| {
+        settings.external_app = Some(chosen.clone());
+        Ok(())
+    })?;
+
+    Ok(Some(chosen))
 }
 
 /// Pasta onde o seletor abre por padrão: o "menu de aplicativos" de cada sistema,
@@ -155,7 +170,7 @@ pub fn resolve_external_app(path: &Path) -> Result<ExternalApp, String> {
 
     // `.desktop` é conceito do Linux, mas o parsing é lógica pura de string:
     // deixá-lo fora do cfg é o que permite compilá-lo e testá-lo em qualquer SO.
-    if path.extension().and_then(|ext| ext.to_str()) == Some("desktop") {
+    if has_extension(&path.to_string_lossy(), "desktop") {
         return resolve_desktop_entry(path);
     }
 
@@ -452,20 +467,22 @@ fn is_in_process_list(name: &str, running: &[String]) -> bool {
     running.iter().any(|process| process.eq_ignore_ascii_case(name))
 }
 
+fn detected_process_name(target: &ExternalApp) -> Option<String> {
+    let spec = launch_spec(target).ok()?;
+    let (program, args) = executable_behind(&spec.program, &spec.args)?;
+    process_name(&program, &args)
+}
+
 fn is_already_running(target: &ExternalApp) -> bool {
-    let Ok(spec) = launch_spec(target) else {
-        return false;
-    };
+    detected_process_name(target).is_some_and(|name| is_in_process_list(&name, &running_process_names()))
+}
 
-    let Some((program, args)) = executable_behind(&spec.program, &spec.args) else {
-        return false;
-    };
+fn is_open(target: &ExternalApp, state: &LaunchState, today: &str) -> bool {
+    if detected_process_name(target).is_some() {
+        return is_already_running(target);
+    }
 
-    let Some(name) = process_name(&program, &args) else {
-        return false;
-    };
-
-    is_in_process_list(&name, &running_process_names())
+    state.launched_today_still_open(today, |pid| running_process_ids().contains(&pid))
 }
 
 fn maybe_launch(app: &AppHandle, work_day: &Value, today: &str) -> Result<bool, String> {
@@ -494,14 +511,14 @@ fn maybe_launch(app: &AppHandle, work_day: &Value, today: &str) -> Result<bool, 
     };
     let target = &trusted_target(saved)?;
 
-    if !crate::workday::should_launch(work_day, settings.expected_workday_minutes()) {
+    if !crate::workday::should_launch(work_day) {
         return Ok(false);
     }
 
-    let already_running = is_already_running(target);
+    let already_running = is_open(target, &state, today);
 
     if !already_running {
-        launch(target)?;
+        state.last_launch_pid = launch(target)?;
     }
 
     state.last_launch_date = Some(today.to_string());
@@ -551,12 +568,12 @@ pub async fn external_app_test_launch(app: AppHandle) -> Result<(), String> {
         .external_app
         .ok_or("Nenhum aplicativo foi escolhido.")?;
 
-    tauri::async_runtime::spawn_blocking(move || launch(&trusted_target(&saved)?))
+    tauri::async_runtime::spawn_blocking(move || launch(&trusted_target(&saved)?).map(|_| ()))
         .await
         .map_err(|e| e.to_string())?
 }
 
-pub fn launch(target: &ExternalApp) -> Result<(), String> {
+pub fn launch(target: &ExternalApp) -> Result<Option<u32>, String> {
     // Valida `path` e não `exec`: no Linux o Exec de um .desktop pode ser um
     // comando resolvido via PATH ("code", "flatpak"), que não existe como arquivo.
     if !Path::new(&target.path).exists() {
@@ -572,7 +589,7 @@ pub fn launch(target: &ExternalApp) -> Result<(), String> {
 }
 
 #[cfg(target_os = "windows")]
-fn spawn_detached(spec: &LaunchSpec) -> Result<(), String> {
+fn spawn_detached(spec: &LaunchSpec) -> Result<Option<u32>, String> {
     use std::os::windows::process::CommandExt;
 
     const DETACHED_PROCESS: u32 = 0x0000_0008;
@@ -581,6 +598,7 @@ fn spawn_detached(spec: &LaunchSpec) -> Result<(), String> {
         // Um .lnk não é executável — só o shell sabe resolvê-lo, inclusive
         // atalhos de apps da Microsoft Store, que não apontam para um arquivo.
         return tauri_plugin_opener::open_path(&spec.program, None::<&str>)
+            .map(|_| None)
             .map_err(|e| e.to_string());
     }
 
@@ -598,12 +616,12 @@ fn spawn_detached(spec: &LaunchSpec) -> Result<(), String> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map(|_| ())
+        .map(|child| Some(child.id()))
         .map_err(|e| e.to_string())
 }
 
 #[cfg(not(target_os = "windows"))]
-fn spawn_detached(spec: &LaunchSpec) -> Result<(), String> {
+fn spawn_detached(spec: &LaunchSpec) -> Result<Option<u32>, String> {
     let mut command = Command::new(&spec.program);
 
     command
@@ -625,13 +643,14 @@ fn spawn_detached(spec: &LaunchSpec) -> Result<(), String> {
     }
 
     let mut child = command.spawn().map_err(|e| e.to_string())?;
+    let pid = child.id();
 
     // Sem o wait, o processo vira zumbi ao terminar até o NoPonto fechar
     std::thread::spawn(move || {
         let _ = child.wait();
     });
 
-    Ok(())
+    Ok(Some(pid))
 }
 
 #[cfg(target_os = "windows")]
@@ -708,17 +727,27 @@ fn utf16_until_nul(buffer: &[u16]) -> String {
 
 #[cfg(target_os = "windows")]
 fn running_process_names() -> Vec<String> {
+    running_processes().into_iter().map(|(_, name)| name).collect()
+}
+
+#[cfg(target_os = "windows")]
+fn running_process_ids() -> Vec<u32> {
+    running_processes().into_iter().map(|(pid, _)| pid).collect()
+}
+
+#[cfg(target_os = "windows")]
+fn running_processes() -> Vec<(u32, String)> {
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
         TH32CS_SNAPPROCESS,
     };
 
-    let mut names = Vec::new();
+    let mut processes = Vec::new();
 
     unsafe {
         let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
-            return names;
+            return processes;
         };
 
         let mut entry = PROCESSENTRY32W {
@@ -733,7 +762,10 @@ fn running_process_names() -> Vec<String> {
                     .iter()
                     .position(|&c| c == 0)
                     .unwrap_or(entry.szExeFile.len());
-                names.push(String::from_utf16_lossy(&entry.szExeFile[..len]));
+                processes.push((
+                    entry.th32ProcessID,
+                    String::from_utf16_lossy(&entry.szExeFile[..len]),
+                ));
 
                 if Process32NextW(snapshot, &mut entry).is_err() {
                     break;
@@ -744,7 +776,7 @@ fn running_process_names() -> Vec<String> {
         let _ = CloseHandle(snapshot);
     }
 
-    names
+    processes
 }
 
 #[cfg(target_os = "linux")]
@@ -768,8 +800,25 @@ fn running_process_names() -> Vec<String> {
         .collect()
 }
 
+#[cfg(target_os = "linux")]
+fn running_process_ids() -> Vec<u32> {
+    let Ok(entries) = fs::read_dir("/proc") else {
+        return Vec::new();
+    };
+
+    entries
+        .flatten()
+        .filter_map(|entry| entry.file_name().to_str()?.parse().ok())
+        .collect()
+}
+
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn running_process_names() -> Vec<String> {
+    Vec::new()
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+fn running_process_ids() -> Vec<u32> {
     Vec::new()
 }
 
@@ -799,6 +848,7 @@ mod tests {
         LaunchState {
             last_launch_date: Some(date.to_string()),
             last_launch_period: period,
+            last_launch_pid: None,
         }
     }
 
@@ -839,6 +889,49 @@ mod tests {
 
         assert!(legacy.already_launched("2026-11-12", 2));
         assert!(!legacy.already_launched("2026-11-13", 1));
+    }
+
+    #[test]
+    fn undetectable_target_launched_by_the_shell_today_counts_as_open() {
+        let state = launched("2026-11-12", Some(1));
+
+        assert!(state.launched_today_still_open("2026-11-12", |_| false));
+        assert!(!state.launched_today_still_open("2026-11-13", |_| true));
+        assert!(!LaunchState::default().launched_today_still_open("2026-11-12", |_| true));
+    }
+
+    #[test]
+    fn undetectable_target_with_pid_reopens_only_after_the_process_ends() {
+        let state = LaunchState {
+            last_launch_pid: Some(4242),
+            ..launched("2026-11-12", Some(1))
+        };
+
+        assert!(state.launched_today_still_open("2026-11-12", |pid| pid == 4242));
+        assert!(!state.launched_today_still_open("2026-11-12", |_| false));
+    }
+
+    #[test]
+    fn launch_pid_survives_a_restart() {
+        let state = LaunchState {
+            last_launch_pid: Some(7),
+            ..launched("2026-11-12", Some(1))
+        };
+
+        assert_eq!(reloaded(&state).last_launch_pid, Some(7));
+    }
+
+    #[test]
+    fn uppercase_desktop_extension_is_read_as_a_desktop_entry() {
+        let path = std::env::temp_dir().join(format!("noponto-test-{}.DESKTOP", uuid::Uuid::new_v4()));
+        std::fs::write(&path, "[Desktop Entry]\nName=Editor\nExec=/usr/bin/editor %F\n").unwrap();
+
+        let resolved = resolve_external_app(&path);
+        std::fs::remove_file(&path).ok();
+
+        let app = resolved.unwrap();
+        assert_eq!(app.name, "Editor");
+        assert_eq!(app.exec, "/usr/bin/editor");
     }
 
     #[test]

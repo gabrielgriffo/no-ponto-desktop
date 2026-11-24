@@ -168,14 +168,14 @@
         <!-- Primeiro período (entrada até saída) -->
         @if (isMonitoring() && hasFirstPeriod()) {
           <div class="period-item" [style.width.%]="firstPeriodPercentage()">
-            <div class="period-bar" [class]="hasSecondPeriod() ? 'period-ended' : (isOnBreak() ? 'period-solid-green' : 'period-green animated')"></div>
+            <div class="period-bar" [class]="hasSecondPeriod() ? 'period-ended' : (isOnBreak() || isWorkDayComplete() ? 'period-solid-green' : 'period-green animated')"></div>
             <span class="period-label">{{ metrics().firstPeriod | timeFormat:'duration' }}</span>
           </div>
         }
         <!-- Segundo período (retorno até agora/fim) -->
         @if (isMonitoring() && hasSecondPeriod()) {
           <div class="period-item" [style.width.%]="secondPeriodPercentage()">
-            <div class="period-bar" [class]="isWorkDayComplete() ? 'period-solid-green' : 'period-green animated'"></div>
+            <div class="period-bar" [class]="isWorkDayComplete() || isOnBreak() ? 'period-solid-green' : 'period-green animated'"></div>
             <span class="period-label">{{ metrics().secondPeriod | timeFormat:'duration' }}</span>
           </div>
         }

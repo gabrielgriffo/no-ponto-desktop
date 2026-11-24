@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TimeCard, WorkDaysResponse } from '../services/pontomais.service';
-import { hasTimeCards, todayLocalDate, validTimeCards } from './work-day';
+import { hasTimeCards, isTodayLocal, todayLocalDate, validTimeCards } from './work-day';
 
 function workDay(cards: { time: string; disabled?: boolean }[]): WorkDaysResponse {
   return {
@@ -24,5 +24,12 @@ describe('validTimeCards', () => {
 describe('todayLocalDate', () => {
   it('usa o fuso local, não UTC', () => {
     expect(todayLocalDate(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05');
+  });
+});
+
+describe('isTodayLocal', () => {
+  it('recusa a data pedida antes da meia-noite quando a resposta chega no dia seguinte', () => {
+    expect(isTodayLocal('2026-01-05', new Date(2026, 0, 5, 23, 59))).toBe(true);
+    expect(isTodayLocal('2026-01-05', new Date(2026, 0, 6, 0, 0, 1))).toBe(false);
   });
 });

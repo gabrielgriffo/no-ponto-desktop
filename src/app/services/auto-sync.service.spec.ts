@@ -46,6 +46,21 @@ describe('AutoSyncService', () => {
     expect(calls).toEqual([{ enabled: false, intervalMins: 30, smart: true, launchOnFirstSync: false }]);
   });
 
+  it('duas mudanças seguidas chegam ao Rust na ordem em que foram feitas', async () => {
+    const order: unknown[] = [];
+    mockIPC(async (cmd, args) => {
+      if (cmd !== 'configure_auto_sync') return;
+      const { smart } = args as { smart: boolean };
+      if (!smart) await new Promise(resolve => setTimeout(resolve, 20));
+      order.push(smart);
+    });
+
+    const autoOnly = { ...DEFAULT_SETTINGS, autoImportEnabled: true };
+    await Promise.all([service.apply(autoOnly, true), service.apply(smart, true)]);
+
+    expect(order).toEqual([false, true]);
+  });
+
   it('uma falha não conta como aplicada e a próxima chamada tenta de novo', async () => {
     fail = true;
     await expect(service.apply(smart, true)).rejects.toBe('erro');

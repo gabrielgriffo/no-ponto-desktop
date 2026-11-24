@@ -312,7 +312,7 @@ jobs:
 
       - name: Build
         shell: bash
-        run: npx tauri build --ci --config '{"bundle":{"createUpdaterArtifacts":false}}'
+        run: npx tauri build --ci
 
       - name: Collect bundles
         shell: bash

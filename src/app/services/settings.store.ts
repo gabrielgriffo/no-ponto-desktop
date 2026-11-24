@@ -7,15 +7,23 @@ export class SettingsStore {
   private readonly state = signal<AppSettings>(DEFAULT_SETTINGS);
   readonly settings = this.state.asReadonly();
 
-  async load(): Promise<AppSettings> {
-    const settings = await invoke<AppSettings>('load_settings');
-    this.state.set(settings);
-    return settings;
+  private queue: Promise<unknown> = Promise.resolve();
+
+  load(): Promise<AppSettings> {
+    return this.enqueue(() => invoke<AppSettings>('load_settings'));
   }
 
-  async update(patch: SettingsPatch): Promise<AppSettings> {
-    const settings = await invoke<AppSettings>('update_settings', { patch });
-    this.state.set(settings);
-    return settings;
+  update(patch: SettingsPatch): Promise<AppSettings> {
+    return this.enqueue(() => invoke<AppSettings>('update_settings', { patch }));
+  }
+
+  private enqueue(request: () => Promise<AppSettings>): Promise<AppSettings> {
+    const run = this.queue.then(async () => {
+      const settings = await request();
+      this.state.set(settings);
+      return settings;
+    });
+    this.queue = run.catch(() => undefined);
+    return run;
   }
 }

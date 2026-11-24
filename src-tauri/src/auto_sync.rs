@@ -130,12 +130,13 @@ async fn perform_sync(app: &AppHandle, report_unauthenticated: bool, allow_launc
     match fetch_workday_reconnecting(app, &pm_state, &today).await {
         Ok(data) => {
             if allow_launch {
-                crate::external_app::maybe_launch_in_background(app.clone(), data.clone(), today).await;
+                crate::external_app::maybe_launch_in_background(app.clone(), data.clone(), today.clone()).await;
             }
 
             let _ = app.emit("auto-sync-result", serde_json::json!({
                 "status": "success",
-                "data": &data
+                "data": &data,
+                "date": today
             }));
             SyncOutcome::Success(data)
         }

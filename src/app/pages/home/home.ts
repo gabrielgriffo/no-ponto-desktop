@@ -36,19 +36,24 @@ import {
   AlarmService,
   JourneyState,
   WORKDAY_END_TITLE,
+  closedDayState,
   isWorkdayReopened,
   shouldRingAlarm,
   workdayEndMessage,
 } from '../../services/alarm.service';
 import { AlarmBanner } from '../../components/alarm-banner/alarm-banner';
 import { UpdateButton } from '../../components/update-button/update-button';
-import { hasTimeCards, todayLocalDate, validTimeCards } from '../../models/work-day';
+import { hasTimeCards, isTodayLocal, todayLocalDate, validTimeCards } from '../../models/work-day';
 import { TimeField, validateTimes } from './time-validation';
 
 const STARTUP_IMPORT_RETRY_MS = 5 * 60_000;
 const SIGNED_OUT = 'SIGNED_OUT';
 const VAULT_UNAVAILABLE = 'VAULT_UNAVAILABLE';
 const STARTUP_IMPORT_MAX_RETRIES = 3;
+const SESSION_RESTORE_RETRY_MS = 60_000;
+const SESSION_RESTORE_MAX_RETRIES = 3;
+const UPDATE_CHECK_RETRY_MS = 10 * 60_000;
+const UPDATE_CHECK_MAX_RETRIES = 3;
 const ERROR_HIGHLIGHT_MS = 3000;
 
 const ZERO: TimeObject = { hours: 0, minutes: 0 };
@@ -83,8 +88,12 @@ const NO_CAPTURE: CapturedTimes = { checkIn: '', checkOut: '', checkIn2: '', che
 interface AutoSyncPayload {
   status: 'success' | 'error' | 'unauthenticated';
   data?: WorkDaysResponse;
+  date?: string;
   message?: string;
 }
+
+const countCards = ({ checkIn, checkOut, checkIn2, checkOut2, extras }: CapturedTimes) =>
+  [checkIn, checkOut, checkIn2, checkOut2].filter(time => time.length > 0).length + extras.length;
 
 @Component({
   selector: 'app-home',
@@ -135,14 +144,11 @@ export class Home implements OnInit, OnDestroy {
 
   protected readonly hasFirstPeriod = computed(() => this.captured().checkIn.length > 0);
   protected readonly hasSecondPeriod = computed(() => this.captured().checkIn2.length > 0);
-  protected readonly isWorkDayComplete = computed(() => {
-    const { checkOut2, extras } = this.captured();
-    // Com um novo intervalo, a quinta batida reabre o dia: só a quantidade par encerra.
-    return checkOut2.length > 0 && extras.length % 2 === 0;
-  });
-  protected readonly isOnBreak = computed(
-    () => this.hasFirstPeriod() && this.captured().checkOut.length > 0 && !this.hasSecondPeriod()
+  private readonly closedDay = computed(() =>
+    closedDayState(countCards(this.captured()), toMinutes(this.metrics().workedTime), this.journeyMinutes())
   );
+  protected readonly isWorkDayComplete = computed(() => this.closedDay() === 'terminou');
+  protected readonly isOnBreak = computed(() => this.closedDay() === 'pausado');
   private readonly journeyTargetMinutes = computed(() => {
     const breakPending = this.hasFirstPeriod() && this.captured().checkOut.length === 0;
     return breakPending ? this.journeyMinutes() + Math.max(0, this.breakMinutes()) : this.journeyMinutes();
@@ -201,7 +207,7 @@ export class Home implements OnInit, OnDestroy {
 
     const state = this.journeyState();
     if (state === 'extra' || state === 'terminou') return null;
-    if (toMinutes(this.metrics().workedTime) >= this.journeyMinutes()) return null;
+    if (toMinutes(this.metrics().workedTime) >= this.journeyTargetMinutes()) return null;
     return this.metrics().endTime;
   });
 
@@ -213,8 +219,12 @@ export class Home implements OnInit, OnDestroy {
   private updateInterval?: ReturnType<typeof setInterval>;
   private errorTimer?: ReturnType<typeof setTimeout>;
   private startupImportRetryTimer?: ReturnType<typeof setTimeout>;
+  private sessionRestoreRetryTimer?: ReturnType<typeof setTimeout>;
+  private updateCheckRetryTimer?: ReturnType<typeof setTimeout>;
+  private pendingSyncPayload: AutoSyncPayload | null = null;
   private sessionRestorePromise?: Promise<void>;
   private autoSyncUnlisten?: UnlistenFn;
+  private sessionExpiredUnlisten?: UnlistenFn;
   private readonly removeFocusListeners: (() => void)[] = [];
 
   constructor() {
@@ -244,6 +254,7 @@ export class Home implements OnInit, OnDestroy {
     this.autoSyncUnlisten = await listen<AutoSyncPayload>('auto-sync-result', event =>
       this.onAutoSyncResult(event.payload)
     );
+    this.sessionExpiredUnlisten = await listen('session-expired', () => this.handleSessionExpired());
 
     // onImportClick aguarda essa promise antes de executar
     this.sessionRestorePromise = this.restoreSessionFromStorage();
@@ -255,10 +266,13 @@ export class Home implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.alarmService.dismiss();
     this.cancelStartupImportRetry();
+    clearTimeout(this.sessionRestoreRetryTimer);
+    clearTimeout(this.updateCheckRetryTimer);
     clearInterval(this.updateInterval);
     clearTimeout(this.errorTimer);
     this.removeFocusListeners.forEach(remove => remove());
     this.autoSyncUnlisten?.();
+    this.sessionExpiredUnlisten?.();
   }
 
   private listenForFocusRemoval(): void {
@@ -279,15 +293,34 @@ export class Home implements OnInit, OnDestroy {
       setTimeout(() => (canRemoveFocus = true), 500);
     };
 
+    const onFocusOut = () => setTimeout(() => this.applyPendingSync());
+
     document.addEventListener('visibilitychange', onVisibilityChange);
     document.addEventListener('mousemove', onMouseMove, { passive: true });
+    document.addEventListener('focusout', onFocusOut);
     this.removeFocusListeners.push(
       () => document.removeEventListener('visibilitychange', onVisibilityChange),
-      () => document.removeEventListener('mousemove', onMouseMove)
+      () => document.removeEventListener('mousemove', onMouseMove),
+      () => document.removeEventListener('focusout', onFocusOut)
     );
   }
 
-  private async restoreSessionFromStorage(): Promise<void> {
+  private isEditingTimes(): boolean {
+    const active = document.activeElement;
+    return [this.checkInInput(), this.checkOutInput(), this.checkIn2Input()].some(
+      input => input.nativeElement === active
+    );
+  }
+
+  private applyPendingSync(): void {
+    const payload = this.pendingSyncPayload;
+    if (!payload || this.isEditingTimes()) return;
+    this.pendingSyncPayload = null;
+    this.onAutoSyncResult(payload);
+  }
+
+  private async restoreSessionFromStorage(retriesLeft = SESSION_RESTORE_MAX_RETRIES): Promise<void> {
+    this.sessionRestoreRetryTimer = undefined;
     try {
       const status = await this.pontoMaisService.ensureSession();
 
@@ -306,7 +339,7 @@ export class Home implements OnInit, OnDestroy {
       // (spinner/toast) e o guard de isImporting, evitando clique duplicado
       // enquanto a importação automática está em andamento. Pula a espera pela
       // sessão pois já estamos dentro dela (evita deadlock com sessionRestorePromise).
-      if (settings.importOnStartupEnabled) {
+      if (settings.importOnStartupEnabled && !this.isSyncEnabled()) {
         const workDay = await this.onImportClick(true);
 
         if (workDay) {
@@ -322,8 +355,21 @@ export class Home implements OnInit, OnDestroy {
       // Não deu para ler o cofre. A conta continua vinculada — a próxima busca dirá se
       // a sessão vale —, mas o usuário precisa saber que o app subiu sem sessão em vez
       // de descobrir sozinho quando a importação não trouxer nada.
-      this.toastService.error('Não foi possível restaurar a sessão. Tente importar novamente.', 5000);
+      if (retriesLeft === SESSION_RESTORE_MAX_RETRIES) {
+        this.toastService.error('Não foi possível restaurar a sessão. Tente importar novamente.', 5000);
+      }
+      if (retriesLeft > 0) {
+        this.sessionRestoreRetryTimer = setTimeout(
+          () => this.restoreSessionFromStorage(retriesLeft - 1),
+          SESSION_RESTORE_RETRY_MS
+        );
+      }
     }
+  }
+
+  private cancelSessionRestoreRetry(): void {
+    clearTimeout(this.sessionRestoreRetryTimer);
+    this.sessionRestoreRetryTimer = undefined;
   }
 
   /**
@@ -354,7 +400,7 @@ export class Home implements OnInit, OnDestroy {
       const date = todayLocalDate();
       const workDay = await this.fetchWorkDay(date);
 
-      if (hasTimeCards(workDay)) {
+      if (hasTimeCards(workDay) && isTodayLocal(date)) {
         this.applyImportedCards(workDay);
         await invoke('external_app_maybe_launch', { workDay, date });
         return;
@@ -372,6 +418,12 @@ export class Home implements OnInit, OnDestroy {
 
   private onAutoSyncResult(payload: AutoSyncPayload): void {
     if (payload.status === 'success' && payload.data) {
+      if (payload.date && !isTodayLocal(payload.date)) return;
+      if (this.isEditingTimes()) {
+        this.pendingSyncPayload = payload;
+        return;
+      }
+      this.pendingSyncPayload = null;
       this.applyImportedCards(payload.data);
     } else if (payload.status === 'error') {
       if (payload.message === 'SESSION_EXPIRED') {
@@ -389,6 +441,7 @@ export class Home implements OnInit, OnDestroy {
    * só o que é da tela.
    */
   private async handleSessionExpired(): Promise<void> {
+    if (!this.isPontomaisLoggedIn()) return;
     this.isPontomaisLoggedIn.set(false);
 
     await this.autoSync.apply(this.settings(), false);
@@ -443,7 +496,7 @@ export class Home implements OnInit, OnDestroy {
     const current = this.journeyState();
     this.previousJourneyState = current;
 
-    if (isWorkdayReopened(previous, current)) {
+    if (isWorkdayReopened(previous, current, toMinutes(this.metrics().workedTime), this.journeyTargetMinutes())) {
       this.workdayEndNotifiedOn.set('');
       this.alarmService.dismiss();
       return;
@@ -590,7 +643,9 @@ export class Home implements OnInit, OnDestroy {
         return null;
       }
 
-      const workDay = await this.fetchWorkDay(todayLocalDate());
+      const date = todayLocalDate();
+      const workDay = await this.fetchWorkDay(date);
+      if (!isTodayLocal(date)) return null;
       const imported = this.applyImportedCards(workDay);
 
       // Só o caso vazio avisa: quando há registros, eles próprios aparecem nos
@@ -615,6 +670,7 @@ export class Home implements OnInit, OnDestroy {
         // vinculada — dizer "erro ao importar" mandaria o usuário procurar defeito no
         // lugar errado.
         this.toastService.error('Não foi possível reconectar agora. Tentando de novo em instantes.', 4000);
+        this.scheduleStartupImportRetry(STARTUP_IMPORT_MAX_RETRIES);
       } else {
         console.error('Erro ao importar:', error);
         this.toastService.error('Erro ao importar horários', 3000);
@@ -641,6 +697,7 @@ export class Home implements OnInit, OnDestroy {
     }
     if (status !== 'connected') throw SIGNED_OUT;
 
+    this.cancelSessionRestoreRetry();
     this.isPontomaisLoggedIn.set(true);
     await this.autoSync.apply(this.settings(), true).catch(error =>
       console.error('Erro ao configurar a sincronização:', error)
@@ -657,7 +714,8 @@ export class Home implements OnInit, OnDestroy {
     this.showSettingsModal.set(true);
   }
 
-  private async checkForUpdateSilently(): Promise<void> {
+  private async checkForUpdateSilently(retriesLeft = UPDATE_CHECK_MAX_RETRIES): Promise<void> {
+    this.updateCheckRetryTimer = undefined;
     let patch;
     try {
       const update = await this.updateService.check();
@@ -668,6 +726,12 @@ export class Home implements OnInit, OnDestroy {
     } catch (error) {
       console.error('Erro ao verificar atualizações na inicialização:', error);
       patch = { lastUpdateResult: 'error', lastUpdateVersion: '' } as const;
+      if (retriesLeft > 0) {
+        this.updateCheckRetryTimer = setTimeout(
+          () => this.checkForUpdateSilently(retriesLeft - 1),
+          UPDATE_CHECK_RETRY_MS
+        );
+      }
     }
 
     try {
@@ -680,20 +744,23 @@ export class Home implements OnInit, OnDestroy {
   protected async onCloseSettingsModal(): Promise<void> {
     this.showSettingsModal.set(false);
     // Recarregar estado após fechar configurações (usuário pode ter alterado auto-sync ou feito logout)
+    let sessionKnown = true;
     try {
       this.isPontomaisLoggedIn.set((await this.pontoMaisService.ensureSession()) === 'connected');
     } catch (error) {
       console.error('Erro ao restaurar sessão:', error);
-      this.isPontomaisLoggedIn.set(false);
+      sessionKnown = false;
     }
 
     if (this.isSyncEnabled() || !this.isPontomaisLoggedIn()) {
       this.cancelStartupImportRetry();
     }
 
-    await this.autoSync.apply(this.settings(), this.isPontomaisLoggedIn()).catch(error =>
-      console.error('Erro ao configurar a sincronização:', error)
-    );
+    if (sessionKnown) {
+      await this.autoSync.apply(this.settings(), this.isPontomaisLoggedIn()).catch(error =>
+        console.error('Erro ao configurar a sincronização:', error)
+      );
+    }
 
     // Jornada e intervalo mudam o tempo restante e o fim do expediente: sem
     // recalcular aqui, as métricas ficariam nos valores antigos até a próxima

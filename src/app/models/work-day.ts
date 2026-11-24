@@ -25,3 +25,7 @@ export function todayLocalDate(now: Date = new Date()): string {
   const day = String(now.getDate()).padStart(2, '0');
   return `${now.getFullYear()}-${month}-${day}`;
 }
+
+export function isTodayLocal(date: string, now: Date = new Date()): boolean {
+  return date === todayLocalDate(now);
+}

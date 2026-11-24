@@ -122,18 +122,23 @@ pub fn modify_settings(
 ) -> Result<Settings, String> {
     let _guard = WRITE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let path = storage::app_data_file(app, SETTINGS_FILE)?;
+    modify_settings_at(&path, change)
+}
 
-    let mut settings = storage::read_json::<Settings>(&path).unwrap_or_else(|e| {
-        eprintln!("[settings] {}; partindo do padrão", e);
-        None
-    })
-    .unwrap_or_default()
-    .normalized();
+fn modify_settings_at(
+    path: &std::path::Path,
+    change: impl FnOnce(&mut Settings) -> Result<(), String>,
+) -> Result<Settings, String> {
+    let mut settings = storage::read_json::<Settings>(path)?
+        .unwrap_or_default()
+        .normalized();
 
     change(&mut settings)?;
-    storage::write_json_atomic(&path, &settings)?;
+    storage::write_json_atomic(path, &settings)?;
     Ok(settings)
 }
+
+const EXTERNAL_APP_KEY: &str = "externalApp";
 
 pub fn apply_patch(settings: &Settings, patch: Map<String, Value>) -> Result<Settings, String> {
     let mut value = serde_json::to_value(settings).map_err(|e| e.to_string())?;
@@ -144,6 +149,9 @@ pub fn apply_patch(settings: &Settings, patch: Map<String, Value>) -> Result<Set
     for (key, field) in patch {
         if !fields.contains_key(&key) {
             return Err(format!("Configuração desconhecida: {}", key));
+        }
+        if key == EXTERNAL_APP_KEY && !field.is_null() {
+            return Err("O aplicativo externo só pode ser escolhido pelo seletor.".to_string());
         }
         fields.insert(key, field);
     }
@@ -210,12 +218,58 @@ mod tests {
     }
 
     #[test]
-    fn nested_external_app_is_replaced_and_can_be_cleared() {
-        let app = json!({ "path": "C:/a.exe", "name": "A", "exec": "C:/a.exe", "args": [] });
-        let with_app = apply_patch(&Settings::default(), patch(json!({ "externalApp": app }))).unwrap();
-        assert_eq!(with_app.external_app.as_ref().unwrap().name, "A");
+    fn external_app_from_the_webview_is_rejected_but_can_be_cleared() {
+        let app = json!({ "path": "C:/a.hta", "name": "A", "exec": "C:/a.hta", "args": [] });
+        assert!(apply_patch(&Settings::default(), patch(json!({ "externalApp": app }))).is_err());
 
+        let with_app = Settings {
+            external_app: Some(ExternalApp {
+                path: "C:/a.exe".to_string(),
+                name: "A".to_string(),
+                exec: "C:/a.exe".to_string(),
+                args: Vec::new(),
+            }),
+            ..Settings::default()
+        };
         let cleared = apply_patch(&with_app, patch(json!({ "externalApp": null }))).unwrap();
         assert!(cleared.external_app.is_none());
+    }
+
+    fn settings_file(name: &str, contents: Option<&str>) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("noponto-settings-{}-{}", name, std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(SETTINGS_FILE);
+        if let Some(contents) = contents {
+            std::fs::write(&path, contents).unwrap();
+        }
+        path
+    }
+
+    #[test]
+    fn corrupt_settings_are_not_overwritten_with_defaults() {
+        let path = settings_file("corrupt", Some(r#"{ "pontomaisLogin": "a@x.com", "alarmVolume": "#));
+
+        let result = modify_settings_at(&path, |settings| {
+            settings.alarm_enabled = true;
+            Ok(())
+        });
+
+        assert!(result.is_err());
+        assert!(std::fs::read_to_string(&path).unwrap().contains("a@x.com"));
+    }
+
+    #[test]
+    fn missing_settings_start_from_defaults() {
+        let path = settings_file("missing", None);
+
+        let saved = modify_settings_at(&path, |settings| {
+            settings.alarm_enabled = true;
+            Ok(())
+        })
+        .unwrap();
+
+        assert!(saved.alarm_enabled);
+        assert_eq!(saved.alarm_volume, DEFAULT_ALARM_VOLUME);
     }
 }
